@@ -2,6 +2,7 @@
 
 import { headers } from "next/headers";
 import { supabaseServer } from "@/lib/supabase/server";
+import { siteUrl } from "@/lib/workspace";
 
 export type LoginState = { status: "idle" | "sent" | "error"; message?: string };
 
@@ -31,7 +32,7 @@ export async function sendMagicLink(
 
   // Návratovou adresu odvozujeme z požadavku, ne z pevné konstanty — jinak by
   // odkaz z produkce vedl na localhost a naopak.
-  const origin = process.env.NEXT_PUBLIC_SITE_URL || (await originFromRequest());
+  const origin = siteUrl() || (await originFromRequest());
 
   const { error } = await supabase.auth.signInWithOtp({
     email,

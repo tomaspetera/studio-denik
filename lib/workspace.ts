@@ -3,6 +3,18 @@ import "server-only";
 import { supabaseServer } from "./supabase/server";
 
 /**
+ * Veřejná adresa aplikace, pokud je nastavená.
+ *
+ * Vrací prázdný řetězec, když proměnná chybí, je prázdná nebo obsahuje jen
+ * mezery — volající se pak spolehne na adresu z požadavku, respektive na
+ * `window.location.origin` v prohlížeči. Díky tomu odkaz z e-mailu míří na
+ * localhost při vývoji a na produkci v produkci, aniž by se něco přepínalo.
+ */
+export function siteUrl(): string {
+  return (process.env.NEXT_PUBLIC_SITE_URL ?? "").trim();
+}
+
+/**
  * Stav pracovního prostoru přihlášeného člověka.
  *
  * `schema-missing` znamená, že v databázi ještě neproběhla migrace — appka

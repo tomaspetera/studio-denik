@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { getWorkspace } from "@/lib/workspace";
+import { getWorkspace, siteUrl } from "@/lib/workspace";
 import { collectReport, loadReport } from "@/lib/report";
 import { availableProviders } from "@/lib/ai";
 import ReportView from "./ReportView";
@@ -47,7 +47,7 @@ export default async function ReportPage() {
       stored={stored}
       providers={availableProviders()}
       org={{ name: ws.orgName, email: ws.email }}
-      siteUrl={process.env.NEXT_PUBLIC_SITE_URL ?? ""}
+      siteUrl={siteUrl()}
     />
   );
 }
