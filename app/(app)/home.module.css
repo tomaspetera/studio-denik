@@ -1,0 +1,359 @@
+.wrap { max-width: 1160px; margin: 0 auto; }
+
+.head {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--s5);
+  flex-wrap: wrap;
+  margin-bottom: var(--s5);
+}
+
+.h1 {
+  font-family: var(--ui-d);
+  font-size: 26px;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  line-height: 1.2;
+}
+
+.sub {
+  font-family: var(--ui-s);
+  font-size: 12.5px;
+  color: var(--faint);
+  margin: 4px 0 0;
+}
+
+.spacer { margin-left: auto; }
+
+/* ---------------------------------------------------------------- */
+/* Prázdný stav                                                      */
+/* ---------------------------------------------------------------- */
+
+.hero {
+  background: var(--grad);
+  border: 1px solid var(--line);
+  border-radius: var(--r3);
+  box-shadow: var(--sh-2);
+  padding: var(--s7) var(--s6);
+  text-align: center;
+  animation: enter 0.3s var(--ease);
+}
+
+.heroTitle {
+  font-family: var(--ui-d);
+  font-size: 28px;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  line-height: 1.2;
+  margin: var(--s3) 0 0;
+  text-wrap: balance;
+}
+
+.heroLead {
+  font-size: 15px;
+  color: var(--muted);
+  line-height: 1.65;
+  margin: var(--s4) auto var(--s5);
+  max-width: 56ch;
+}
+
+/* ---------------------------------------------------------------- */
+/* Pruh čísel                                                        */
+/* ---------------------------------------------------------------- */
+
+.strip {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  border: 1px solid var(--line);
+  border-radius: var(--r3);
+  overflow: hidden;
+  margin-bottom: var(--s5);
+  box-shadow: var(--sh-2);
+}
+
+.tile {
+  padding: var(--s4) var(--s5);
+  border-left: 1px solid var(--line);
+  background: var(--grad);
+  display: flex;
+  flex-direction: column;
+  transition: background 0.18s var(--ease), box-shadow 0.18s var(--ease);
+}
+.tile:first-child { border-left: 0; }
+.tile:hover {
+  background: var(--grad-raise);
+  box-shadow: inset 0 -2px 0 0 var(--tone);
+}
+
+.tileLabel {
+  font-family: var(--ui-s);
+  font-size: 11.5px;
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.tileValue {
+  font-family: var(--mono);
+  font-size: 32px;
+  font-weight: 600;
+  letter-spacing: -0.04em;
+  line-height: 1.1;
+  margin-top: var(--s2);
+  color: var(--tone);
+  font-variant-numeric: tabular-nums;
+}
+
+.tileHint {
+  font-family: var(--ui-s);
+  font-size: 11.5px;
+  color: var(--faint);
+  margin-top: 3px;
+}
+
+/* ---------------------------------------------------------------- */
+/* Panely                                                            */
+/* ---------------------------------------------------------------- */
+
+.cols {
+  display: grid;
+  grid-template-columns: 1.25fr 1fr;
+  gap: var(--s5);
+  align-items: start;
+}
+
+.panelHead {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  padding: var(--s4) var(--s5);
+  border-bottom: 1px solid var(--line);
+  background: var(--grad-raise);
+  border-radius: var(--r3) var(--r3) 0 0;
+}
+.panelHead h2 {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  margin: 0;
+}
+
+.note {
+  font-family: var(--ui-s);
+  font-size: 11.5px;
+  color: var(--faint);
+  margin-left: auto;
+}
+
+.list { list-style: none; margin: 0; padding: 0; }
+.list li {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--s3) var(--s5);
+  border-bottom: 1px solid var(--line);
+  position: relative;
+  transition: background 0.15s;
+}
+.list li:last-child { border-bottom: 0; }
+.list li:hover { background: var(--raise); }
+
+.itemTitle {
+  font-size: 13.5px;
+  font-weight: 500;
+  line-height: 1.35;
+  padding-right: 110px;
+}
+
+.itemSub {
+  font-family: var(--ui-s);
+  font-size: 11.5px;
+  color: var(--faint);
+}
+
+.itemRight {
+  position: absolute;
+  right: var(--s5);
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.panelFoot {
+  padding: var(--s3) var(--s5);
+  border-top: 1px solid var(--line);
+  background: var(--grad-sunk);
+  border-radius: 0 0 var(--r3) var(--r3);
+}
+
+.blank {
+  padding: var(--s6) var(--s5);
+  text-align: center;
+  color: var(--faint);
+  font-size: 13px;
+  margin: 0;
+}
+
+/* ---------------------------------------------------------------- */
+/* Podíl míče                                                        */
+/* ---------------------------------------------------------------- */
+
+.share { padding: var(--s5); }
+
+.shareBar {
+  display: flex;
+  height: 8px;
+  border-radius: var(--r4);
+  overflow: hidden;
+  gap: 2px;
+}
+.shareBar i {
+  background: var(--tone);
+  transition: flex-grow 0.4s var(--ease);
+}
+
+.shareKeys {
+  list-style: none;
+  margin: var(--s4) 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+.shareKeys li {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 6px 0;
+  font-size: 12.5px;
+  color: var(--ink-2);
+  border-bottom: 1px solid var(--line);
+}
+.shareKeys li:last-child { border-bottom: 0; }
+.shareKeys i {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  background: var(--tone);
+  flex: none;
+}
+.shareKeys em {
+  font-family: var(--ui-s);
+  font-style: normal;
+  font-size: 11.5px;
+  color: var(--faint);
+}
+.shareKeys b {
+  margin-left: auto;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------------------------------------------------------------- */
+/* Obrazovka „chybí databáze“ — bez skořápky, s vlastní hlavičkou     */
+/* ---------------------------------------------------------------- */
+
+.setupStage { min-height: 100dvh; display: flex; flex-direction: column; }
+
+.setupTop {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  padding: 0 var(--s6);
+  height: 62px;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface);
+}
+
+.setupBrand {
+  font-family: var(--ui-d);
+  font-weight: 600;
+  font-size: 14.5px;
+  letter-spacing: -0.02em;
+}
+
+.setupMail {
+  font-family: var(--ui-s);
+  font-size: 12.5px;
+  color: var(--muted);
+}
+
+.setupBody {
+  flex: 1;
+  display: grid;
+  place-items: start center;
+  padding: var(--s7) var(--s5) var(--s8);
+}
+
+.setupCard {
+  width: 100%;
+  max-width: 620px;
+  background: var(--grad);
+  border: 1px solid var(--line);
+  border-radius: var(--r3);
+  box-shadow: var(--sh-3);
+  padding: var(--s6);
+  animation: enter 0.35s var(--ease);
+}
+
+.steps {
+  list-style: none;
+  margin: var(--s5) 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  counter-reset: step;
+}
+.steps li {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: var(--s3) 0 var(--s3) var(--s5);
+  border-top: 1px solid var(--line);
+  position: relative;
+  counter-increment: step;
+}
+.steps li::before {
+  content: counter(step);
+  position: absolute;
+  left: 0;
+  top: var(--s3);
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--accent);
+}
+.steps b { font-size: 13.5px; font-weight: 600; }
+.steps span {
+  font-family: var(--ui-s);
+  font-size: 12.5px;
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+.detail {
+  margin: var(--s5) 0 0;
+  padding: 10px 13px;
+  border-radius: var(--r2);
+  background: var(--sunk);
+  border: 1px solid var(--line);
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--muted);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+/* ---------------------------------------------------------------- */
+/* Mobil                                                             */
+/* ---------------------------------------------------------------- */
+
+@media (max-width: 900px) {
+  .strip { grid-template-columns: repeat(2, 1fr); }
+  .tile:nth-child(3) { border-left: 0; }
+  .tile:nth-child(n + 3) { border-top: 1px solid var(--line); }
+  .cols { grid-template-columns: 1fr; }
+  .setupTop { padding: 0 var(--s4); }
+  .setupMail { display: none; }
+  .itemTitle { padding-right: 0; }
+  .itemRight { position: static; transform: none; margin-top: 4px; align-self: flex-start; }
+}

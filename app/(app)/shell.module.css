@@ -1,0 +1,281 @@
+.app {
+  display: grid;
+  grid-template-columns: 236px 1fr;
+  min-height: 100dvh;
+}
+
+/* ---------------------------------------------------------------- */
+/* Levá lišta                                                        */
+/* ---------------------------------------------------------------- */
+
+.rail {
+  background: var(--surface);
+  border-right: 1px solid var(--line);
+  padding: 22px 14px;
+  position: sticky;
+  top: 0;
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 0 8px var(--s6);
+}
+
+.mark {
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  background: var(--ink);
+}
+.mark svg { width: 17px; height: 17px; stroke: var(--surface); }
+
+.brandName {
+  display: block;
+  font-family: var(--ui-d);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  font-size: 15px;
+  line-height: 1.2;
+}
+.brandSub {
+  display: block;
+  font-family: var(--ui-s);
+  font-size: 11px;
+  color: var(--faint);
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 150px;
+}
+
+.nav {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.nav + .nav { margin-top: var(--s5); }
+
+.navHead {
+  font-family: var(--ui-s);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--faint);
+  padding: 0 10px var(--s2);
+  font-weight: 700;
+}
+
+.navbtn {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 8px 10px;
+  border-radius: var(--r2);
+  color: var(--ink-2);
+  text-decoration: none;
+  font-size: 13.5px;
+  font-weight: 500;
+  transition: background 0.15s var(--ease), color 0.15s;
+}
+.navbtn svg {
+  width: 17px;
+  height: 17px;
+  flex: none;
+  stroke: currentColor;
+}
+.navbtn:hover { background: var(--raise); color: var(--ink); }
+.navOn { background: var(--sunk); color: var(--ink); font-weight: 600; }
+
+.foot {
+  margin-top: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s1);
+}
+
+.who {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px;
+  border-top: 1px solid var(--line);
+  min-width: 0;
+}
+
+.avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  flex: none;
+  display: grid;
+  place-items: center;
+  font-size: 10.5px;
+  font-weight: 700;
+  background: var(--sunk);
+  color: var(--ink-2);
+}
+
+.whoText { min-width: 0; display: flex; flex-direction: column; }
+.whoName {
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 1.25;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.whoMail {
+  font-family: var(--ui-s);
+  font-size: 11px;
+  color: var(--faint);
+  line-height: 1.25;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.signout {
+  width: 100%;
+  text-align: left;
+  padding: 7px 10px;
+  border: 0;
+  background: transparent;
+  border-radius: var(--r2);
+  color: var(--muted);
+  font-size: 12.5px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.signout:hover { background: var(--raise); color: var(--ink); }
+
+/* ---------------------------------------------------------------- */
+/* Obsah                                                             */
+/* ---------------------------------------------------------------- */
+
+.main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.top {
+  height: 62px;
+  border-bottom: 1px solid var(--line);
+  background: color-mix(in srgb, var(--paper) 85%, transparent);
+  backdrop-filter: saturate(1.4) blur(12px);
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  padding: 0 var(--s6);
+}
+
+.topIn {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  width: 100%;
+  max-width: 1160px;
+  margin: 0 auto;
+}
+
+.spacer { margin-left: auto; }
+
+.view {
+  padding: var(--s6);
+}
+
+/* ---------------------------------------------------------------- */
+/* Mobil — lišta jde dolů                                            */
+/* ---------------------------------------------------------------- */
+
+@media (max-width: 820px) {
+  .app { grid-template-columns: 1fr; }
+
+  .rail {
+    position: fixed;
+    bottom: 0;
+    top: auto;
+    left: 0;
+    right: 0;
+    height: auto;
+    z-index: 60;
+    flex-direction: row;
+    border-right: 0;
+    border-top: 1px solid var(--line);
+    padding: 6px;
+    gap: 2px;
+    background: color-mix(in srgb, var(--surface) 94%, transparent);
+    backdrop-filter: blur(14px);
+  }
+
+  .brand, .navHead, .foot { display: none; }
+
+  /* Obě skupiny se rozpustí, aby si všech pět tlačítek dělilo šířku rovným
+     dílem — jinak by si je dvě skupiny rozdělily napůl. */
+  .nav { display: contents; }
+
+  .navbtn {
+    flex: 1 1 0;
+    min-width: 0;
+    flex-direction: column;
+    gap: 4px;
+    font-size: 10px;
+    padding: 7px 2px;
+    align-items: center;
+    justify-content: center;
+  }
+  .navbtn span {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .navbtn svg { width: 19px; height: 19px; }
+
+  .main { padding-bottom: 70px; }
+  .top { padding: 0 var(--s4); height: 56px; }
+  .view { padding: var(--s4); }
+}
+
+/* ---------------------------------------------------------------- */
+/* Přepínač motivu                                                   */
+/* ---------------------------------------------------------------- */
+/* Ikonu vybírá CSS, ne JavaScript — motiv je nastavený už v hlavičce
+   dokumentu, takže by komponenta při připojení jen problikla.       */
+
+.themeBtn { width: 34px; padding: 0; }
+
+.iconSun { display: none; }
+.iconMoon { display: block; }
+
+@media (prefers-color-scheme: dark) {
+  :global(:root:not([data-theme="light"])) .iconSun { display: block; }
+  :global(:root:not([data-theme="light"])) .iconMoon { display: none; }
+}
+
+:global(:root[data-theme="dark"]) .iconSun { display: block; }
+:global(:root[data-theme="dark"]) .iconMoon { display: none; }
+:global(:root[data-theme="light"]) .iconSun { display: none; }
+:global(:root[data-theme="light"]) .iconMoon { display: block; }
+
+/* ---------------------------------------------------------------- */
+/* Tisk — zůstane jen obsah                                          */
+/* ---------------------------------------------------------------- */
+
+@media print {
+  .app { display: block; }
+  .rail, .top { display: none !important; }
+  .main { padding: 0; }
+  .view { padding: 0; }
+}

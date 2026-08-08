@@ -1,0 +1,1540 @@
+<title>Studio Deník — prototyp</title>
+<style>
+/* ============================================================
+   1 · TOKENY
+   ============================================================ */
+:root{
+  /* povrchy — porcelán se zeleným nádechem */
+  --paper:#F0F2EF;
+  --surface:#FFFFFF;
+  --raise:#F7F9F7;
+  --sunk:#E7EBE7;
+  --sheet:#FFFFFF;
+
+  /* text */
+  --ink:#12171A;
+  --ink-2:#404E52;
+  --muted:#6B7B7F;
+  --faint:#96A4A6;
+
+  /* linky */
+  --line:#E1E6E2;
+  --line-2:#CBD3CE;
+
+  /* jediný akcent */
+  --accent:#0A6E80;
+  --accent-ink:#FFFFFF;
+  --accent-soft:#E0EFF2;
+
+  /* stavy — tlumené, ne zvýrazňovač */
+  --me:#0A6E80;        --me-soft:#E0EFF2;
+  --client:#8A6A1F;    --client-soft:#F4EEDE;
+  --supplier:#7D3A63;  --supplier-soft:#F3E7EF;
+  --done:#3F6B52;      --done-soft:#E4EDE7;
+  --alarm:#A8402F;     --alarm-soft:#F7E7E3;
+
+  /* podstínování — přechod plochy, vlasová horní hrana, vrstvené stíny */
+  --grad:linear-gradient(180deg,#FFFFFF 0%,#F8FAF8 100%);
+  --grad-raise:linear-gradient(180deg,#FBFCFB 0%,#F2F5F2 100%);
+  --grad-sunk:linear-gradient(180deg,#E9EDE9 0%,#EFF2EF 100%);
+  --hair:inset 0 1px 0 rgba(255,255,255,.92);
+  --ring:inset 0 0 0 1px rgba(20,28,31,.045);
+  --sh-1:var(--hair), 0 1px 1px rgba(20,28,31,.05), 0 2px 4px -2px rgba(20,28,31,.07);
+  --sh-2:var(--hair), 0 1px 2px rgba(20,28,31,.05), 0 4px 10px -4px rgba(20,28,31,.10), 0 14px 30px -14px rgba(20,28,31,.14);
+  --sh-3:var(--hair), 0 2px 4px rgba(20,28,31,.06), 0 10px 22px -8px rgba(20,28,31,.14), 0 28px 60px -22px rgba(20,28,31,.22);
+  --sh-4:var(--hair), 0 4px 8px rgba(20,28,31,.07), 0 18px 40px -12px rgba(20,28,31,.18), 0 52px 110px -34px rgba(20,28,31,.34);
+
+  /* rozestupy */
+  --s1:4px; --s2:8px; --s3:12px; --s4:16px; --s5:24px; --s6:32px; --s7:48px; --s8:64px;
+  --r1:6px; --r2:10px; --r3:14px; --r4:999px;
+
+  /* písmo — bezpatkové, žádný externí request
+     Satoshi drží velké stupně, General Sans je klidný pracant na text    */
+  --ui-d:"Satoshi","General Sans","Plus Jakarta Sans","Segoe UI Variable Display",
+         -apple-system,BlinkMacSystemFont,system-ui,"Helvetica Neue",sans-serif;
+  --ui:"General Sans","Plus Jakarta Sans","Segoe UI Variable Text",
+       -apple-system,BlinkMacSystemFont,system-ui,"Helvetica Neue",sans-serif;
+  --ui-s:"General Sans","Plus Jakarta Sans","Segoe UI Variable Small",
+         -apple-system,BlinkMacSystemFont,system-ui,sans-serif;
+  --doc:var(--ui);
+  --doc-d:var(--ui-d);
+  --mono:"Cascadia Mono",Consolas,ui-monospace,SFMono-Regular,"SF Mono",monospace;
+  --ease:cubic-bezier(.2,.7,.3,1);
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --paper:#0A0D0F; --surface:#13181A; --raise:#191F21; --sunk:#0E1214; --sheet:#161B1E;
+    --ink:#E6EBE8; --ink-2:#AFBCB9; --muted:#7B8A8D; --faint:#5F6E71;
+    --line:#212A2C; --line-2:#313D3E;
+    --accent:#57B7C8; --accent-ink:#04161A; --accent-soft:#0C2C33;
+    --me:#57B7C8;      --me-soft:#0C2C33;
+    --client:#C49A4D;  --client-soft:#2B2312;
+    --supplier:#BE83A6; --supplier-soft:#2C1826;
+    --done:#6EA98A;    --done-soft:#132A1F;
+    --alarm:#D2705C;   --alarm-soft:#2E1713;
+    --grad:linear-gradient(180deg,#181E21 0%,#12181A 100%);
+    --grad-raise:linear-gradient(180deg,#1E2528 0%,#171E20 100%);
+    --grad-sunk:linear-gradient(180deg,#0D1113 0%,#111618 100%);
+    --hair:inset 0 1px 0 rgba(255,255,255,.055);
+    --ring:inset 0 0 0 1px rgba(255,255,255,.03);
+    --sh-1:var(--hair), 0 1px 2px rgba(0,0,0,.4);
+    --sh-2:var(--hair), 0 2px 6px -2px rgba(0,0,0,.5), 0 10px 24px -14px rgba(0,0,0,.7);
+    --sh-3:var(--hair), 0 4px 12px -4px rgba(0,0,0,.55), 0 26px 58px -20px rgba(0,0,0,.75);
+    --sh-4:var(--hair), 0 8px 20px -6px rgba(0,0,0,.6), 0 50px 100px -30px rgba(0,0,0,.85);
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#0A0D0F; --surface:#13181A; --raise:#191F21; --sunk:#0E1214; --sheet:#161B1E;
+  --ink:#E6EBE8; --ink-2:#AFBCB9; --muted:#7B8A8D; --faint:#5F6E71;
+  --line:#212A2C; --line-2:#313D3E;
+  --accent:#57B7C8; --accent-ink:#04161A; --accent-soft:#0C2C33;
+  --me:#57B7C8; --me-soft:#0C2C33; --client:#C49A4D; --client-soft:#2B2312;
+  --supplier:#BE83A6; --supplier-soft:#2C1826; --done:#6EA98A; --done-soft:#132A1F;
+  --alarm:#D2705C; --alarm-soft:#2E1713;
+  --grad:linear-gradient(180deg,#181E21 0%,#12181A 100%);
+  --grad-raise:linear-gradient(180deg,#1E2528 0%,#171E20 100%);
+  --grad-sunk:linear-gradient(180deg,#0D1113 0%,#111618 100%);
+  --hair:inset 0 1px 0 rgba(255,255,255,.055);
+  --ring:inset 0 0 0 1px rgba(255,255,255,.03);
+  --sh-1:var(--hair), 0 1px 2px rgba(0,0,0,.4);
+  --sh-2:var(--hair), 0 2px 6px -2px rgba(0,0,0,.5), 0 10px 24px -14px rgba(0,0,0,.7);
+  --sh-3:var(--hair), 0 4px 12px -4px rgba(0,0,0,.55), 0 26px 58px -20px rgba(0,0,0,.75);
+  --sh-4:var(--hair), 0 8px 20px -6px rgba(0,0,0,.6), 0 50px 100px -30px rgba(0,0,0,.85);
+}
+:root[data-theme="light"]{
+  --paper:#F0F2EF; --surface:#FFFFFF; --raise:#F7F9F7; --sunk:#E7EBE7; --sheet:#FFFFFF;
+  --ink:#12171A; --ink-2:#404E52; --muted:#6B7B7F; --faint:#96A4A6;
+  --line:#E1E6E2; --line-2:#CBD3CE;
+  --accent:#0A6E80; --accent-ink:#FFFFFF; --accent-soft:#E0EFF2;
+  --me:#0A6E80; --me-soft:#E0EFF2; --client:#8A6A1F; --client-soft:#F4EEDE;
+  --supplier:#7D3A63; --supplier-soft:#F3E7EF; --done:#3F6B52; --done-soft:#E4EDE7;
+  --alarm:#A8402F; --alarm-soft:#F7E7E3;
+  --grad:linear-gradient(180deg,#FFFFFF 0%,#F8FAF8 100%);
+  --grad-raise:linear-gradient(180deg,#FBFCFB 0%,#F2F5F2 100%);
+  --grad-sunk:linear-gradient(180deg,#E9EDE9 0%,#EFF2EF 100%);
+  --hair:inset 0 1px 0 rgba(255,255,255,.92);
+  --ring:inset 0 0 0 1px rgba(20,28,31,.045);
+  --sh-1:var(--hair), 0 1px 1px rgba(20,28,31,.05), 0 2px 4px -2px rgba(20,28,31,.07);
+  --sh-2:var(--hair), 0 1px 2px rgba(20,28,31,.05), 0 4px 10px -4px rgba(20,28,31,.10), 0 14px 30px -14px rgba(20,28,31,.14);
+  --sh-3:var(--hair), 0 2px 4px rgba(20,28,31,.06), 0 10px 22px -8px rgba(20,28,31,.14), 0 28px 60px -22px rgba(20,28,31,.22);
+  --sh-4:var(--hair), 0 4px 8px rgba(20,28,31,.07), 0 18px 40px -12px rgba(20,28,31,.18), 0 52px 110px -34px rgba(20,28,31,.34);
+}
+
+*{box-sizing:border-box}
+body{margin:0; background:var(--paper); color:var(--ink); font-family:var(--ui);
+  font-size:14px; line-height:1.5; -webkit-font-smoothing:antialiased;
+  font-optical-sizing:auto; font-kerning:normal;
+  font-feature-settings:"kern" 1,"liga" 1,"calt" 1}
+button,input,textarea{font:inherit; color:inherit}
+
+/* velké stupně dostanou displejový řez a zápornější prostrkání */
+h1,h2,.sq .v,.nm b,.job-t,.cl-h b,.bc-h b,.dlg-h h2{font-family:var(--ui-d)}
+/* drobné popisky dostanou řez kreslený pro malé stupně */
+.nav-h,.brand-sub,.sec > h3,.group-h h3,.sq .k,.sq .d,.rows .m,.row-s,.job-c,.tl-c,
+.pal-g,.who-role,.sr p,.bc-h span,.wt span,.detail-meta,.rl span,.group-say,.key .ct,
+.topbar .sub,.panel-h .note,.tag,kbd{font-family:var(--ui-s)}
+:focus-visible{outline:2px solid var(--accent); outline-offset:2px; border-radius:4px}
+@media (prefers-reduced-motion: reduce){*,*::before,*::after{animation-duration:.001ms !important; transition-duration:.001ms !important}}
+
+.mono{font-family:var(--mono); font-variant-numeric:tabular-nums}
+.spacer{margin-left:auto}
+.wrap{max-width:1160px; margin:0 auto; width:100%}
+
+/* typografická škála */
+.t-eyebrow{font-size:10.5px; letter-spacing:.15em; text-transform:uppercase; font-weight:700; color:var(--faint)}
+.t-label{font-size:12px; color:var(--muted)}
+.t-body{font-size:14px}
+.t-lead{font-size:17px; line-height:1.5}
+
+/* ============================================================
+   2 · SKELET
+   ============================================================ */
+.app{display:grid; grid-template-columns:236px 1fr; min-height:100dvh}
+
+.rail{background:var(--surface); border-right:1px solid var(--line); padding:22px 14px;
+  position:sticky; top:0; height:100dvh; display:flex; flex-direction:column}
+.brand{display:flex; align-items:center; gap:11px; padding:0 8px var(--s6)}
+.brand-mark{width:32px; height:32px; border-radius:9px; flex:none; display:grid; place-items:center;
+  background:var(--ink)}
+.brand-mark svg{width:17px; height:17px; stroke:var(--surface); fill:none; stroke-width:2.2; stroke-linecap:round}
+.brand-name{font-weight:600; letter-spacing:-.02em; font-size:15px; line-height:1.2}
+.brand-sub{font-size:10.5px; color:var(--faint); letter-spacing:.08em; text-transform:uppercase; margin-top:2px}
+
+.nav{display:flex; flex-direction:column; gap:1px}
+.nav + .nav{margin-top:var(--s5)}
+.nav-h{font-size:10px; letter-spacing:.14em; text-transform:uppercase; color:var(--faint);
+  padding:0 10px var(--s2); font-weight:700}
+.navbtn{display:flex; align-items:center; gap:11px; width:100%; padding:8px 10px; border:0;
+  background:transparent; border-radius:var(--r2); color:var(--ink-2); cursor:pointer;
+  text-align:left; font-size:13.5px; font-weight:500; transition:background .15s var(--ease), color .15s}
+.navbtn svg{width:17px; height:17px; flex:none; stroke:currentColor; fill:none; stroke-width:1.55;
+  stroke-linecap:round; stroke-linejoin:round}
+.navbtn:hover{background:var(--raise); color:var(--ink)}
+.navbtn.is-on{background:var(--sunk); color:var(--ink); font-weight:600}
+.navbtn .dot-alert{width:6px; height:6px; border-radius:50%; background:var(--alarm); margin-left:auto; flex:none}
+
+.rail-foot{margin-top:auto; display:flex; flex-direction:column; gap:var(--s1)}
+.kbd-hint{display:flex; align-items:center; gap:8px; padding:8px 10px; border-radius:var(--r2);
+  font-size:11.5px; color:var(--muted); cursor:pointer; border:0; background:transparent; width:100%;
+  transition:background .15s}
+.kbd-hint:hover{background:var(--raise)}
+kbd{font-family:var(--mono); font-size:10px; background:var(--raise); border:1px solid var(--line-2);
+  border-radius:4px; padding:2px 5px; color:var(--ink-2); font-weight:600; line-height:1}
+.who{display:flex; align-items:center; gap:10px; padding:10px; border-top:1px solid var(--line); margin-top:var(--s2)}
+.avatar{width:28px; height:28px; border-radius:50%; flex:none; display:grid; place-items:center;
+  font-size:10.5px; font-weight:700; background:var(--sunk); color:var(--ink-2)}
+.who-name{font-size:12.5px; font-weight:600; line-height:1.25}
+.who-role{font-size:11px; color:var(--faint); line-height:1.25}
+
+.main{display:flex; flex-direction:column; min-width:0}
+.topbar{display:flex; align-items:center; gap:var(--s3); padding:0 var(--s6); height:62px;
+  border-bottom:1px solid var(--line); background:color-mix(in srgb, var(--paper) 85%, transparent);
+  backdrop-filter:saturate(1.4) blur(12px); position:sticky; top:0; z-index:30}
+.topbar-in{display:flex; align-items:center; gap:var(--s3); width:100%; max-width:1160px; margin:0 auto}
+.topbar h1{font-size:19px; font-weight:600; margin:0; letter-spacing:-.025em; line-height:1.2}
+.topbar .sub{font-size:11.5px; color:var(--faint); font-family:var(--mono); margin-top:2px}
+
+.search{display:flex; align-items:center; gap:8px; padding:0 13px; height:34px; border-radius:var(--r4);
+  border:1px solid var(--line); background:var(--surface); width:230px; transition:border-color .15s, width .2s var(--ease)}
+.search:focus-within{border-color:var(--accent); width:280px}
+.search svg{width:15px; height:15px; stroke:var(--faint); fill:none; stroke-width:1.8; flex:none}
+.search input{border:0; background:transparent; outline:0; width:100%; font-size:13px}
+.search input::placeholder{color:var(--faint)}
+
+.btn{display:inline-flex; align-items:center; justify-content:center; gap:7px; height:34px; padding:0 14px;
+  border-radius:var(--r2); border:1px solid var(--line-2); background:var(--grad); cursor:pointer;
+  font-size:13px; font-weight:500; color:var(--ink); white-space:nowrap; box-shadow:var(--sh-1);
+  transition:background .15s var(--ease), border-color .15s, box-shadow .15s, transform .1s}
+.btn:hover{background:var(--grad-raise); border-color:var(--muted); box-shadow:var(--sh-2)}
+.btn:active{transform:translateY(1px); box-shadow:inset 0 2px 4px rgba(20,28,31,.12)}
+.btn svg{width:15px; height:15px; stroke:currentColor; fill:none; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; flex:none}
+.btn-primary{background:var(--ink); border-color:var(--ink); color:var(--paper);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.13), var(--sh-2)}
+.btn-primary:hover{background:var(--ink); border-color:var(--ink); filter:brightness(1.28);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.16), var(--sh-3)}
+.btn-ghost{border-color:transparent; background:transparent; box-shadow:none}
+.btn-ghost:hover{background:var(--grad-raise); border-color:transparent; box-shadow:var(--sh-1)}
+.btn-sm{height:27px; padding:0 10px; font-size:12px}
+.btn-icon{width:34px; padding:0}
+
+.view{display:none; padding:var(--s6) var(--s6) var(--s8)}
+.view.is-on{display:block; animation:enter .3s var(--ease)}
+@keyframes enter{from{opacity:0; transform:translateY(8px)} to{opacity:1; transform:none}}
+
+/* ============================================================
+   3 · SDÍLENÉ
+   ============================================================ */
+.panel{background:var(--grad); border:1px solid var(--line); border-radius:var(--r3);
+  box-shadow:var(--sh-2)}
+.panel-h{display:flex; align-items:center; gap:var(--s3); padding:var(--s4) var(--s5);
+  border-bottom:1px solid var(--line); background:var(--grad-raise);
+  border-radius:var(--r3) var(--r3) 0 0}
+.panel-h h2{margin:0; font-size:13px; font-weight:600; letter-spacing:-.005em}
+.panel-h .note{font-size:11.5px; color:var(--faint); margin-left:auto}
+
+.state{display:inline-flex; align-items:center; gap:6px; font-size:12px; font-weight:600; color:var(--tone); white-space:nowrap}
+.state::before{content:""; width:7px; height:7px; border-radius:50%; background:var(--tone); flex:none}
+.pill{display:inline-flex; align-items:center; gap:6px; padding:3px 10px; border-radius:var(--r4);
+  font-size:11.5px; font-weight:600; background:var(--tone-soft); color:var(--tone); white-space:nowrap}
+.o-me{--tone:var(--me); --tone-soft:var(--me-soft)}
+.o-client{--tone:var(--client); --tone-soft:var(--client-soft)}
+.o-supplier{--tone:var(--supplier); --tone-soft:var(--supplier-soft)}
+.o-done{--tone:var(--done); --tone-soft:var(--done-soft)}
+.o-alarm{--tone:var(--alarm); --tone-soft:var(--alarm-soft)}
+.o-flat{--tone:var(--muted); --tone-soft:var(--sunk)}
+
+/* ============================================================
+   4 · DNES
+   ============================================================ */
+.hero{display:grid; grid-template-columns:1fr auto; gap:var(--s5); align-items:end;
+  padding:var(--s6) 0 var(--s6); border-bottom:1px solid var(--line); margin-bottom:var(--s5)}
+.hero-k{display:flex; align-items:center; gap:9px; margin-bottom:var(--s3)}
+.hero-t{font-family:var(--doc-d); font-size:29px; font-weight:600; letter-spacing:-.028em;
+  line-height:1.26; text-wrap:balance; max-width:24ch}
+.hero-d{font-size:14px; color:var(--muted); margin-top:var(--s3); line-height:1.6; max-width:58ch}
+.hero-acts{display:flex; gap:var(--s2); flex-wrap:wrap}
+
+/* pruh čísel — jeden řádek místo čtyř karet */
+.strip{display:grid; grid-template-columns:repeat(4,1fr); border:1px solid var(--line);
+  border-radius:var(--r3); overflow:hidden; margin-bottom:var(--s5); box-shadow:var(--sh-2)}
+.sq{padding:var(--s4) var(--s5); border-left:1px solid var(--line); cursor:pointer;
+  transition:background .18s var(--ease), box-shadow .18s var(--ease); position:relative;
+  background:var(--grad)}
+.sq:first-child{border-left:0}
+/* světlo dopadá shora zleva — buňka se při najetí rozsvítí a odsadí */
+.sq:hover{background:var(--grad-raise); box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--tone) 22%,transparent),
+  inset 0 -2px 0 0 var(--tone)}
+.sq .k{font-size:11.5px; color:var(--muted); font-weight:500}
+.sq .v{font-family:var(--mono); font-size:32px; font-weight:600; letter-spacing:-.04em;
+  line-height:1.1; margin-top:var(--s2); color:var(--tone)}
+.sq .d{font-size:11.5px; color:var(--faint); margin-top:3px}
+
+.cols{display:grid; grid-template-columns:1.25fr 1fr; gap:var(--s5); align-items:start}
+.stack{display:flex; flex-direction:column; gap:var(--s5)}
+
+.rows{list-style:none; margin:0; padding:0}
+.rows li{display:flex; align-items:center; gap:var(--s3); padding:var(--s3) var(--s5);
+  border-bottom:1px solid var(--line); transition:background .15s}
+.rows li:last-child{border-bottom:0}
+.rows li:hover{background:var(--raise)}
+.rows .t{font-size:13.5px; font-weight:500; line-height:1.35}
+.rows .m{font-size:11.5px; color:var(--faint); margin-top:2px}
+.rows .rt{margin-left:auto; flex:none; display:flex; align-items:center; gap:var(--s2)}
+.clock{font-family:var(--mono); font-size:11.5px; font-weight:600; color:var(--ink-2);
+  background:var(--sunk); padding:4px 8px; border-radius:var(--r1); flex:none; min-width:58px; text-align:center}
+
+/* podíl míče */
+.share{padding:var(--s5)}
+.share-bar{display:flex; height:8px; border-radius:var(--r4); overflow:hidden; gap:2px}
+.share-bar i{background:var(--tone); transition:flex-grow .4s var(--ease); cursor:pointer}
+.share-bar i:hover{filter:brightness(1.15)}
+.share-keys{display:flex; flex-direction:column; gap:var(--s2); margin-top:var(--s4)}
+.share-key{display:flex; align-items:center; gap:9px; font-size:12.5px; color:var(--ink-2); cursor:pointer;
+  padding:3px 0; transition:color .15s}
+.share-key:hover{color:var(--ink)}
+.share-key i{width:8px; height:8px; border-radius:2px; background:var(--tone); flex:none}
+.share-key .n{margin-left:auto; font-family:var(--mono); font-size:12px; color:var(--muted)}
+
+/* sloupce po dnech */
+.week{display:flex; align-items:flex-end; gap:6px; height:74px; padding:var(--s5) var(--s5) 0}
+.wk{flex:1; display:flex; flex-direction:column; align-items:center; gap:6px; height:100%; justify-content:flex-end}
+.wk b{width:100%; background:var(--sunk); border-radius:3px; min-height:3px; display:block}
+.wk.today b{background:var(--accent)}
+.wk span{font-family:var(--mono); font-size:10.5px; color:var(--faint)}
+.week-x{display:flex; gap:6px; padding:var(--s2) var(--s5) var(--s5)}
+.week-x span{flex:1; text-align:center; font-size:10.5px; color:var(--faint)}
+.week-x span.today{color:var(--accent); font-weight:700}
+
+/* ============================================================
+   5 · ÚKOLY — hustý řádek ve skupinách
+   ============================================================ */
+.bar{display:flex; flex-wrap:wrap; gap:var(--s2); align-items:center; margin-bottom:var(--s5)}
+.fbtn{height:31px; padding:0 13px; border-radius:var(--r4); border:1px solid var(--line-2);
+  background:var(--surface); font-size:12.5px; cursor:pointer; color:var(--ink-2); font-weight:500;
+  display:inline-flex; align-items:center; gap:7px; transition:all .15s var(--ease)}
+.fbtn:hover{border-color:var(--muted)}
+.fbtn.is-on{background:var(--ink); border-color:var(--ink); color:var(--paper)}
+.fbtn .n{font-family:var(--mono); font-size:11px; opacity:.65}
+
+.group{margin-bottom:var(--s5)}
+.group.is-hidden{display:none}
+.group-h{display:flex; align-items:center; gap:10px; padding:9px var(--s3); cursor:pointer;
+  border:1px solid var(--line); border-radius:var(--r2); margin-bottom:var(--s2);
+  background:var(--grad-sunk); box-shadow:var(--sh-1); transition:box-shadow .15s var(--ease)}
+.group-h:hover{box-shadow:var(--sh-2)}
+.group-h i{width:8px; height:8px; border-radius:50%; background:var(--tone); flex:none}
+.group-h h3{margin:0; font-size:11.5px; letter-spacing:.1em; text-transform:uppercase;
+  font-weight:700; color:var(--tone)}
+.group-h .n{font-family:var(--mono); font-size:11.5px; color:var(--faint)}
+.group-h .cv{margin-left:auto; width:16px; height:16px; stroke:var(--faint); fill:none;
+  stroke-width:2; transition:transform .2s var(--ease)}
+.group.closed .cv{transform:rotate(-90deg)}
+.group.closed .group-list{display:none}
+.group-say{font-size:12px; color:var(--faint); font-weight:400; text-transform:none; letter-spacing:0}
+
+.group-list{display:flex; flex-direction:column}
+
+.row{display:grid; grid-template-columns:74px minmax(0,1fr) 150px 78px 30px;
+  gap:var(--s4); align-items:center; padding:11px var(--s3); border-bottom:1px solid var(--line);
+  cursor:pointer; border-radius:var(--r2); position:relative;
+  transition:background .16s var(--ease), box-shadow .16s var(--ease)}
+.row:hover{background:var(--grad); box-shadow:var(--sh-1); border-bottom-color:transparent}
+.row.is-hidden{display:none}
+/* rozbalený řádek splyne s detailem do jedné vyzdvižené desky */
+.row.open{background:var(--grad-raise); box-shadow:var(--sh-2); border-bottom-color:transparent;
+  border-radius:var(--r2) var(--r2) 0 0}
+.row.open::after{content:""; position:absolute; left:var(--s3); right:var(--s3); bottom:0;
+  height:1px; background:var(--line)}
+.row-t{font-size:14px; font-weight:500; letter-spacing:-.005em; line-height:1.35;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.row.done-t .row-t{color:var(--muted)}
+.row-s{font-size:11.5px; color:var(--faint); margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.row-cl{display:flex; align-items:center; gap:8px; font-size:12.5px; color:var(--ink-2);
+  min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.row-cl i{width:7px; height:7px; border-radius:2px; flex:none}
+.row-due{font-family:var(--mono); font-size:12px; color:var(--muted); text-align:right; white-space:nowrap}
+.row-due.late{color:var(--alarm); font-weight:600}
+.row-own{width:24px; height:24px; border-radius:50%; display:grid; place-items:center;
+  font-size:9px; font-weight:700; background:var(--sunk); color:var(--ink-2); justify-self:end}
+
+/* mini štafeta */
+.mini{display:flex; gap:2.5px; align-items:center}
+.mini i{height:5px; border-radius:var(--r4); background:var(--sunk); flex:1; transition:background .25s var(--ease)}
+.mini i.on{background:var(--tone)}
+.mini i.at{background:var(--tone); height:8px}
+
+/* rozbalený detail */
+.detail{padding:var(--s4) var(--s3) var(--s5) 100px; margin-bottom:var(--s2);
+  background:var(--grad-raise); box-shadow:var(--sh-2); border-radius:0 0 var(--r2) var(--r2);
+  display:none; animation:enter .22s var(--ease)}
+.detail.is-on{display:block}
+.relay{display:flex; gap:4px; margin-bottom:var(--s4); max-width:620px}
+.rl{flex:1; border:0; background:transparent; padding:0; cursor:pointer; display:flex;
+  flex-direction:column; gap:7px; min-width:0; text-align:left}
+.rl b{display:block; height:6px; border-radius:var(--r4); background:var(--sunk); transition:all .2s var(--ease)}
+.rl.on b{background:var(--tone)}
+.rl.at b{background:var(--tone); height:9px}
+.rl:hover b{filter:brightness(1.1); transform:scaleY(1.35)}
+.rl span{font-size:10.5px; color:var(--faint); line-height:1.25; white-space:nowrap;
+  overflow:hidden; text-overflow:ellipsis}
+.rl.at span{color:var(--tone); font-weight:700}
+.rl.on span{color:var(--muted)}
+.detail-acts{display:flex; align-items:center; gap:var(--s2); flex-wrap:wrap}
+.detail-meta{display:flex; gap:var(--s4); flex-wrap:wrap; margin-top:var(--s3);
+  font-size:12px; color:var(--faint)}
+.detail-meta b{color:var(--ink-2); font-weight:600}
+
+.blank{padding:var(--s8) var(--s5); text-align:center; color:var(--faint)}
+.blank strong{display:block; color:var(--ink-2); font-size:15px; margin-bottom:5px; font-weight:600}
+
+/* ============================================================
+   6 · TISK
+   ============================================================ */
+.jobs{display:grid; grid-template-columns:repeat(auto-fill,minmax(330px,1fr)); gap:var(--s4)}
+.job{background:var(--grad); border:1px solid var(--line); border-radius:var(--r3); overflow:hidden;
+  box-shadow:var(--sh-1); transition:border-color .18s, box-shadow .18s var(--ease), transform .18s var(--ease)}
+.job:hover{border-color:var(--line-2); box-shadow:var(--sh-3); transform:translateY(-2px)}
+.job.late{border-color:color-mix(in srgb,var(--alarm) 32%,var(--line))}
+.job-h{padding:var(--s4) var(--s5) var(--s3); display:flex; align-items:flex-start; gap:var(--s3)}
+.job-c{font-family:var(--mono); font-size:10px; color:var(--faint); letter-spacing:.08em}
+.job-t{font-size:15px; font-weight:600; letter-spacing:-.018em; margin-top:4px; line-height:1.3}
+.job-s{font-size:12px; color:var(--muted); margin-top:4px}
+.job-b{padding:0 var(--s5) var(--s4)}
+.tl{display:flex; align-items:flex-start; margin:var(--s3) 0 var(--s4)}
+.tl-n{display:flex; flex-direction:column; align-items:center; gap:7px; flex:none; width:64px}
+.tl-d{width:11px; height:11px; border-radius:50%; border:2px solid var(--line-2); background:var(--surface)}
+.tl-d.on{background:var(--done); border-color:var(--done)}
+.tl-d.now{border-color:var(--tone); background:var(--tone); box-shadow:0 0 0 4px var(--tone-soft)}
+.tl-c{font-size:10px; color:var(--muted); text-align:center; line-height:1.3}
+.tl-t{font-family:var(--mono); font-size:10.5px; color:var(--ink-2)}
+.tl-l{flex:1; height:2px; background:var(--line-2); margin-top:5px; border-radius:2px}
+.tl-l.on{background:var(--done)}
+.cd{display:flex; align-items:center; gap:var(--s3); padding:11px var(--s4); border-radius:var(--r2);
+  background:var(--tone-soft); border:1px solid color-mix(in srgb, var(--tone) 22%, transparent)}
+.cd b{font-family:var(--mono); font-size:20px; font-weight:700; letter-spacing:-.03em; line-height:1;
+  color:var(--tone); flex:none}
+.cd span{font-size:12px; color:var(--ink-2); line-height:1.4}
+.job-f{border-top:1px solid var(--line); padding:10px var(--s5); display:flex; gap:var(--s2);
+  background:var(--grad-sunk)}
+
+/* ============================================================
+   7 · KLIENTI
+   ============================================================ */
+.clients{display:grid; grid-template-columns:repeat(auto-fill,minmax(290px,1fr)); gap:var(--s4)}
+.cl{background:var(--grad); border:1px solid var(--line); border-radius:var(--r3); overflow:hidden;
+  box-shadow:var(--sh-1); transition:border-color .18s, box-shadow .18s var(--ease), transform .18s var(--ease)}
+.cl:hover{border-color:var(--line-2); box-shadow:var(--sh-3); transform:translateY(-2px)}
+.cl-h{display:flex; align-items:center; gap:10px; padding:var(--s4) var(--s5) var(--s3)}
+.cl-h i{width:10px; height:10px; border-radius:3px; flex:none}
+.cl-h b{font-size:14.5px; font-weight:600; letter-spacing:-.018em; min-width:0}
+.cl-r{padding:0 var(--s5) var(--s4); display:flex; flex-direction:column;
+  border-top:1px solid var(--line); padding-top:var(--s3)}
+.cl-r div{display:flex; align-items:center; justify-content:space-between; gap:var(--s3); padding:4px 0; font-size:12.5px}
+.cl-r .l{color:var(--muted)}
+.cl-r .r{font-family:var(--mono); font-weight:600; text-align:right}
+.cl-l{border-top:1px solid var(--line); background:var(--grad-sunk); padding:10px var(--s5);
+  display:flex; align-items:center; gap:var(--s2)}
+.cl-l code{font-family:var(--mono); font-size:10.5px; color:var(--muted); overflow:hidden;
+  text-overflow:ellipsis; white-space:nowrap; flex:1; min-width:0}
+
+/* ============================================================
+   8 · REPORT
+   ============================================================ */
+#view-report{background:var(--sunk); padding:0}
+.rbar{background:var(--surface); border-bottom:1px solid var(--line); position:sticky; top:62px; z-index:20}
+.rbar-in{display:flex; align-items:center; gap:var(--s3); padding:11px var(--s6); max-width:1160px;
+  margin:0 auto; flex-wrap:wrap}
+.seg{display:flex; background:var(--raise); border:1px solid var(--line); border-radius:var(--r2); padding:3px; gap:3px}
+.seg button{border:0; background:transparent; padding:5px 14px; border-radius:7px; cursor:pointer;
+  font-size:12.5px; font-weight:600; color:var(--muted); transition:all .15s var(--ease)}
+.seg button.is-on{background:var(--surface); color:var(--ink); box-shadow:var(--sh-1)}
+.tag{font-size:11px; color:var(--muted); background:var(--raise); border:1px solid var(--line);
+  padding:3px 9px; border-radius:var(--r1); white-space:nowrap}
+
+.stage{padding:var(--s6) var(--s6) var(--s8); display:grid; place-items:start center}
+/* papír leží na desce — proto ostřejší roh, teplejší plocha a hlubší stín než u zbytku UI */
+.sheet{width:100%; max-width:840px; border:1px solid var(--line); border-radius:4px;
+  padding:var(--s8) 68px 60px; position:relative;
+  background:linear-gradient(180deg, var(--sheet) 0%, color-mix(in srgb, var(--sheet) 97%, var(--muted)) 100%);
+  box-shadow:var(--ring), var(--sh-4)}
+.reg{position:absolute; width:14px; height:14px; opacity:.25; stroke:var(--muted); fill:none; stroke-width:1}
+.reg.a{top:16px; left:16px} .reg.b{top:16px; right:16px}
+.reg.c{bottom:16px; left:16px} .reg.d{bottom:16px; right:16px}
+
+.sh-h{display:flex; justify-content:space-between; align-items:flex-start; gap:var(--s5);
+  padding-bottom:var(--s4); border-bottom:1.5px solid var(--ink)}
+.sh-st{display:flex; align-items:center; gap:11px}
+.sh-lg{width:32px; height:32px; border-radius:9px; display:grid; place-items:center; background:var(--ink)}
+.sh-lg svg{width:17px; height:17px; stroke:var(--sheet); fill:none; stroke-width:2.2; stroke-linecap:round}
+.sh-n{font-size:14.5px; font-weight:700; letter-spacing:-.018em}
+.sh-s{font-size:11.5px; color:var(--muted); margin-top:1px}
+.sh-m{text-align:right; font-family:var(--mono); font-size:11px; color:var(--faint); line-height:1.8}
+.sh-m b{color:var(--ink); font-weight:600}
+
+/* bezpatkové ve velkém stupni potřebuje tloušťku a sevřenější prostrkání než patkové */
+.sh-title{font-family:var(--doc-d); font-size:43px; font-weight:500; letter-spacing:-.032em;
+  line-height:1.06; margin:var(--s6) 0 var(--s3); text-wrap:balance}
+.sh-p{font-family:var(--mono); font-size:12.5px; color:var(--accent); letter-spacing:.05em; font-weight:600}
+
+.sec{margin-top:var(--s7)}
+.sec > h3{font-size:10px; letter-spacing:.16em; text-transform:uppercase; color:var(--faint);
+  font-weight:700; margin:0 0 var(--s4); padding-bottom:var(--s2); border-bottom:1px solid var(--line)}
+/* bezpatkové běžecké písmo snese kratší řádek a menší proklad než patkové */
+.lede{font-family:var(--doc); font-size:15.5px; line-height:1.68; letter-spacing:-.003em;
+  color:var(--ink-2); max-width:66ch}
+.lede p{margin:0 0 var(--s4)} .lede p:last-child{margin-bottom:0}
+.lede strong{color:var(--ink); font-weight:600}
+.lede em{font-style:normal; color:var(--muted); display:block; padding-left:var(--s4);
+  border-left:2px solid var(--line-2)}
+
+.nums{display:grid; grid-template-columns:repeat(4,1fr)}
+.nm{padding:var(--s4) var(--s5) var(--s4) 0; border-right:1px solid var(--line)}
+.nm:last-child{border-right:0}
+.nm b{display:block; font-family:var(--mono); font-size:30px; font-weight:600; letter-spacing:-.04em;
+  line-height:1.05; color:var(--tone)}
+.nm span{display:block; font-size:11.5px; color:var(--muted); margin-top:6px; line-height:1.35}
+
+/* rozdělení práce — jeden pruh + legenda, žádné duplicitní grafy */
+.stack-bar{display:flex; height:38px; border-radius:var(--r1); overflow:hidden; gap:2px; margin-bottom:var(--s5)}
+.stack-bar i{background:var(--tone); display:grid; place-items:center; font-family:var(--mono);
+  font-size:11.5px; font-weight:700; color:var(--sheet); transition:flex-grow .7s var(--ease)}
+.keys{display:flex; flex-direction:column}
+.key{display:grid; grid-template-columns:14px minmax(0,1fr) auto auto; gap:var(--s3); align-items:baseline;
+  padding:9px 0; border-bottom:1px solid var(--line); font-size:13.5px}
+.key:last-child{border-bottom:0}
+.key i{width:9px; height:9px; border-radius:2px; background:var(--tone); align-self:center}
+.key .nm2{color:var(--ink-2); font-weight:500; min-width:0}
+.key .pc{font-family:var(--mono); font-size:14px; font-weight:700; color:var(--tone); white-space:nowrap}
+.key .ct{font-size:11.5px; color:var(--faint); white-space:nowrap; min-width:62px; text-align:right}
+
+.bcs{display:flex; flex-direction:column; gap:var(--s5)}
+.bc{border-left:2px solid var(--cl); padding-left:var(--s4)}
+.bc-h{display:flex; align-items:baseline; gap:10px; margin-bottom:9px; flex-wrap:wrap}
+.bc-h b{font-size:15px; font-weight:700; letter-spacing:-.018em}
+.bc-h span{font-family:var(--mono); font-size:11px; color:var(--faint)}
+.bc ul{list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:7px}
+.bc li{display:flex; align-items:flex-start; gap:10px; font-size:13.5px; line-height:1.5; color:var(--ink-2)}
+.mk{width:14px; height:14px; border-radius:4px; flex:none; margin-top:3px; display:grid;
+  place-items:center; background:var(--tone-soft)}
+.mk svg{width:9px; height:9px; stroke:var(--tone); fill:none; stroke-width:2.6; stroke-linecap:round; stroke-linejoin:round}
+
+.wait{display:flex; flex-direction:column}
+.wt{display:flex; align-items:center; gap:var(--s4); padding:12px 0; border-bottom:1px solid var(--line); flex-wrap:wrap}
+.wt:last-child{border-bottom:0}
+.wt b{font-size:13.5px; font-weight:500; line-height:1.35; display:block}
+.wt span{font-size:11.5px; color:var(--faint); margin-top:2px; display:block}
+.wt .r{margin-left:auto; flex:none}
+
+.sh-f{margin-top:var(--s7); padding-top:var(--s4); border-top:1px solid var(--line); display:flex;
+  justify-content:space-between; gap:var(--s4); font-size:11px; color:var(--faint); flex-wrap:wrap}
+.ai{display:flex; align-items:center; gap:10px; margin-top:var(--s4); padding:10px 14px;
+  background:var(--accent-soft); border-radius:var(--r2); font-size:12px; color:var(--accent); line-height:1.45}
+.ai svg{width:15px; height:15px; stroke:currentColor; fill:none; stroke-width:1.7; flex:none}
+@keyframes rise{from{opacity:0; transform:translateY(8px)} to{opacity:1; transform:none}}
+
+/* ============================================================
+   9 · NASTAVENÍ
+   ============================================================ */
+.set{max-width:740px; display:flex; flex-direction:column; gap:var(--s5)}
+.sr{display:flex; align-items:center; gap:var(--s4); padding:var(--s4) var(--s5);
+  border-bottom:1px solid var(--line); flex-wrap:wrap}
+.sr:last-child{border-bottom:0}
+.sr b{font-size:13.5px; font-weight:600; display:block}
+.sr p{font-size:12px; color:var(--faint); margin:3px 0 0; max-width:46ch; line-height:1.5}
+.sr .r{margin-left:auto; flex:none}
+
+/* ============================================================
+   10 · OVERLAY
+   ============================================================ */
+.bd{position:fixed; inset:0; background:color-mix(in srgb, var(--ink) 40%, transparent);
+  backdrop-filter:blur(5px); display:none; z-index:100; padding:var(--s5)}
+.bd.is-on{display:grid; animation:enter .18s var(--ease)}
+.bd.mid{place-items:center}
+.bd.top{place-items:start center; padding-top:11vh}
+.dlg{width:100%; max-width:560px; background:var(--grad); border:1px solid var(--line-2);
+  border-radius:var(--r3); box-shadow:var(--sh-4); overflow:hidden; animation:pop .24s var(--ease)}
+@keyframes pop{from{opacity:0; transform:translateY(14px) scale(.98)} to{opacity:1; transform:none}}
+.dlg-h{display:flex; align-items:center; gap:var(--s3); padding:var(--s4) var(--s5); border-bottom:1px solid var(--line)}
+.dlg-h h2{margin:0; font-size:15px; font-weight:600}
+.dlg-b{padding:var(--s5)}
+.dlg-f{display:flex; gap:var(--s2); padding:var(--s3) var(--s5); border-top:1px solid var(--line);
+  background:var(--grad-sunk); flex-wrap:wrap}
+.ta{width:100%; min-height:82px; resize:vertical; padding:12px 14px; border-radius:var(--r2);
+  border:1px solid var(--line-2); background:var(--raise); font-size:14px; line-height:1.6; outline:0}
+.ta:focus{border-color:var(--accent); background:var(--surface)}
+.parsed{display:none; margin-top:var(--s5); padding-top:var(--s5); border-top:1px dashed var(--line-2);
+  gap:10px; flex-direction:column}
+.parsed.is-on{display:flex}
+.pf{display:grid; grid-template-columns:112px 1fr; gap:var(--s3); align-items:center; opacity:0}
+.pf b{font-size:10.5px; letter-spacing:.1em; text-transform:uppercase; color:var(--faint); font-weight:700}
+.pf span{font-size:13.5px; font-weight:500; background:var(--accent-soft); color:var(--accent);
+  padding:5px 12px; border-radius:var(--r1); justify-self:start}
+
+.pal{width:100%; max-width:580px; background:var(--grad); border:1px solid var(--line-2);
+  border-radius:var(--r3); box-shadow:var(--sh-4); overflow:hidden; animation:pop .22s var(--ease)}
+.pal-i{display:flex; align-items:center; gap:11px; padding:var(--s4) var(--s5); border-bottom:1px solid var(--line)}
+.pal-i svg{width:17px; height:17px; stroke:var(--faint); fill:none; stroke-width:1.8; flex:none}
+.pal-i input{border:0; background:transparent; outline:0; width:100%; font-size:16px}
+.pal-l{max-height:min(54vh,400px); overflow-y:auto; padding:6px}
+.pal-g{font-size:9.5px; letter-spacing:.14em; text-transform:uppercase; color:var(--faint);
+  font-weight:700; padding:11px 12px 5px}
+.pal-it{display:flex; align-items:center; gap:12px; padding:9px 12px; border-radius:var(--r2);
+  cursor:pointer; border:0; background:transparent; width:100%; text-align:left}
+.pal-it:hover,.pal-it.sel{background:var(--sunk)}
+.pal-ic{width:26px; height:26px; border-radius:7px; display:grid; place-items:center; flex:none; background:var(--raise)}
+.pal-ic svg{width:14px; height:14px; stroke:var(--muted); fill:none; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round}
+.pal-tx{display:flex; flex-direction:column; min-width:0}
+.pal-tx b{font-size:13.5px; font-weight:500; line-height:1.3; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.pal-tx span{font-size:11.5px; color:var(--faint); margin-top:1px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.pal-it kbd{margin-left:auto; flex:none}
+.pal-0{padding:var(--s7) var(--s5); text-align:center; color:var(--faint); font-size:13px}
+
+.toast{position:fixed; left:50%; bottom:26px; transform:translate(-50%,90px); display:flex;
+  align-items:center; gap:var(--s3); padding:10px 12px 10px var(--s4); background:var(--ink);
+  color:var(--paper); border-radius:var(--r4); box-shadow:var(--sh-4); z-index:200; opacity:0;
+  pointer-events:none; transition:transform .32s var(--ease), opacity .32s; max-width:calc(100vw - 32px)}
+.toast.is-on{transform:translate(-50%,0); opacity:1; pointer-events:auto}
+.toast b{font-size:13px; font-weight:500; line-height:1.35; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.toast button{border:1px solid color-mix(in srgb, var(--paper) 30%, transparent); background:transparent;
+  color:var(--paper); border-radius:var(--r4); padding:4px 13px; font-size:12.5px; font-weight:600;
+  cursor:pointer; white-space:nowrap; transition:background .15s}
+.toast button:hover{background:color-mix(in srgb, var(--paper) 15%, transparent)}
+
+/* ============================================================
+   11 · RESPONZIVITA
+   ============================================================ */
+@media (max-width:1120px){
+  .cols{grid-template-columns:1fr}
+  .hero{grid-template-columns:1fr; align-items:start}
+  .row{grid-template-columns:64px minmax(0,1fr) 130px 66px}
+  .row-own{display:none}
+  .detail{padding-left:88px}
+}
+@media (max-width:900px){
+  .strip{grid-template-columns:repeat(2,1fr)}
+  .sq:nth-child(3){border-left:0}
+  .sq:nth-child(n+3){border-top:1px solid var(--line)}
+  .nums{grid-template-columns:repeat(2,1fr)}
+  .nm:nth-child(2){border-right:0}
+  .nm:nth-child(n+3){border-top:1px solid var(--line); padding-top:var(--s4)}
+}
+@media (max-width:820px){
+  .app{grid-template-columns:1fr}
+  .rail{position:fixed; bottom:0; top:auto; left:0; right:0; height:auto; z-index:60;
+    flex-direction:row; border-right:0; border-top:1px solid var(--line); padding:6px;
+    gap:2px; background:color-mix(in srgb, var(--surface) 94%, transparent); backdrop-filter:blur(14px)}
+  .brand,.nav-h,.rail-foot{display:none}
+  /* obě skupiny se rozpustí, aby si všech šest tlačítek dělilo šířku rovným dílem */
+  .nav{display:contents}
+  .navbtn{position:relative; flex:1 1 0; min-width:0; flex-direction:column; gap:4px;
+    font-size:10px; padding:7px 2px; align-items:center}
+  .navbtn span:not(.dot-alert){max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+  .navbtn svg{width:19px; height:19px}
+  .navbtn .dot-alert{position:absolute; top:5px; left:calc(50% + 8px); margin:0}
+  .main{padding-bottom:70px}
+  .view{padding:var(--s4) var(--s4) var(--s6)}
+  .stage{padding:var(--s4) var(--s4) var(--s6)}
+  .topbar{padding:0 var(--s4); height:56px}
+  .topbar h1{font-size:17px}
+  .search{display:none}
+  .rbar{position:static}
+  .rbar-in{padding:10px var(--s4)}
+  .sheet{padding:var(--s6) var(--s5) var(--s6)}
+  .sh-title{font-size:27px; margin-top:var(--s5)}
+  .sh-h{flex-direction:column; gap:var(--s4)}
+  .sh-m{text-align:left}
+  .reg{display:none}
+  .hero-t{font-size:23px}
+  .row{grid-template-columns:52px minmax(0,1fr) 62px; gap:var(--s3); padding:12px var(--s1)}
+  .row-cl{display:none}
+  .detail{padding-left:var(--s1)}
+  .relay{max-width:none}
+  .rl span{display:none}
+  .rl b{height:8px}
+  .rl.at b{height:11px}
+  .key{grid-template-columns:14px minmax(0,1fr) auto; gap:var(--s2) var(--s3)}
+  .key .ct{grid-column:2 / -1; text-align:left; min-width:0}
+  .pf{grid-template-columns:1fr; gap:5px}
+  .toast{left:12px; right:12px; bottom:80px; transform:translateY(90px); max-width:none}
+  .toast.is-on{transform:translateY(0)}
+  .bd.top{padding-top:5vh}
+}
+</style>
+
+<div class="app">
+  <aside class="rail">
+    <div class="brand">
+      <div class="brand-mark"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h11M4 18h7"/></svg></div>
+      <div>
+        <div class="brand-name">Studio Deník</div>
+        <div class="brand-sub">Prototyp</div>
+      </div>
+    </div>
+
+    <div class="nav">
+      <div class="nav-h">Provoz</div>
+      <button class="navbtn is-on" data-view="dnes">
+        <svg viewBox="0 0 24 24"><path d="M3 12h4l3 8 4-16 3 8h4"/></svg><span>Dnes</span></button>
+      <button class="navbtn" data-view="ukoly">
+        <svg viewBox="0 0 24 24"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg><span>Úkoly</span></button>
+      <button class="navbtn" data-view="tisk">
+        <svg viewBox="0 0 24 24"><path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><path d="M6 14h12v8H6z"/></svg><span>Tisk</span><span class="dot-alert"></span></button>
+      <button class="navbtn" data-view="klienti">
+        <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/></svg><span>Klienti</span></button>
+    </div>
+
+    <div class="nav">
+      <div class="nav-h">Výstup</div>
+      <button class="navbtn" data-view="report">
+        <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/><path d="M8 13h8M8 17h5"/></svg><span>Report</span></button>
+      <button class="navbtn" data-view="nastaveni">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 008 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H2a2 2 0 010-4h.09A1.65 1.65 0 004.6 8a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06A1.65 1.65 0 009 3.6 1.65 1.65 0 0010 2.09V2a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06A1.65 1.65 0 0019.4 8a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg><span>Nastavení</span></button>
+    </div>
+
+    <div class="rail-foot">
+      <button class="kbd-hint" id="pal-open"><kbd>Ctrl</kbd><kbd>K</kbd><span>hledat a ovládat</span></button>
+      <div class="who">
+        <div class="avatar">PM</div>
+        <div><div class="who-name">Petr Malý</div><div class="who-role">Grafika · admin</div></div>
+      </div>
+    </div>
+  </aside>
+
+  <main class="main">
+    <header class="topbar">
+      <div class="topbar-in">
+        <div>
+          <h1 id="ttl">Dnes</h1>
+          <div class="sub" id="sub">pátek 7. srpna 2026 · týden 32</div>
+        </div>
+        <div class="spacer"></div>
+        <label class="search">
+          <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+          <input type="search" id="q" placeholder="Hledat…" aria-label="Hledat">
+        </label>
+        <button class="btn btn-icon btn-ghost" id="theme" aria-label="Světlý nebo tmavý režim">
+          <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+        </button>
+        <button class="btn btn-primary" id="add">
+          <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg><span>Zapsat</span></button>
+      </div>
+    </header>
+
+    <!-- ============ DNES ============ -->
+    <section class="view is-on" id="view-dnes"><div class="wrap">
+      <div class="hero">
+        <div>
+          <div class="hero-k"><span class="state o-alarm">Teď na řadě</span></div>
+          <div class="hero-t">Roll-up pro Fitness Zenit je dva dny po termínu u tiskárny</div>
+          <div class="hero-d">Grafiko slíbilo dodání 5. srpna a neozvalo se. Naposledy jsi urgoval včera v 10:15. Klient má akci v sobotu — pokud to nestihnou, je potřeba mu to říct dnes.</div>
+        </div>
+        <div class="hero-acts">
+          <button class="btn btn-primary" data-urge="Tiskárna Grafiko">
+            <svg viewBox="0 0 24 24"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4z"/></svg>Urgovat tiskárnu</button>
+          <button class="btn" data-goto="tisk">Zobrazit zakázku</button>
+        </div>
+      </div>
+
+      <div class="strip">
+        <div class="sq o-done" data-jump="done">
+          <div class="k">Hotovo tento týden</div><div class="v" data-c="done"></div><div class="d">o 4 víc než minulý týden</div></div>
+        <div class="sq o-me" data-jump="me">
+          <div class="k">Na tobě</div><div class="v" data-c="me"></div><div class="d">z toho 2 na dnešek</div></div>
+        <div class="sq o-client" data-jump="client">
+          <div class="k">Čeká na klienta</div><div class="v" data-c="client"></div><div class="d">nejdéle 6 dní</div></div>
+        <div class="sq o-alarm" data-jump="late">
+          <div class="k">Po termínu</div><div class="v" data-c="late"></div><div class="d">obojí na cizí straně</div></div>
+      </div>
+
+      <div class="cols">
+        <div class="stack">
+          <div class="panel">
+            <div class="panel-h"><h2>Dnes domluveno</h2><span class="note">pátek 7. 8.</span></div>
+            <ul class="rows">
+              <li><span class="clock">09:30</span>
+                <div><div class="t">Odsouhlasení náhledu katalogu</div><div class="m">Městská knihovna · videohovor, Bc. Adamcová</div></div>
+                <div class="rt"><span class="state o-me">Na tobě</span></div></li>
+              <li><span class="clock">13:00</span>
+                <div><div class="t">Předat podklady na polepy vozů</div><div class="m">AutoCentrum Švec · osobně na provozovně</div></div>
+                <div class="rt"><span class="state o-me">Na tobě</span></div></li>
+              <li><span class="clock">16:00</span>
+                <div><div class="t">Deadline korektur letáků A5</div><div class="m">Pekárna U Lípy · klient slíbil zpětnou vazbu</div></div>
+                <div class="rt"><span class="state o-client">U klienta</span></div></li>
+            </ul>
+          </div>
+
+          <div class="panel">
+            <div class="panel-h"><h2>Dlouho beze změny</h2><span class="note">návrh urgencí</span></div>
+            <ul class="rows">
+              <li><div><div class="t">Vizitky — Nováková &amp; partneři</div><div class="m">náhled odeslán 1. 8., klient nereagoval</div></div>
+                <div class="rt"><span class="pill o-client">6 dní</span>
+                  <button class="btn btn-sm" data-urge="Nováková &amp; partneři">Urgovat</button></div></li>
+              <li><div><div class="t">Roll-up — Fitness Zenit</div><div class="m">tiskárna Grafiko, slíbeno 5. 8.</div></div>
+                <div class="rt"><span class="pill o-alarm">+2 dny</span>
+                  <button class="btn btn-sm" data-urge="Tiskárna Grafiko">Urgovat</button></div></li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="stack">
+          <div class="panel">
+            <div class="panel-h"><h2>U koho leží míč</h2><span class="note">23 aktivních</span></div>
+            <div class="share">
+              <div class="share-bar">
+                <i class="o-me" data-f="me" data-jump="me"></i>
+                <i class="o-client" data-f="client" data-jump="client"></i>
+                <i class="o-supplier" data-f="supplier" data-jump="supplier"></i>
+                <i class="o-done" data-f="done" data-jump="done"></i>
+              </div>
+              <div class="share-keys">
+                <div class="share-key o-me" data-jump="me"><i></i>Na tobě<span class="n" data-c="me"></span></div>
+                <div class="share-key o-client" data-jump="client"><i></i>U klienta<span class="n" data-c="client"></span></div>
+                <div class="share-key o-supplier" data-jump="supplier"><i></i>U dodavatele<span class="n" data-c="supplier"></span></div>
+                <div class="share-key o-done" data-jump="done"><i></i>Uzavřeno<span class="n" data-c="done"></span></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-h"><h2>Dokončeno po dnech</h2></div>
+            <div class="week">
+              <div class="wk"><span>4</span><b style="height:57%"></b></div>
+              <div class="wk"><span>3</span><b style="height:43%"></b></div>
+              <div class="wk"><span>5</span><b style="height:71%"></b></div>
+              <div class="wk"><span>4</span><b style="height:57%"></b></div>
+              <div class="wk today"><span>2</span><b style="height:29%"></b></div>
+              <div class="wk"><span>0</span><b style="height:2%"></b></div>
+              <div class="wk"><span>0</span><b style="height:2%"></b></div>
+            </div>
+            <div class="week-x"><span>po</span><span>út</span><span>st</span><span>čt</span><span class="today">pá</span><span>so</span><span>ne</span></div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-h"><h2>Report za týden 32</h2></div>
+            <div style="padding:var(--s5)">
+              <div style="font-size:13px;color:var(--ink-2);line-height:1.6">Podklady jsou kompletní — 12 dokončených úkolů u 6 klientů. Koncept se připravil dnes v 8:12.</div>
+              <button class="btn btn-primary" style="margin-top:var(--s4);width:100%" data-goto="report">Otevřít report</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div></section>
+
+    <!-- ============ ÚKOLY ============ -->
+    <section class="view" id="view-ukoly"><div class="wrap">
+      <div class="bar">
+        <button class="fbtn is-on" data-filter="all">Vše <span class="n" data-c="all"></span></button>
+        <button class="fbtn" data-filter="me">Na tobě <span class="n" data-c="me"></span></button>
+        <button class="fbtn" data-filter="client">U klienta <span class="n" data-c="client"></span></button>
+        <button class="fbtn" data-filter="supplier">U dodavatele <span class="n" data-c="supplier"></span></button>
+        <button class="fbtn" data-filter="done">Uzavřeno <span class="n" data-c="done"></span></button>
+        <button class="fbtn" data-filter="late">Po termínu <span class="n" data-c="late"></span></button>
+      </div>
+      <div id="groups"></div>
+      <div class="blank" id="blank" style="display:none"><strong>Nic tu není</strong>Zkus jiný filtr nebo jiné hledání.</div>
+    </div></section>
+
+    <!-- ============ TISK ============ -->
+    <section class="view" id="view-tisk"><div class="wrap"><div class="jobs">
+
+      <article class="job late">
+        <div class="job-h"><div style="flex:1;min-width:0">
+          <div class="job-c">ZAK-2608-014</div><div class="job-t">Roll-up 850 × 2000 mm</div>
+          <div class="job-s">Fitness Zenit · 2 ks · tiskárna Grafiko</div></div>
+          <span class="pill o-alarm">Po termínu</span></div>
+        <div class="job-b">
+          <div class="tl">
+            <div class="tl-n"><div class="tl-d on"></div><div class="tl-c">Schváleno</div><div class="tl-t">28. 7.</div></div>
+            <div class="tl-l on"></div>
+            <div class="tl-n"><div class="tl-d on"></div><div class="tl-c">Do tisku</div><div class="tl-t">30. 7.</div></div>
+            <div class="tl-l on"></div>
+            <div class="tl-n o-alarm"><div class="tl-d now"></div><div class="tl-c">Dodání</div><div class="tl-t">5. 8.</div></div>
+            <div class="tl-l"></div>
+            <div class="tl-n"><div class="tl-d"></div><div class="tl-c">Předáno</div><div class="tl-t">—</div></div>
+          </div>
+          <div class="cd o-alarm"><b>+2</b><span>dny po slíbeném termínu.<br>Naposledy urgováno 6. 8. v 10:15.</span></div>
+        </div>
+        <div class="job-f"><button class="btn btn-sm btn-primary" data-urge="Tiskárna Grafiko">Urgovat</button>
+          <button class="btn btn-sm">Potvrdit dodání</button></div>
+      </article>
+
+      <article class="job">
+        <div class="job-h"><div style="flex:1;min-width:0">
+          <div class="job-c">ZAK-2608-021</div><div class="job-t">Letáky A5, 4/4, křída 135 g</div>
+          <div class="job-s">Pekárna U Lípy · 5 000 ks · tiskárna Grafiko</div></div>
+          <span class="pill o-supplier">V tisku</span></div>
+        <div class="job-b">
+          <div class="tl">
+            <div class="tl-n"><div class="tl-d on"></div><div class="tl-c">Schváleno</div><div class="tl-t">2. 8.</div></div>
+            <div class="tl-l on"></div>
+            <div class="tl-n"><div class="tl-d on"></div><div class="tl-c">Do tisku</div><div class="tl-t">3. 8.</div></div>
+            <div class="tl-l on"></div>
+            <div class="tl-n o-supplier"><div class="tl-d now"></div><div class="tl-c">Dodání</div><div class="tl-t">10. 8.</div></div>
+            <div class="tl-l"></div>
+            <div class="tl-n"><div class="tl-d"></div><div class="tl-c">Předáno</div><div class="tl-t">—</div></div>
+          </div>
+          <div class="cd o-done"><b>3</b><span>dny do slíbeného dodání.<br>Nátisk odsouhlasen klientem 2. 8.</span></div>
+        </div>
+        <div class="job-f"><button class="btn btn-sm">Potvrdit dodání</button>
+          <button class="btn btn-sm btn-ghost">Detail</button></div>
+      </article>
+
+      <article class="job">
+        <div class="job-h"><div style="flex:1;min-width:0">
+          <div class="job-c">ZAK-2608-019</div><div class="job-t">Katalog 32 stran, V1</div>
+          <div class="job-s">Městská knihovna Beroun · 800 ks · Tiskárna Nová</div></div>
+          <span class="pill o-supplier">V tisku</span></div>
+        <div class="job-b">
+          <div class="tl">
+            <div class="tl-n"><div class="tl-d on"></div><div class="tl-c">Schváleno</div><div class="tl-t">5. 8.</div></div>
+            <div class="tl-l on"></div>
+            <div class="tl-n"><div class="tl-d on"></div><div class="tl-c">Do tisku</div><div class="tl-t">6. 8.</div></div>
+            <div class="tl-l on"></div>
+            <div class="tl-n o-supplier"><div class="tl-d now"></div><div class="tl-c">Dodání</div><div class="tl-t">14. 8.</div></div>
+            <div class="tl-l"></div>
+            <div class="tl-n"><div class="tl-d"></div><div class="tl-c">Předáno</div><div class="tl-t">—</div></div>
+          </div>
+          <div class="cd o-done"><b>7</b><span>dní do slíbeného dodání.<br>Vazba V1, lakovaná obálka.</span></div>
+        </div>
+        <div class="job-f"><button class="btn btn-sm">Potvrdit dodání</button>
+          <button class="btn btn-sm btn-ghost">Detail</button></div>
+      </article>
+
+      <article class="job">
+        <div class="job-h"><div style="flex:1;min-width:0">
+          <div class="job-c">ZAK-2608-023</div><div class="job-t">Vizitky, 4/4, 350 g</div>
+          <div class="job-s">Nováková &amp; partneři · 500 ks · zatím neodesláno</div></div>
+          <span class="pill o-client">Čeká na klienta</span></div>
+        <div class="job-b">
+          <div class="tl">
+            <div class="tl-n o-client"><div class="tl-d now"></div><div class="tl-c">Schválení</div><div class="tl-t">čeká</div></div>
+            <div class="tl-l"></div>
+            <div class="tl-n"><div class="tl-d"></div><div class="tl-c">Do tisku</div><div class="tl-t">—</div></div>
+            <div class="tl-l"></div>
+            <div class="tl-n"><div class="tl-d"></div><div class="tl-c">Dodání</div><div class="tl-t">—</div></div>
+            <div class="tl-l"></div>
+            <div class="tl-n"><div class="tl-d"></div><div class="tl-c">Předáno</div><div class="tl-t">—</div></div>
+          </div>
+          <div class="cd o-client"><b>6</b><span>dní bez reakce na náhled.<br>Odesláno 1. 8., termín tisku se posouvá.</span></div>
+        </div>
+        <div class="job-f"><button class="btn btn-sm btn-primary" data-urge="Nováková &amp; partneři">Připomenout</button>
+          <button class="btn btn-sm btn-ghost">Detail</button></div>
+      </article>
+
+      <article class="job">
+        <div class="job-h"><div style="flex:1;min-width:0">
+          <div class="job-c">ZAK-2608-009</div><div class="job-t">Samolepky ⌀ 60 mm, výsek</div>
+          <div class="job-s">AutoCentrum Švec · 2 000 ks · tiskárna Grafiko</div></div>
+          <span class="pill o-done">Uzavřeno</span></div>
+        <div class="job-b">
+          <div class="tl">
+            <div class="tl-n"><div class="tl-d on"></div><div class="tl-c">Schváleno</div><div class="tl-t">27. 7.</div></div>
+            <div class="tl-l on"></div>
+            <div class="tl-n"><div class="tl-d on"></div><div class="tl-c">Do tisku</div><div class="tl-t">29. 7.</div></div>
+            <div class="tl-l on"></div>
+            <div class="tl-n"><div class="tl-d on"></div><div class="tl-c">Dodání</div><div class="tl-t">4. 8.</div></div>
+            <div class="tl-l on"></div>
+            <div class="tl-n"><div class="tl-d on"></div><div class="tl-c">Předáno</div><div class="tl-t">4. 8.</div></div>
+          </div>
+          <div class="cd o-done"><b>✓</b><span>Dodáno v termínu a předáno klientovi.<br>Potvrdil J. Švec osobně.</span></div>
+        </div>
+        <div class="job-f"><button class="btn btn-sm btn-ghost">Detail</button></div>
+      </article>
+
+    </div></div></section>
+
+    <!-- ============ KLIENTI ============ -->
+    <section class="view" id="view-klienti"><div class="wrap"><div class="clients" id="clgrid"></div></div></section>
+
+    <!-- ============ REPORT ============ -->
+    <section class="view" id="view-report">
+      <div class="rbar"><div class="rbar-in">
+        <div class="seg"><button class="is-on">Týden 32</button><button>Srpen 2026</button></div>
+        <span class="tag mono">3.–9. 8. 2026</span>
+        <div class="spacer"></div>
+        <button class="btn" id="gen">
+          <svg viewBox="0 0 24 24"><path d="M12 3l1.9 5.3L19 10l-5.1 1.7L12 17l-1.9-5.3L5 10l5.1-1.7z"/></svg>Přegenerovat</button>
+        <button class="btn">
+          <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><path d="M7 10l5 5 5-5M12 15V3"/></svg>PDF</button>
+        <button class="btn btn-primary" id="share">
+          <svg viewBox="0 0 24 24"><path d="M4 12v8a2 2 0 002 2h12a2 2 0 002-2v-8"/><path d="M16 6l-4-4-4 4M12 2v14"/></svg>Sdílet</button>
+      </div></div>
+
+      <div class="stage"><article class="sheet">
+        <svg class="reg a" viewBox="0 0 20 20"><circle cx="10" cy="10" r="6"/><path d="M10 0v20M0 10h20"/></svg>
+        <svg class="reg b" viewBox="0 0 20 20"><circle cx="10" cy="10" r="6"/><path d="M10 0v20M0 10h20"/></svg>
+        <svg class="reg c" viewBox="0 0 20 20"><circle cx="10" cy="10" r="6"/><path d="M10 0v20M0 10h20"/></svg>
+        <svg class="reg d" viewBox="0 0 20 20"><circle cx="10" cy="10" r="6"/><path d="M10 0v20M0 10h20"/></svg>
+
+        <header class="sh-h">
+          <div class="sh-st">
+            <div class="sh-lg"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h11M4 18h7"/></svg></div>
+            <div><div class="sh-n">Studio Deník</div><div class="sh-s">Petr Malý · grafika a produkce</div></div>
+          </div>
+          <div class="sh-m">
+            <div>Pro <b>Ing. Marka Dvořáka</b></div>
+            <div>Vystaveno <b>7. 8. 2026</b></div>
+            <div>Report <b>2026-W32</b></div>
+          </div>
+        </header>
+
+        <h2 class="sh-title">Týdenní přehled odvedené práce</h2>
+        <div class="sh-p">3. — 9. srpna 2026 · týden 32</div>
+
+        <section class="sec">
+          <h3>Shrnutí</h3>
+          <div class="lede" id="lede">
+            <p>Týden byl tažený produkcí pro <strong>Pekárnu U Lípy</strong> a <strong>Městskou knihovnu Beroun</strong>. Uzavřeno bylo 12 úkolů napříč šesti klienty, těžiště práce leželo v grafice a v přípravě tiskových dat. Do tisku odešly dvě velké zakázky — letáky v nákladu 5 000 kusů a třicetidvoustránkový katalog.</p>
+            <p>Administrativní část týdne obsáhla vyúčtování za červenec, aktualizaci ceníku a zpracování tří nových poptávek. Zhruba dvě třetiny týdne padly na kreativní práci, zbytek na provoz a komunikaci.</p>
+            <p><em>Dvě položky se posunuly mimo náš vliv: roll-up pro Fitness Zenit je dva dny po slíbeném termínu na straně tiskárny Grafiko a čeká se na schválení vizitek u kanceláře Nováková &amp; partneři. Obojí je urgováno, viz sekce „Čeká se na".</em></p>
+          </div>
+          <div class="ai"><svg viewBox="0 0 24 24"><path d="M12 3l1.9 5.3L19 10l-5.1 1.7L12 17l-1.9-5.3L5 10l5.1-1.7z"/></svg>
+            Text sestavil Claude z 12 dokončených úkolů. Před odesláním je plně editovatelný.</div>
+        </section>
+
+        <section class="sec">
+          <h3>Čísla za týden</h3>
+          <div class="nums">
+            <div class="nm o-done"><b>12</b><span>dokončených úkolů</span></div>
+            <div class="nm o-me"><b>5</b><span>rozpracováno</span></div>
+            <div class="nm o-client"><b>3</b><span>čeká na klienta</span></div>
+            <div class="nm o-supplier"><b>3</b><span>u dodavatele</span></div>
+          </div>
+        </section>
+
+        <section class="sec">
+          <h3>Kam šel týden</h3>
+          <div class="stack-bar">
+            <i style="flex:38;--tone:var(--accent)">38 %</i>
+            <i style="flex:24;--tone:var(--supplier)">24 %</i>
+            <i style="flex:17;--tone:var(--client)">17 %</i>
+            <i style="flex:13;--tone:var(--done)">13 %</i>
+            <i style="flex:8;--tone:var(--muted)">8 %</i>
+          </div>
+          <div class="keys">
+            <div class="key" style="--tone:var(--accent)"><i></i><span class="nm2">Grafické návrhy</span><span class="pc">38 %</span><span class="ct">11 úkolů</span></div>
+            <div class="key" style="--tone:var(--supplier)"><i></i><span class="nm2">Příprava do tisku</span><span class="pc">24 %</span><span class="ct">6 úkolů</span></div>
+            <div class="key" style="--tone:var(--client)"><i></i><span class="nm2">Administrativa</span><span class="pc">17 %</span><span class="ct">5 úkolů</span></div>
+            <div class="key" style="--tone:var(--done)"><i></i><span class="nm2">Komunikace s klienty</span><span class="pc">13 %</span><span class="ct">4 úkoly</span></div>
+            <div class="key" style="--tone:var(--muted)"><i></i><span class="nm2">Web a sociální sítě</span><span class="pc">8 %</span><span class="ct">2 úkoly</span></div>
+          </div>
+        </section>
+
+        <section class="sec">
+          <h3>Po klientech</h3>
+          <div class="bcs">
+            <div class="bc" style="--cl:#B5673E">
+              <div class="bc-h"><b>Pekárna U Lípy</b><span>5 úkolů · 24 % týdne</span></div>
+              <ul>
+                <li><span class="mk o-done"><svg viewBox="0 0 24 24"><path d="M4 12l6 6L20 6"/></svg></span>Letáky A5 na letní nabídku — návrh, 3 varianty, finální data do tisku</li>
+                <li><span class="mk o-done"><svg viewBox="0 0 24 24"><path d="M4 12l6 6L20 6"/></svg></span>Cenovky do prodejny — sada 24 kusů, přepracovaná typografie</li>
+                <li><span class="mk o-done"><svg viewBox="0 0 24 24"><path d="M4 12l6 6L20 6"/></svg></span>Příspěvky na Instagram — 6 grafik na srpen</li>
+                <li><span class="mk o-supplier"><svg viewBox="0 0 24 24"><path d="M12 6v6l4 2"/><circle cx="12" cy="12" r="9"/></svg></span>Letáky 5 000 ks — v tisku, dodání slíbeno na 10. 8.</li>
+                <li><span class="mk o-client"><svg viewBox="0 0 24 24"><path d="M12 6v6l4 2"/><circle cx="12" cy="12" r="9"/></svg></span>Korektury letáků — čeká se na zpětnou vazbu klienta</li>
+              </ul>
+            </div>
+            <div class="bc" style="--cl:#6F5A9B">
+              <div class="bc-h"><b>Městská knihovna Beroun</b><span>4 úkoly · 26 % týdne</span></div>
+              <ul>
+                <li><span class="mk o-done"><svg viewBox="0 0 24 24"><path d="M4 12l6 6L20 6"/></svg></span>Katalog podzimních akcí — sazba 32 stran, korektura, tisková data</li>
+                <li><span class="mk o-done"><svg viewBox="0 0 24 24"><path d="M4 12l6 6L20 6"/></svg></span>Plakát A2 na Noc literatury — návrh a schválení</li>
+                <li><span class="mk o-done"><svg viewBox="0 0 24 24"><path d="M4 12l6 6L20 6"/></svg></span>Aktualizace vizuálního manuálu — pravidla pro sociální sítě</li>
+                <li><span class="mk o-supplier"><svg viewBox="0 0 24 24"><path d="M12 6v6l4 2"/><circle cx="12" cy="12" r="9"/></svg></span>Katalog 800 ks — v tisku, dodání slíbeno na 14. 8.</li>
+              </ul>
+            </div>
+            <div class="bc" style="--cl:#3D7F72">
+              <div class="bc-h"><b>Fitness Zenit</b><span>3 úkoly · 15 % týdne</span></div>
+              <ul>
+                <li><span class="mk o-done"><svg viewBox="0 0 24 24"><path d="M4 12l6 6L20 6"/></svg></span>Bannery na web — 4 rozměry, statické i animované</li>
+                <li><span class="mk o-done"><svg viewBox="0 0 24 24"><path d="M4 12l6 6L20 6"/></svg></span>Rozvrh lekcí — nová šablona pro tisk i obrazovku</li>
+                <li><span class="mk o-supplier"><svg viewBox="0 0 24 24"><path d="M12 6v6l4 2"/><circle cx="12" cy="12" r="9"/></svg></span>Roll-up 2 ks — po termínu u tiskárny, urgováno 6. 8.</li>
+              </ul>
+            </div>
+            <div class="bc" style="--cl:#9C7838">
+              <div class="bc-h"><b>AutoCentrum Švec</b><span>3 úkoly · 12 % týdne</span></div>
+              <ul>
+                <li><span class="mk o-done"><svg viewBox="0 0 24 24"><path d="M4 12l6 6L20 6"/></svg></span>Samolepky 2 000 ks — dodáno a předáno 4. 8.</li>
+                <li><span class="mk o-done"><svg viewBox="0 0 24 24"><path d="M4 12l6 6L20 6"/></svg></span>Inzerát do regionálního tisku — návrh a odeslání do redakce</li>
+                <li><span class="mk o-done"><svg viewBox="0 0 24 24"><path d="M4 12l6 6L20 6"/></svg></span>Polepy vozů — zaměření a příprava podkladů</li>
+              </ul>
+            </div>
+            <div class="bc" style="--cl:#33638F">
+              <div class="bc-h"><b>Nováková &amp; partneři</b><span>2 úkoly · 8 % týdne</span></div>
+              <ul>
+                <li><span class="mk o-done"><svg viewBox="0 0 24 24"><path d="M4 12l6 6L20 6"/></svg></span>Hlavičkový papír a obálky — finální podoba</li>
+                <li><span class="mk o-client"><svg viewBox="0 0 24 24"><path d="M12 6v6l4 2"/><circle cx="12" cy="12" r="9"/></svg></span>Vizitky — náhled odeslán 1. 8., čeká se na schválení</li>
+              </ul>
+            </div>
+            <div class="bc" style="--cl:#57737E">
+              <div class="bc-h"><b>Interní a provozní</b><span>3 úkoly · 15 % týdne</span></div>
+              <ul>
+                <li><span class="mk o-done"><svg viewBox="0 0 24 24"><path d="M4 12l6 6L20 6"/></svg></span>Vyúčtování za červenec — podklady zpracovány</li>
+                <li><span class="mk o-done"><svg viewBox="0 0 24 24"><path d="M4 12l6 6L20 6"/></svg></span>Aktualizace ceníku pro rok 2027</li>
+                <li><span class="mk o-done"><svg viewBox="0 0 24 24"><path d="M4 12l6 6L20 6"/></svg></span>Zpracování tří nových poptávek — nabídky odeslány</li>
+              </ul>
+            </div>
+          </div>
+        </section>
+
+        <section class="sec">
+          <h3>Čeká se na</h3>
+          <div class="wait">
+            <div class="wt"><div><b>Roll-up 2 ks — Fitness Zenit</b><span>Tiskárna Grafiko · slíbeno 5. 8. · urgováno 6. 8.</span></div>
+              <span class="r pill o-alarm">2 dny po termínu</span></div>
+            <div class="wt"><div><b>Schválení vizitek — Nováková &amp; partneři</b><span>Náhled odeslán 1. 8. · bez reakce klienta</span></div>
+              <span class="r pill o-client">6 dní</span></div>
+            <div class="wt"><div><b>Korektury letáků — Pekárna U Lípy</b><span>Termín zpětné vazby dnes do 16:00</span></div>
+              <span class="r pill o-client">Dnes</span></div>
+            <div class="wt"><div><b>Letáky 5 000 ks — Pekárna U Lípy</b><span>Tiskárna Grafiko · dodání 10. 8.</span></div>
+              <span class="r pill o-supplier">V termínu</span></div>
+            <div class="wt"><div><b>Katalog 800 ks — Městská knihovna</b><span>Tiskárna Nová · dodání 14. 8.</span></div>
+              <span class="r pill o-supplier">V termínu</span></div>
+          </div>
+        </section>
+
+        <section class="sec">
+          <h3>Příští týden</h3>
+          <div class="lede" style="font-size:15px"><p>Prioritou je dokončení polepů pro AutoCentrum Švec a převzetí obou tiskových zakázek. Po dodání katalogu následuje distribuce do poboček knihovny. Volná kapacita je zhruba na den a půl, ideálně pro rozpracování nové identity Kavárny Ateliér.</p></div>
+        </section>
+
+        <footer class="sh-f">
+          <span>Studio Deník · Petr Malý · petr@studiodenik.cz</span>
+          <span class="mono">2026-W32 · strana 1/1</span>
+        </footer>
+      </article></div>
+    </section>
+
+    <!-- ============ NASTAVENÍ ============ -->
+    <section class="view" id="view-nastaveni"><div class="wrap"><div class="set">
+      <div class="panel">
+        <div class="panel-h"><h2>Umělá inteligence</h2></div>
+        <div class="sr"><div><b>Model pro psaní reportů</b><p>Klíč je uložený na serveru, do prohlížeče se nikdy nedostane.</p></div>
+          <div class="r"><div class="seg"><button class="is-on">Claude</button><button>Gemini</button></div></div></div>
+        <div class="sr"><div><b>Rozpoznávání rychlého zápisu</b><p>Z jedné věty vytvoří úkol s klientem, termínem, typem i dodavatelem.</p></div>
+          <div class="r"><span class="pill o-done">Zapnuto</span></div></div>
+        <div class="sr"><div><b>Návrhy urgencí</b><p>Upozorní na úkoly ležící u klienta nebo dodavatele déle, než je obvyklé, a předepíše zprávu.</p></div>
+          <div class="r"><span class="pill o-done">Zapnuto</span></div></div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-h"><h2>Tým</h2><span class="note">3 z 5 míst</span></div>
+        <div class="sr"><div class="avatar">PM</div><div><b>Petr Malý</b><p>petr@studiodenik.cz</p></div><div class="r"><span class="tag">Správce</span></div></div>
+        <div class="sr"><div class="avatar">JK</div><div><b>Jana Krausová</b><p>jana@studiodenik.cz</p></div><div class="r"><span class="tag">Člen týmu</span></div></div>
+        <div class="sr"><div class="avatar">TB</div><div><b>Tomáš Beneš</b><p>tomas@studiodenik.cz</p></div><div class="r"><span class="tag">Člen týmu</span></div></div>
+        <div class="sr"><div class="avatar">MD</div><div><b>Ing. Marek Dvořák</b><p>Vidí pouze publikované reporty</p></div><div class="r"><span class="tag">Příjemce</span></div></div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-h"><h2>Reporty a odkazy</h2></div>
+        <div class="sr"><div><b>Automatický koncept</b><p>Každý pátek v 15:00 se připraví koncept týdenního reportu k tvé kontrole.</p></div>
+          <div class="r"><span class="pill o-done">Zapnuto</span></div></div>
+        <div class="sr"><div><b>Schvalovací odkaz pro klienty</b><p>Klient bez účtu otevře odkaz a odklikne „Schvaluji". Stav se propíše rovnou do úkolu.</p></div>
+          <div class="r"><span class="pill o-done">Zapnuto</span></div></div>
+        <div class="sr"><div><b>Platnost sdíleného odkazu</b><p>Po vypršení odkaz přestane fungovat a report zůstane jen v aplikaci.</p></div>
+          <div class="r"><span class="tag mono">90 dní</span></div></div>
+      </div>
+    </div></div></section>
+  </main>
+</div>
+
+<div class="bd top" id="pal-bd">
+  <div class="pal" role="dialog" aria-modal="true" aria-label="Paleta příkazů">
+    <div class="pal-i">
+      <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+      <input id="pal-q" placeholder="Napiš úkol, klienta nebo příkaz…" aria-label="Hledat">
+      <kbd>Esc</kbd>
+    </div>
+    <div class="pal-l" id="pal-l"></div>
+  </div>
+</div>
+
+<div class="bd mid" id="add-bd">
+  <div class="dlg" role="dialog" aria-modal="true" aria-label="Rychlý zápis">
+    <div class="dlg-h"><h2>Rychlý zápis</h2><span class="tag">napiš to větou, zbytek doplní AI</span></div>
+    <div class="dlg-b">
+      <textarea class="ta" id="qta">udělal jsem letáky pro Pekárnu U Lípy, poslal do tisku Grafiku, dodání slíbili do pondělí</textarea>
+      <div class="parsed" id="parsed">
+        <div class="pf"><b>Úkol</b><span>Letáky A5 — návrh a tisková data</span></div>
+        <div class="pf"><b>Klient</b><span>Pekárna U Lípy</span></div>
+        <div class="pf"><b>Typ</b><span>Tiskový — 6 kroků</span></div>
+        <div class="pf"><b>Stav</b><span>V tisku</span></div>
+        <div class="pf"><b>Dodavatel</b><span>Tiskárna Grafiko</span></div>
+        <div class="pf"><b>Dodání do</b><span>10. 8. 2026 (pondělí)</span></div>
+        <div class="pf"><b>Míč u koho</b><span>Dodavatel</span></div>
+      </div>
+    </div>
+    <div class="dlg-f">
+      <button class="btn" id="parse">
+        <svg viewBox="0 0 24 24"><path d="M12 3l1.9 5.3L19 10l-5.1 1.7L12 17l-1.9-5.3L5 10l5.1-1.7z"/></svg>Rozpoznat AI</button>
+      <div class="spacer"></div>
+      <button class="btn btn-ghost" data-x>Zrušit</button>
+      <button class="btn btn-primary" data-x>Uložit úkol</button>
+    </div>
+  </div>
+</div>
+
+<div class="bd mid" id="urge-bd">
+  <div class="dlg" role="dialog" aria-modal="true" aria-label="Připomínka">
+    <div class="dlg-h"><h2>Připomínka</h2><span class="tag" id="urge-who">—</span></div>
+    <div class="dlg-b">
+      <div style="font-size:12px;color:var(--faint);margin-bottom:9px">Návrh zprávy — uprav si ho, jak potřebuješ.</div>
+      <textarea class="ta" id="urge-ta" style="min-height:140px"></textarea>
+      <div class="ai" style="margin-top:var(--s4)">
+        <svg viewBox="0 0 24 24"><path d="M12 3l1.9 5.3L19 10l-5.1 1.7L12 17l-1.9-5.3L5 10l5.1-1.7z"/></svg>
+        Odeslání se zapíše do historie úkolu a v reportu doloží, že se čekání řešilo.</div>
+    </div>
+    <div class="dlg-f"><div class="spacer"></div>
+      <button class="btn btn-ghost" data-x>Zrušit</button>
+      <button class="btn btn-primary" data-x>Odeslat</button></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"><b id="toast-t">Stav změněn</b><button id="undo">Vrátit zpět</button></div>
+
+<script>
+(function(){
+  "use strict";
+  var $=function(s,r){return (r||document).querySelector(s);};
+  var $$=function(s,r){return Array.prototype.slice.call((r||document).querySelectorAll(s));};
+
+  var CL={
+    pekarna:{n:"Pekárna U Lípy",c:"#B5673E",act:4,mon:7,ball:"client",next:"10. 8."},
+    zenit:{n:"Fitness Zenit",c:"#3D7F72",act:3,mon:5,ball:"alarm",next:"po termínu"},
+    knihovna:{n:"Městská knihovna Beroun",c:"#6F5A9B",act:5,mon:9,ball:"me",next:"14. 8."},
+    novakova:{n:"Nováková & partneři",c:"#33638F",act:2,mon:3,ball:"client",next:"nestanoven"},
+    svec:{n:"AutoCentrum Švec",c:"#9C7838",act:2,mon:6,ball:"me",next:"dnes 13:00"},
+    atelier:{n:"Kavárna Ateliér",c:"#57737E",act:1,mon:2,ball:"done",next:"21. 8."},
+    interni:{n:"Interní",c:"#6B7B80",act:4,mon:8,ball:"me",next:"20. 8."}
+  };
+
+  var FLOW={
+    interni:[{l:"Zadáno",o:"me"},{l:"Dělám",o:"me"},{l:"Hotovo",o:"done"}],
+    klient:[{l:"Zadáno",o:"me"},{l:"Dělám",o:"me"},{l:"U klienta",o:"client"},{l:"Hotovo",o:"done"}],
+    tisk:[{l:"Zadáno",o:"me"},{l:"Dělám",o:"me"},{l:"Ke schválení",o:"client"},
+          {l:"V tisku",o:"supplier"},{l:"Dodáno",o:"me"},{l:"Předáno",o:"done"}]
+  };
+  var SAY={me:"Na tahu jsi ty",client:"Čeká se na klienta",supplier:"Čeká se na dodavatele",done:"Uzavřeno"};
+  var GRP={me:"Na tobě",client:"U klienta",supplier:"U dodavatele",done:"Uzavřeno"};
+  var GSAY={me:"tyhle nikdo jiný neposune",client:"urguj, ale není to na tobě",
+            supplier:"hlídá se termín dodání",done:"projde do reportu"};
+  var SZ={1:"malý",2:"střední",3:"velký"};
+
+  var T=[
+    {t:"Roll-up 850×2000 — dotisk 2 ks",cl:"zenit",f:"tisk",at:3,due:"5. 8.",late:1,own:"PM",sup:"Grafiko",sz:2},
+    {t:"Vizitky — schválení náhledu",cl:"novakova",f:"tisk",at:2,due:"1. 8.",late:1,own:"PM",sup:"Grafiko",sz:1},
+    {t:"Polepy vozů — příprava podkladů",cl:"svec",f:"klient",at:1,due:"dnes 13:00",own:"PM",sz:3},
+    {t:"Vyúčtování za červenec — odeslat",cl:"interni",f:"interni",at:1,due:"dnes",own:"PM",sz:2},
+    {t:"Náhled katalogu — odsouhlasení",cl:"knihovna",f:"klient",at:1,due:"dnes 9:30",own:"JK",sz:2},
+    {t:"Nabídka na novou identitu",cl:"atelier",f:"klient",at:1,due:"12. 8.",own:"PM",sz:3},
+    {t:"Korektury letáků A5",cl:"pekarna",f:"klient",at:2,due:"dnes 16:00",own:"PM",sz:1},
+    {t:"Letáky A5 — 5 000 ks",cl:"pekarna",f:"tisk",at:3,due:"10. 8.",own:"PM",sup:"Grafiko",sz:3},
+    {t:"Katalog 32 stran — 800 ks",cl:"knihovna",f:"tisk",at:3,due:"14. 8.",own:"JK",sup:"Tiskárna Nová",sz:3},
+    {t:"Inzerát do regionálního tisku",cl:"svec",f:"klient",at:2,due:"11. 8.",own:"TB",sz:1},
+    {t:"Aktualizace ceníku 2027",cl:"interni",f:"interni",at:1,due:"20. 8.",own:"PM",sz:2},
+    {t:"Samolepky ⌀60 mm — 2 000 ks",cl:"svec",f:"tisk",at:5,due:"4. 8.",own:"PM",sup:"Grafiko",sz:2},
+    {t:"Cenovky do prodejny — sada 24 ks",cl:"pekarna",f:"klient",at:3,due:"5. 8.",own:"JK",sz:2},
+    {t:"Příspěvky na Instagram — srpen",cl:"pekarna",f:"klient",at:3,due:"4. 8.",own:"TB",sz:2},
+    {t:"Plakát A2 — Noc literatury",cl:"knihovna",f:"klient",at:3,due:"6. 8.",own:"JK",sz:2},
+    {t:"Vizuální manuál — pravidla pro sítě",cl:"knihovna",f:"interni",at:2,due:"6. 8.",own:"PM",sz:3},
+    {t:"Bannery na web — 4 rozměry",cl:"zenit",f:"klient",at:3,due:"5. 8.",own:"TB",sz:2},
+    {t:"Rozvrh lekcí — nová šablona",cl:"zenit",f:"klient",at:3,due:"6. 8.",own:"JK",sz:1},
+    {t:"Hlavičkový papír a obálky",cl:"novakova",f:"klient",at:3,due:"3. 8.",own:"PM",sz:2},
+    {t:"Zpracování tří nových poptávek",cl:"interni",f:"interni",at:2,due:"5. 8.",own:"PM",sz:2},
+    {t:"Sazba jídelního lístku",cl:"atelier",f:"klient",at:3,due:"4. 8.",own:"TB",sz:2},
+    {t:"Fotoretuš produktů — 12 ks",cl:"pekarna",f:"interni",at:2,due:"3. 8.",own:"JK",sz:1},
+    {t:"Archivace zakázek za červenec",cl:"interni",f:"interni",at:2,due:"6. 8.",own:"PM",sz:1}
+  ];
+  var flow=function(x){return FLOW[x.f];};
+  var ball=function(x){return flow(x)[x.at].o;};
+  var late=function(x){return !!x.late && ball(x)!=="done";};
+
+  /* ---------- úkoly ---------- */
+  var box=$("#groups"), blank=$("#blank");
+  var filt="all", q="", open=-1, shut={};
+  var ORDER=["me","client","supplier","done"];
+
+  function esc(s){return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;");}
+
+  function mini(x){
+    var f=flow(x);
+    return '<span class="mini">'+f.map(function(s,k){
+      return '<i class="'+(k<x.at?"on":(k===x.at?"at":""))+'"></i>';
+    }).join("")+'</span>';
+  }
+
+  function rowHTML(x,i){
+    var c=CL[x.cl], L=late(x), f=flow(x);
+    return '<div class="row'+(ball(x)==="done"?" done-t":"")+(open===i?" open":"")+
+      '" data-i="'+i+'" style="--tone:var(--'+(L?"alarm":ball(x))+')">'+
+      mini(x)+
+      '<div><div class="row-t">'+esc(x.t)+'</div><div class="row-s">'+f[x.at].l+
+        (x.sup?' · '+esc(x.sup):'')+'</div></div>'+
+      '<div class="row-cl"><i style="background:'+c.c+'"></i>'+esc(c.n)+'</div>'+
+      '<div class="row-due'+(L?" late":"")+'">'+esc(x.due)+'</div>'+
+      '<div class="row-own">'+x.own+'</div>'+
+    '</div>'+ (open===i ? detailHTML(x,i) : "");
+  }
+
+  function detailHTML(x,i){
+    var f=flow(x), L=late(x), tone=L?"alarm":ball(x), last=x.at>=f.length-1;
+    var steps=f.map(function(s,k){
+      return '<button class="rl '+(k<x.at?"on":(k===x.at?"at":""))+'" data-i="'+i+'" data-to="'+k+'">'+
+        '<b></b><span>'+s.l+'</span></button>';
+    }).join("");
+    return '<div class="detail is-on" style="--tone:var(--'+tone+')">'+
+      '<div class="relay">'+steps+'</div>'+
+      '<div class="detail-acts">'+
+        (last?'':'<button class="btn btn-sm btn-primary" data-i="'+i+'" data-to="'+(x.at+1)+'">'+
+          'Posunout na „'+f[x.at+1].l+'"</button>')+
+        (x.sup?'<button class="btn btn-sm" data-urge="Tiskárna '+esc(x.sup)+'">Urgovat dodavatele</button>':'')+
+        '<button class="btn btn-sm btn-ghost" data-sz="'+i+'">Velikost: '+SZ[x.sz]+'</button>'+
+      '</div>'+
+      '<div class="detail-meta"><span>Zodpovídá <b>'+x.own+'</b></span>'+
+        '<span>Termín <b>'+esc(x.due)+'</b></span>'+
+        '<span>Stav <b>'+SAY[ball(x)]+'</b></span></div>'+
+    '</div>';
+  }
+
+  /* jediný zdroj čísel — filtry, dashboard i podíl míče čtou odsud */
+  function tally(){
+    var c={all:T.length,me:0,client:0,supplier:0,done:0,late:0};
+    T.forEach(function(x){ c[ball(x)]++; if(late(x)) c.late++; });
+    $$("[data-c]").forEach(function(el){ el.textContent=c[el.dataset.c]; });
+    $$(".share-bar i").forEach(function(el){ el.style.flexGrow=c[el.dataset.f] || 0.001; });
+    return c;
+  }
+
+  function render(){
+    tally();
+    var qq=q.trim().toLowerCase(), total=0, html="";
+    ORDER.forEach(function(g){
+      var items=[];
+      T.forEach(function(x,i){
+        var b=ball(x), L=late(x);
+        if(b!==g) return;
+        if(filt==="late" ? !L : (filt!=="all" && filt!==b)) return;
+        if(qq && (x.t+" "+CL[x.cl].n).toLowerCase().indexOf(qq)<0) return;
+        items.push(rowHTML(x,i));
+      });
+      if(!items.length) return;
+      total+=items.length;
+      html+='<section class="group'+(shut[g]?" closed":"")+'" data-g="'+g+'" style="--tone:var(--'+g+')">'+
+        '<header class="group-h" data-toggle="'+g+'"><i></i><h3>'+GRP[g]+'</h3>'+
+        '<span class="n">'+items.length+'</span>'+
+        '<span class="group-say">'+GSAY[g]+'</span>'+
+        '<svg class="cv" viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>'+
+        '</header><div class="group-list">'+items.join("")+'</div></section>';
+    });
+    box.innerHTML=html;
+    blank.style.display=total?"none":"block";
+  }
+  render();
+
+  var undoState=null, tt=null;
+  function toast(m){
+    $("#toast-t").textContent=m; $("#toast").classList.add("is-on");
+    clearTimeout(tt); tt=setTimeout(function(){$("#toast").classList.remove("is-on");},5000);
+  }
+  function move(i,to){
+    var x=T[i];
+    if(to===x.at && to>0) to--;
+    undoState={i:i,at:x.at}; x.at=to; open=i; render();
+    toast(x.t+" → "+flow(x)[x.at].l);
+  }
+  $("#undo").addEventListener("click",function(){
+    if(!undoState) return;
+    T[undoState.i].at=undoState.at; undoState=null; render();
+    $("#toast").classList.remove("is-on");
+  });
+
+  box.addEventListener("click",function(e){
+    var tg=e.target.closest("[data-toggle]");
+    if(tg){ var g=tg.dataset.toggle; shut[g]=!shut[g]; render(); return; }
+    var sz=e.target.closest("[data-sz]");
+    if(sz){ var j=+sz.dataset.sz; T[j].sz=T[j].sz%3+1; render(); return; }
+    var mv=e.target.closest("[data-to]");
+    if(mv){ move(+mv.dataset.i,+mv.dataset.to); return; }
+    if(e.target.closest("[data-urge]")) return;
+    var row=e.target.closest(".row");
+    if(row){ var i=+row.dataset.i; open = (open===i ? -1 : i); render(); }
+  });
+
+  $$(".fbtn").forEach(function(b){
+    b.addEventListener("click",function(){
+      $$(".fbtn").forEach(function(x){x.classList.remove("is-on");});
+      b.classList.add("is-on"); filt=b.dataset.filter; open=-1; render();
+    });
+  });
+  $("#q").addEventListener("input",function(e){
+    q=e.target.value;
+    if(q && !$("#view-ukoly").classList.contains("is-on")) go("ukoly");
+    render();
+  });
+
+  /* ---------- klienti ---------- */
+  $("#clgrid").innerHTML=Object.keys(CL).filter(function(k){return k!=="interni";}).map(function(k){
+    var c=CL[k];
+    return '<div class="cl"><div class="cl-h"><i style="background:'+c.c+'"></i><b>'+esc(c.n)+'</b></div>'+
+      '<div class="cl-r">'+
+        '<div><span class="l">Aktivní úkoly</span><span class="r">'+c.act+'</span></div>'+
+        '<div><span class="l">Hotovo tento měsíc</span><span class="r">'+c.mon+'</span></div>'+
+        '<div><span class="l">Nejbližší termín</span><span class="r">'+c.next+'</span></div>'+
+        '<div><span class="l">Míč u koho</span><span class="r"><span class="pill o-'+c.ball+'">'+
+          (c.ball==="alarm"?"Dodavatel":GRP[c.ball])+'</span></span></div>'+
+      '</div>'+
+      '<div class="cl-l"><code>studiodenik.cz/s/'+k+'-4f9c</code>'+
+        '<button class="btn btn-sm" data-copy>Kopírovat</button></div></div>';
+  }).join("");
+  $("#clgrid").addEventListener("click",function(e){
+    if(e.target.closest("[data-copy]")) toast("Schvalovací odkaz zkopírován — klient nepotřebuje účet");
+  });
+
+  /* ---------- navigace ---------- */
+  var TI={dnes:["Dnes","pátek 7. srpna 2026 · týden 32"],
+    ukoly:["Úkoly","23 aktivních · 6 klientů"],
+    tisk:["Tisk a termíny","5 zakázek · 1 po termínu"],
+    klienti:["Klienti","6 aktivních · schvalovací odkazy"],
+    report:["Report","koncept · upraveno dnes v 8:12"],
+    nastaveni:["Nastavení","tým, AI a reporty"]};
+  function go(v){
+    $$(".view").forEach(function(s){s.classList.toggle("is-on",s.id==="view-"+v);});
+    $$(".navbtn").forEach(function(b){b.classList.toggle("is-on",b.dataset.view===v);});
+    $("#ttl").textContent=TI[v][0]; $("#sub").textContent=TI[v][1];
+    window.scrollTo({top:0,behavior:"smooth"});
+    if(v==="report") grow();
+  }
+  $$("[data-view]").forEach(function(b){b.addEventListener("click",function(){go(b.dataset.view);});});
+  $$("[data-goto]").forEach(function(b){b.addEventListener("click",function(){go(b.dataset.goto);});});
+  $$("[data-jump]").forEach(function(b){
+    b.addEventListener("click",function(){
+      var f=b.dataset.jump;
+      $$(".fbtn").forEach(function(x){x.classList.toggle("is-on",x.dataset.filter===f);});
+      filt=f; open=-1; shut={}; render(); go("ukoly");
+    });
+  });
+
+  /* ---------- report ---------- */
+  var grew=false;
+  function grow(){
+    if(grew) return; grew=true;
+    $$(".stack-bar i").forEach(function(el,i){
+      var f=el.style.flexGrow; el.style.flexGrow="0";
+      setTimeout(function(){el.style.flexGrow=f;},60+i*70);
+    });
+  }
+  $("#gen").addEventListener("click",function(){
+    $$("#lede p").forEach(function(p,i){
+      p.style.animation="none"; p.style.opacity="0";
+      setTimeout(function(){p.style.animation="rise .55s var(--ease) forwards";},80+i*180);
+    });
+    toast("Text přegenerován pomocí Claude");
+  });
+  $("#share").addEventListener("click",function(){toast("Odkaz na report zkopírován · platí 90 dní");});
+  $$(".seg button").forEach(function(b){
+    b.addEventListener("click",function(){
+      $$("button",b.parentNode).forEach(function(x){x.classList.remove("is-on");});
+      b.classList.add("is-on");
+    });
+  });
+
+  $("#theme").addEventListener("click",function(){
+    var r=document.documentElement;
+    var d=r.getAttribute("data-theme")==="dark" ||
+      (!r.getAttribute("data-theme") && matchMedia("(prefers-color-scheme: dark)").matches);
+    r.setAttribute("data-theme",d?"light":"dark");
+  });
+
+  /* ---------- dialogy ---------- */
+  function show(id){$(id).classList.add("is-on");}
+  function hide(el){el.classList.remove("is-on");}
+  $$(".bd").forEach(function(bd){
+    bd.addEventListener("click",function(e){
+      if(e.target===bd || e.target.closest("[data-x]")) hide(bd);
+    });
+  });
+  $("#add").addEventListener("click",function(){show("#add-bd");});
+  $("#parse").addEventListener("click",function(){
+    $("#parsed").classList.add("is-on");
+    $$("#parsed .pf").forEach(function(r,i){
+      r.style.animation="none"; r.style.opacity="0";
+      setTimeout(function(){r.style.animation="rise .36s var(--ease) forwards";},100+i*85);
+    });
+  });
+
+  var URGE={
+    "Tiskárna Grafiko":"Dobrý den,\n\nověřuji stav zakázky ZAK-2608-014 (roll-up 850×2000, 2 ks) pro Fitness Zenit. Dodání bylo slíbeno na 5. 8., zásilka zatím nedorazila.\n\nKlient má akci v sobotu — potřebuji do konce dneška vědět, zda to stihnete, nebo mám hledat náhradní řešení.\n\nDěkuji, Petr Malý",
+    "Nováková & partneři":"Dobrý den,\n\nposílám připomenutí k náhledu vizitek, který jsem odeslal 1. 8.\n\nJakmile odsouhlasíte, pošlu data do tisku — dodání pak bývá do pěti pracovních dní. Schválit můžete přímo přes odkaz v původním e-mailu.\n\nDěkuji, Petr Malý"
+  };
+  document.addEventListener("click",function(e){
+    var b=e.target.closest("[data-urge]"); if(!b) return;
+    var who=b.dataset.urge.replace(/&amp;/g,"&");
+    $("#urge-who").textContent=who;
+    $("#urge-ta").value=URGE[who] || ("Dobrý den,\n\nověřuji stav zakázky u "+who+".\n\nDěkuji, Petr Malý");
+    show("#urge-bd");
+  });
+
+  /* ---------- paleta ---------- */
+  var pbd=$("#pal-bd"), pin=$("#pal-q"), pl=$("#pal-l"), sel=0, hits=[];
+  var IC={view:'<path d="M3 12h4l3 8 4-16 3 8h4"/>',
+    task:'<path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/>',
+    client:'<circle cx="9" cy="7" r="4"/><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/>',
+    act:'<path d="M12 3l1.9 5.3L19 10l-5.1 1.7L12 17l-1.9-5.3L5 10l5.1-1.7z"/>'};
+  function build(){
+    var o=[];
+    Object.keys(TI).forEach(function(v){
+      o.push({g:"Přejít na",t:TI[v][0],s:TI[v][1],ic:"view",run:function(){go(v);}});
+    });
+    o.push({g:"Akce",t:"Zapsat nový úkol",s:"rychlý zápis větou",ic:"act",run:function(){show("#add-bd");}});
+    o.push({g:"Akce",t:"Přegenerovat report",s:"text napíše Claude",ic:"act",run:function(){go("report");$("#gen").click();}});
+    o.push({g:"Akce",t:"Ukázat jen to, co je na mně",s:"filtr Na tobě",ic:"act",run:function(){
+      filt="me"; $$(".fbtn").forEach(function(x){x.classList.toggle("is-on",x.dataset.filter==="me");});
+      open=-1; render(); go("ukoly");}});
+    T.forEach(function(x,i){
+      o.push({g:"Úkoly",t:x.t,s:CL[x.cl].n+" · "+flow(x)[x.at].l,ic:"task",run:function(){
+        go("ukoly"); q=""; $("#q").value=""; filt="all"; shut={};
+        $$(".fbtn").forEach(function(z){z.classList.toggle("is-on",z.dataset.filter==="all");});
+        open=i; render();
+        var el=box.querySelector('.row[data-i="'+i+'"]');
+        if(el) el.scrollIntoView({block:"center",behavior:"smooth"});}});
+    });
+    Object.keys(CL).forEach(function(k){
+      o.push({g:"Klienti",t:CL[k].n,s:CL[k].act+" aktivních úkolů",ic:"client",run:function(){go("klienti");}});
+    });
+    return o;
+  }
+  var PAL=build();
+  function pr(){
+    var qq=pin.value.trim().toLowerCase();
+    hits=PAL.filter(function(o){return !qq || (o.t+" "+o.s).toLowerCase().indexOf(qq)>-1;}).slice(0,22);
+    if(sel>=hits.length) sel=0;
+    if(!hits.length){pl.innerHTML='<div class="pal-0">Nic nenalezeno.</div>'; return;}
+    var g="",h="";
+    hits.forEach(function(o,i){
+      if(o.g!==g){g=o.g; h+='<div class="pal-g">'+g+'</div>';}
+      h+='<button class="pal-it'+(i===sel?" sel":"")+'" data-k="'+i+'">'+
+         '<span class="pal-ic"><svg viewBox="0 0 24 24">'+IC[o.ic]+'</svg></span>'+
+         '<span class="pal-tx"><b>'+esc(o.t)+'</b><span>'+esc(o.s)+'</span></span>'+
+         (i===sel?'<kbd>Enter</kbd>':'')+'</button>';
+    });
+    pl.innerHTML=h;
+  }
+  function popen(){pbd.classList.add("is-on"); pin.value=""; sel=0; pr(); pin.focus();}
+  function prun(i){var o=hits[i]; if(!o) return; hide(pbd); o.run();}
+  $("#pal-open").addEventListener("click",popen);
+  pin.addEventListener("input",function(){sel=0; pr();});
+  pl.addEventListener("click",function(e){var it=e.target.closest(".pal-it"); if(it) prun(+it.dataset.k);});
+  pin.addEventListener("keydown",function(e){
+    if(e.key==="ArrowDown"){e.preventDefault(); sel=Math.min(sel+1,hits.length-1); pr();}
+    else if(e.key==="ArrowUp"){e.preventDefault(); sel=Math.max(sel-1,0); pr();}
+    else if(e.key==="Enter"){e.preventDefault(); prun(sel);}
+  });
+  document.addEventListener("keydown",function(e){
+    if((e.ctrlKey||e.metaKey) && e.key.toLowerCase()==="k"){e.preventDefault(); popen(); return;}
+    if(e.key==="Escape"){$$(".bd.is-on").forEach(hide); return;}
+    var t=e.target.tagName;
+    if(t==="INPUT"||t==="TEXTAREA") return;
+    if(e.key==="n"||e.key==="N"){e.preventDefault(); show("#add-bd");}
+    if(e.key==="/"){e.preventDefault(); $("#q").focus();}
+  });
+})();
+</script>

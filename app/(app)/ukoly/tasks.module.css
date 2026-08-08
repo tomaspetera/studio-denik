@@ -1,0 +1,502 @@
+.wrap { max-width: 1160px; margin: 0 auto; }
+
+/* ---------------------------------------------------------------- */
+/* Hlavička                                                          */
+/* ---------------------------------------------------------------- */
+
+.head {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--s5);
+  flex-wrap: wrap;
+  margin-bottom: var(--s5);
+}
+
+.h1 {
+  font-family: var(--ui-d);
+  font-size: 26px;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  line-height: 1.2;
+}
+
+.sub {
+  font-family: var(--ui-s);
+  font-size: 12.5px;
+  color: var(--faint);
+  margin: 4px 0 0;
+}
+
+.tools {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+}
+
+.search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 13px;
+  height: 34px;
+  border-radius: var(--r4);
+  border: 1px solid var(--line);
+  background: var(--surface);
+  width: 210px;
+  transition: border-color 0.15s, width 0.2s var(--ease);
+}
+.search:focus-within { border-color: var(--accent); width: 250px; }
+.search svg { width: 15px; height: 15px; stroke: var(--faint); fill: none; flex: none; }
+.search input { border: 0; background: transparent; outline: 0; width: 100%; font-size: 13px; }
+.search input::placeholder { color: var(--faint); }
+
+/* ---------------------------------------------------------------- */
+/* Filtry                                                            */
+/* ---------------------------------------------------------------- */
+
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s2);
+  margin-bottom: var(--s5);
+}
+
+.chip {
+  height: 31px;
+  padding: 0 13px;
+  border-radius: var(--r4);
+  border: 1px solid var(--line-2);
+  background: var(--surface);
+  font-size: 12.5px;
+  cursor: pointer;
+  color: var(--ink-2);
+  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+.chip:hover { border-color: var(--muted); }
+.chipOn { background: var(--ink); border-color: var(--ink); color: var(--paper); }
+.chipCount { font-family: var(--mono); font-size: 11px; opacity: 0.65; }
+
+/* ---------------------------------------------------------------- */
+/* Skupiny                                                           */
+/* ---------------------------------------------------------------- */
+
+.busy { opacity: 0.6; pointer-events: none; transition: opacity 0.15s; }
+
+.group { margin-bottom: var(--s5); }
+
+.groupHead {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 9px var(--s3);
+  cursor: pointer;
+  border: 1px solid var(--line);
+  border-radius: var(--r2);
+  margin-bottom: var(--s2);
+  background: var(--grad-sunk);
+  box-shadow: var(--sh-1);
+  text-align: left;
+  transition: box-shadow 0.15s var(--ease);
+}
+.groupHead:hover { box-shadow: var(--sh-2); }
+
+.groupDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--tone);
+  flex: none;
+}
+
+.groupName {
+  font-size: 11.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  font-weight: 700;
+  color: var(--tone);
+}
+
+.groupCount { font-family: var(--mono); font-size: 11.5px; color: var(--faint); }
+
+.groupHint {
+  font-family: var(--ui-s);
+  font-size: 12px;
+  color: var(--faint);
+}
+
+.chev {
+  margin-left: auto;
+  width: 16px;
+  height: 16px;
+  stroke: var(--faint);
+  fill: none;
+  transition: transform 0.2s var(--ease);
+  flex: none;
+}
+.chevClosed { transform: rotate(-90deg); }
+
+.rows { display: flex; flex-direction: column; }
+
+/* ---------------------------------------------------------------- */
+/* Řádek úkolu                                                       */
+/* ---------------------------------------------------------------- */
+
+.row {
+  display: grid;
+  grid-template-columns: 74px minmax(0, 1fr) 150px 78px 30px;
+  gap: var(--s4);
+  align-items: center;
+  padding: 11px var(--s3);
+  border-bottom: 1px solid var(--line);
+  cursor: pointer;
+  border-radius: var(--r2);
+  position: relative;
+  transition: background 0.16s var(--ease), box-shadow 0.16s var(--ease);
+}
+.row:hover {
+  background: var(--grad);
+  box-shadow: var(--sh-1);
+  border-bottom-color: transparent;
+}
+
+/* Rozbalený řádek splyne s detailem do jedné vyzdvižené desky. */
+.rowOpen {
+  background: var(--grad-raise);
+  box-shadow: var(--sh-2);
+  border-bottom-color: transparent;
+  border-radius: var(--r2) var(--r2) 0 0;
+}
+.rowOpen::after {
+  content: "";
+  position: absolute;
+  left: var(--s3);
+  right: var(--s3);
+  bottom: 0;
+  height: 1px;
+  background: var(--line);
+}
+
+/* mini štafeta — stav na první pohled */
+.mini { display: flex; gap: 2.5px; align-items: center; }
+.mini i {
+  height: 5px;
+  border-radius: var(--r4);
+  background: var(--sunk);
+  flex: 1;
+  transition: background 0.25s var(--ease);
+}
+.miniOn { background: var(--tone) !important; }
+.miniAt { background: var(--tone) !important; height: 8px !important; }
+
+.rowMain { min-width: 0; display: flex; flex-direction: column; }
+.rowTitle {
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: -0.005em;
+  line-height: 1.35;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.rowSub {
+  font-family: var(--ui-s);
+  font-size: 11.5px;
+  color: var(--faint);
+  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rowClient {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+  color: var(--ink-2);
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.rowClient i { width: 7px; height: 7px; border-radius: 2px; flex: none; }
+
+.rowDue {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--muted);
+  text-align: right;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.late { color: var(--alarm); font-weight: 600; }
+
+.rowOwner {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 9px;
+  font-weight: 700;
+  background: var(--sunk);
+  color: var(--ink-2);
+  justify-self: end;
+}
+
+/* ---------------------------------------------------------------- */
+/* Rozbalený detail                                                  */
+/* ---------------------------------------------------------------- */
+
+.detail {
+  padding: var(--s4) var(--s3) var(--s5) 100px;
+  margin-bottom: var(--s2);
+  background: var(--grad-raise);
+  box-shadow: var(--sh-2);
+  border-radius: 0 0 var(--r2) var(--r2);
+  animation: enter 0.22s var(--ease);
+}
+
+.relay {
+  display: flex;
+  gap: 4px;
+  margin-bottom: var(--s4);
+  max-width: 620px;
+}
+
+.step {
+  flex: 1;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  min-width: 0;
+  text-align: left;
+}
+.step b {
+  display: block;
+  height: 6px;
+  border-radius: var(--r4);
+  background: var(--sunk);
+  transition: all 0.2s var(--ease);
+}
+.step span {
+  font-family: var(--ui-s);
+  font-size: 10.5px;
+  color: var(--faint);
+  line-height: 1.25;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.step:hover b { filter: brightness(1.1); transform: scaleY(1.35); }
+
+.stepOn b { background: var(--tone); }
+.stepOn span { color: var(--muted); }
+.stepAt b { background: var(--tone); height: 9px; }
+.stepAt span { color: var(--tone); font-weight: 700; }
+
+.acts { display: flex; align-items: center; gap: var(--s2); flex-wrap: wrap; }
+
+.meta {
+  display: flex;
+  gap: var(--s4);
+  flex-wrap: wrap;
+  margin: var(--s3) 0 0;
+  font-family: var(--ui-s);
+  font-size: 12px;
+  color: var(--faint);
+}
+.meta span { display: flex; gap: 6px; }
+.meta dt { margin: 0; }
+.meta dd { margin: 0; color: var(--ink-2); font-weight: 600; }
+
+/* ---------------------------------------------------------------- */
+/* Prázdné stavy                                                     */
+/* ---------------------------------------------------------------- */
+
+.empty {
+  padding: var(--s8) var(--s5);
+  text-align: center;
+  background: var(--grad);
+  border: 1px dashed var(--line-2);
+  border-radius: var(--r3);
+}
+.empty strong {
+  display: block;
+  font-family: var(--ui-d);
+  font-size: 19px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  margin-bottom: var(--s3);
+}
+.empty p {
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.6;
+  max-width: 46ch;
+  margin: 0 auto var(--s5);
+}
+
+.blank {
+  padding: var(--s7);
+  text-align: center;
+  color: var(--faint);
+  font-size: 13.5px;
+}
+
+/* ---------------------------------------------------------------- */
+/* Dialog                                                            */
+/* ---------------------------------------------------------------- */
+
+.backdrop {
+  position: fixed;
+  inset: 0;
+  background: color-mix(in srgb, var(--ink) 40%, transparent);
+  backdrop-filter: blur(5px);
+  display: grid;
+  place-items: center;
+  z-index: 100;
+  padding: var(--s5);
+  animation: enter 0.18s var(--ease);
+}
+
+.dialog {
+  width: 100%;
+  max-width: 560px;
+  max-height: calc(100dvh - 2 * var(--s5));
+  overflow-y: auto;
+  background: var(--grad);
+  border: 1px solid var(--line-2);
+  border-radius: var(--r3);
+  box-shadow: var(--sh-4);
+}
+
+.dialogHead {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  padding: var(--s4) var(--s5);
+  border-bottom: 1px solid var(--line);
+  position: sticky;
+  top: 0;
+  background: var(--grad);
+  z-index: 1;
+}
+.dialogHead h2 {
+  font-family: var(--ui-d);
+  font-size: 15px;
+  font-weight: 600;
+  margin: 0;
+  margin-right: auto;
+}
+
+.dialogBody { padding: var(--s5); }
+
+.dialogFoot {
+  display: flex;
+  gap: var(--s2);
+  padding: var(--s3) var(--s5);
+  border-top: 1px solid var(--line);
+  background: var(--grad-sunk);
+  flex-wrap: wrap;
+}
+.spacer { margin-left: auto; }
+
+.label {
+  display: block;
+  font-family: var(--ui-s);
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  font-weight: 700;
+  color: var(--faint);
+  margin-bottom: var(--s2);
+}
+
+.kinds { display: flex; flex-direction: column; gap: 6px; }
+.kind {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 13px;
+  border-radius: var(--r2);
+  border: 1px solid var(--line-2);
+  background: var(--surface);
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 0.15s, background 0.15s;
+}
+.kind:hover { border-color: var(--muted); }
+.kind b { font-size: 13.5px; font-weight: 600; }
+.kind span { font-family: var(--ui-s); font-size: 12px; color: var(--faint); }
+.kindOn { border-color: var(--accent); background: var(--accent-soft); }
+.kindOn b, .kindOn span { color: var(--accent); }
+
+.grid2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--s4);
+  margin-top: var(--s5);
+}
+
+.sizes { display: flex; gap: 4px; }
+.size {
+  flex: 1;
+  height: 40px;
+  border-radius: var(--r2);
+  border: 1px solid var(--line-2);
+  background: var(--surface);
+  cursor: pointer;
+  font-size: 12.5px;
+  color: var(--ink-2);
+  transition: all 0.15s;
+}
+.size:hover { border-color: var(--muted); }
+.sizeOn { background: var(--ink); border-color: var(--ink); color: var(--paper); font-weight: 600; }
+
+.note {
+  font-family: var(--ui-s);
+  font-size: 12px;
+  color: var(--faint);
+  line-height: 1.55;
+  margin: var(--s4) 0 0;
+}
+
+.error {
+  margin: var(--s4) 0 0;
+  padding: 10px 13px;
+  border-radius: var(--r2);
+  background: var(--alarm-soft);
+  color: var(--alarm);
+  font-size: 12.5px;
+  border: 1px solid color-mix(in srgb, var(--alarm) 28%, transparent);
+}
+
+/* ---------------------------------------------------------------- */
+/* Mobil                                                             */
+/* ---------------------------------------------------------------- */
+
+@media (max-width: 900px) {
+  .row { grid-template-columns: 60px minmax(0, 1fr) 66px; gap: var(--s3); }
+  .rowClient, .rowOwner { display: none; }
+  .detail { padding-left: var(--s3); }
+  .relay { max-width: none; }
+  .step span { display: none; }
+  .step b { height: 8px; }
+  .stepAt b { height: 11px; }
+  .tools { width: 100%; }
+  .search { flex: 1; width: auto; }
+  .search:focus-within { width: auto; }
+  .groupHint { display: none; }
+  .grid2 { grid-template-columns: 1fr; }
+}

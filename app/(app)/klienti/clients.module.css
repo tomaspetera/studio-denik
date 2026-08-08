@@ -1,0 +1,257 @@
+.wrap { max-width: 1160px; margin: 0 auto; }
+
+.head {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--s5);
+  flex-wrap: wrap;
+  margin-bottom: var(--s5);
+}
+
+.h1 {
+  font-family: var(--ui-d);
+  font-size: 26px;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  line-height: 1.2;
+}
+
+.sub {
+  font-family: var(--ui-s);
+  font-size: 12.5px;
+  color: var(--faint);
+  margin: 4px 0 0;
+}
+
+.head button { margin-left: auto; }
+
+/* ---------------------------------------------------------------- */
+/* Karty klientů                                                     */
+/* ---------------------------------------------------------------- */
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
+  gap: var(--s4);
+}
+
+.card {
+  background: var(--grad);
+  border: 1px solid var(--line);
+  border-radius: var(--r3);
+  box-shadow: var(--sh-1);
+  overflow: hidden;
+  transition: border-color 0.18s, box-shadow 0.18s var(--ease), transform 0.18s var(--ease);
+}
+.card:hover {
+  border-color: var(--line-2);
+  box-shadow: var(--sh-3);
+  transform: translateY(-2px);
+}
+
+.cardHead {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: var(--s4) var(--s5) var(--s3);
+}
+
+.swatch { width: 12px; height: 12px; border-radius: 4px; flex: none; }
+
+.name {
+  font-family: var(--ui-d);
+  font-size: 14.5px;
+  font-weight: 600;
+  letter-spacing: -0.018em;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rows {
+  margin: 0;
+  padding: var(--s3) var(--s5) var(--s4);
+  border-top: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+}
+.rows > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s3);
+  padding: 4px 0;
+  font-size: 12.5px;
+}
+.rows dt { color: var(--muted); margin: 0; }
+.rows dd {
+  margin: 0;
+  font-family: var(--mono);
+  font-weight: 600;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.link {
+  border-top: 1px solid var(--line);
+  background: var(--grad-sunk);
+  padding: 10px var(--s5);
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+}
+.link code {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--muted);
+  background: transparent;
+  padding: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  min-width: 0;
+}
+
+.hint {
+  font-family: var(--ui-s);
+  font-size: 12.5px;
+  color: var(--faint);
+  line-height: 1.6;
+  margin: var(--s5) 0 0;
+  max-width: 68ch;
+}
+
+/* ---------------------------------------------------------------- */
+/* Prázdný stav                                                      */
+/* ---------------------------------------------------------------- */
+
+.empty {
+  padding: var(--s8) var(--s5);
+  text-align: center;
+  background: var(--grad);
+  border: 1px dashed var(--line-2);
+  border-radius: var(--r3);
+}
+.empty strong {
+  display: block;
+  font-family: var(--ui-d);
+  font-size: 19px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  margin-bottom: var(--s3);
+}
+.empty p {
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.6;
+  max-width: 48ch;
+  margin: 0 auto var(--s5);
+}
+
+/* ---------------------------------------------------------------- */
+/* Dialog                                                            */
+/* ---------------------------------------------------------------- */
+
+.backdrop {
+  position: fixed;
+  inset: 0;
+  background: color-mix(in srgb, var(--ink) 40%, transparent);
+  backdrop-filter: blur(5px);
+  display: grid;
+  place-items: center;
+  z-index: 100;
+  padding: var(--s5);
+  animation: enter 0.18s var(--ease);
+}
+
+.dialog {
+  width: 100%;
+  max-width: 520px;
+  max-height: calc(100dvh - 2 * var(--s5));
+  overflow-y: auto;
+  background: var(--grad);
+  border: 1px solid var(--line-2);
+  border-radius: var(--r3);
+  box-shadow: var(--sh-4);
+}
+
+.dialogHead {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  padding: var(--s4) var(--s5);
+  border-bottom: 1px solid var(--line);
+  position: sticky;
+  top: 0;
+  background: var(--grad);
+  z-index: 1;
+}
+.dialogHead h2 {
+  font-family: var(--ui-d);
+  font-size: 15px;
+  font-weight: 600;
+  margin: 0 auto 0 0;
+}
+
+.dialogBody { padding: var(--s5); }
+
+.dialogFoot {
+  display: flex;
+  gap: var(--s2);
+  padding: var(--s3) var(--s5);
+  border-top: 1px solid var(--line);
+  background: var(--grad-sunk);
+  flex-wrap: wrap;
+}
+.spacer { margin-left: auto; }
+
+.label {
+  display: block;
+  font-family: var(--ui-s);
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  font-weight: 700;
+  color: var(--faint);
+  margin-bottom: var(--s2);
+}
+
+.colors { display: flex; gap: 7px; flex-wrap: wrap; }
+.color {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  border: 2px solid transparent;
+  cursor: pointer;
+  padding: 0;
+  transition: transform 0.12s var(--ease), box-shadow 0.12s;
+}
+.color:hover { transform: scale(1.08); }
+.colorOn {
+  border-color: var(--ink);
+  box-shadow: 0 0 0 2px var(--paper) inset;
+}
+
+.grid2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--s4);
+  margin-top: var(--s5);
+}
+
+.error {
+  margin: var(--s4) 0 0;
+  padding: 10px 13px;
+  border-radius: var(--r2);
+  background: var(--alarm-soft);
+  color: var(--alarm);
+  font-size: 12.5px;
+  border: 1px solid color-mix(in srgb, var(--alarm) 28%, transparent);
+}
+
+@media (max-width: 700px) {
+  .grid2 { grid-template-columns: 1fr; }
+  .head button { width: 100%; }
+}

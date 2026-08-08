@@ -1,0 +1,384 @@
+/* ============================================================================
+   Design systém — přeneseno z prototyp/prototyp.html.
+   Tokeny, podstínění a písma jsou tady; layout jednotlivých obrazovek
+   žije v CSS modulech vedle svých komponent.
+   ============================================================================ */
+
+:root {
+  /* povrchy — porcelán se zeleným nádechem */
+  --paper: #f0f2ef;
+  --surface: #ffffff;
+  --raise: #f7f9f7;
+  --sunk: #e7ebe7;
+  --sheet: #ffffff;
+
+  /* text */
+  --ink: #12171a;
+  --ink-2: #404e52;
+  --muted: #6b7b7f;
+  --faint: #96a4a6;
+
+  /* linky */
+  --line: #e1e6e2;
+  --line-2: #cbd3ce;
+
+  /* jediný akcent */
+  --accent: #0a6e80;
+  --accent-ink: #ffffff;
+  --accent-soft: #e0eff2;
+
+  /* stavy — tlumené, ne zvýrazňovač */
+  --me: #0a6e80;        --me-soft: #e0eff2;
+  --client: #8a6a1f;    --client-soft: #f4eede;
+  --supplier: #7d3a63;  --supplier-soft: #f3e7ef;
+  --done: #3f6b52;      --done-soft: #e4ede7;
+  --alarm: #a8402f;     --alarm-soft: #f7e7e3;
+
+  /* podstínění — přechod plochy, vlasová horní hrana, vrstvené stíny */
+  --grad: linear-gradient(180deg, #ffffff 0%, #f8faf8 100%);
+  --grad-raise: linear-gradient(180deg, #fbfcfb 0%, #f2f5f2 100%);
+  --grad-sunk: linear-gradient(180deg, #e9ede9 0%, #eff2ef 100%);
+  --hair: inset 0 1px 0 rgba(255, 255, 255, 0.92);
+  --ring: inset 0 0 0 1px rgba(20, 28, 31, 0.045);
+  --sh-1: var(--hair), 0 1px 1px rgba(20,28,31,.05), 0 2px 4px -2px rgba(20,28,31,.07);
+  --sh-2: var(--hair), 0 1px 2px rgba(20,28,31,.05), 0 4px 10px -4px rgba(20,28,31,.10), 0 14px 30px -14px rgba(20,28,31,.14);
+  --sh-3: var(--hair), 0 2px 4px rgba(20,28,31,.06), 0 10px 22px -8px rgba(20,28,31,.14), 0 28px 60px -22px rgba(20,28,31,.22);
+  --sh-4: var(--hair), 0 4px 8px rgba(20,28,31,.07), 0 18px 40px -12px rgba(20,28,31,.18), 0 52px 110px -34px rgba(20,28,31,.34);
+
+  /* rozestupy */
+  --s1: 4px; --s2: 8px; --s3: 12px; --s4: 16px;
+  --s5: 24px; --s6: 32px; --s7: 48px; --s8: 64px;
+  --r1: 6px; --r2: 10px; --r3: 14px; --r4: 999px;
+
+  /* písmo — bezpatkové, žádný externí request.
+     Satoshi drží velké stupně, General Sans je klidný pracant na text.
+     Kdo je nemá nainstalované, dostane systémovou náhradu. */
+  --ui-d: "Satoshi", "General Sans", "Plus Jakarta Sans", "Segoe UI Variable Display",
+          -apple-system, BlinkMacSystemFont, system-ui, "Helvetica Neue", sans-serif;
+  --ui: "General Sans", "Plus Jakarta Sans", "Segoe UI Variable Text",
+        -apple-system, BlinkMacSystemFont, system-ui, "Helvetica Neue", sans-serif;
+  --ui-s: "General Sans", "Plus Jakarta Sans", "Segoe UI Variable Small",
+          -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  --mono: "Cascadia Mono", Consolas, ui-monospace, SFMono-Regular, "SF Mono", monospace;
+
+  --ease: cubic-bezier(0.2, 0.7, 0.3, 1);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper: #0a0d0f; --surface: #13181a; --raise: #191f21; --sunk: #0e1214; --sheet: #161b1e;
+    --ink: #e6ebe8; --ink-2: #afbcb9; --muted: #7b8a8d; --faint: #5f6e71;
+    --line: #212a2c; --line-2: #313d3e;
+    --accent: #57b7c8; --accent-ink: #04161a; --accent-soft: #0c2c33;
+    --me: #57b7c8;      --me-soft: #0c2c33;
+    --client: #c49a4d;  --client-soft: #2b2312;
+    --supplier: #be83a6; --supplier-soft: #2c1826;
+    --done: #6ea98a;    --done-soft: #132a1f;
+    --alarm: #d2705c;   --alarm-soft: #2e1713;
+    --grad: linear-gradient(180deg, #181e21 0%, #12181a 100%);
+    --grad-raise: linear-gradient(180deg, #1e2528 0%, #171e20 100%);
+    --grad-sunk: linear-gradient(180deg, #0d1113 0%, #111618 100%);
+    --hair: inset 0 1px 0 rgba(255, 255, 255, 0.055);
+    --ring: inset 0 0 0 1px rgba(255, 255, 255, 0.03);
+    --sh-1: var(--hair), 0 1px 2px rgba(0,0,0,.4);
+    --sh-2: var(--hair), 0 2px 6px -2px rgba(0,0,0,.5), 0 10px 24px -14px rgba(0,0,0,.7);
+    --sh-3: var(--hair), 0 4px 12px -4px rgba(0,0,0,.55), 0 26px 58px -20px rgba(0,0,0,.75);
+    --sh-4: var(--hair), 0 8px 20px -6px rgba(0,0,0,.6), 0 50px 100px -30px rgba(0,0,0,.85);
+  }
+}
+
+/* Ruční přepínač musí přebít systémové nastavení v obou směrech. */
+:root[data-theme="dark"] {
+  --paper: #0a0d0f; --surface: #13181a; --raise: #191f21; --sunk: #0e1214; --sheet: #161b1e;
+  --ink: #e6ebe8; --ink-2: #afbcb9; --muted: #7b8a8d; --faint: #5f6e71;
+  --line: #212a2c; --line-2: #313d3e;
+  --accent: #57b7c8; --accent-ink: #04161a; --accent-soft: #0c2c33;
+  --me: #57b7c8; --me-soft: #0c2c33; --client: #c49a4d; --client-soft: #2b2312;
+  --supplier: #be83a6; --supplier-soft: #2c1826; --done: #6ea98a; --done-soft: #132a1f;
+  --alarm: #d2705c; --alarm-soft: #2e1713;
+  --grad: linear-gradient(180deg, #181e21 0%, #12181a 100%);
+  --grad-raise: linear-gradient(180deg, #1e2528 0%, #171e20 100%);
+  --grad-sunk: linear-gradient(180deg, #0d1113 0%, #111618 100%);
+  --hair: inset 0 1px 0 rgba(255, 255, 255, 0.055);
+  --ring: inset 0 0 0 1px rgba(255, 255, 255, 0.03);
+  --sh-1: var(--hair), 0 1px 2px rgba(0,0,0,.4);
+  --sh-2: var(--hair), 0 2px 6px -2px rgba(0,0,0,.5), 0 10px 24px -14px rgba(0,0,0,.7);
+  --sh-3: var(--hair), 0 4px 12px -4px rgba(0,0,0,.55), 0 26px 58px -20px rgba(0,0,0,.75);
+  --sh-4: var(--hair), 0 8px 20px -6px rgba(0,0,0,.6), 0 50px 100px -30px rgba(0,0,0,.85);
+}
+
+:root[data-theme="light"] {
+  --paper: #f0f2ef; --surface: #ffffff; --raise: #f7f9f7; --sunk: #e7ebe7; --sheet: #ffffff;
+  --ink: #12171a; --ink-2: #404e52; --muted: #6b7b7f; --faint: #96a4a6;
+  --line: #e1e6e2; --line-2: #cbd3ce;
+  --accent: #0a6e80; --accent-ink: #ffffff; --accent-soft: #e0eff2;
+  --me: #0a6e80; --me-soft: #e0eff2; --client: #8a6a1f; --client-soft: #f4eede;
+  --supplier: #7d3a63; --supplier-soft: #f3e7ef; --done: #3f6b52; --done-soft: #e4ede7;
+  --alarm: #a8402f; --alarm-soft: #f7e7e3;
+  --grad: linear-gradient(180deg, #ffffff 0%, #f8faf8 100%);
+  --grad-raise: linear-gradient(180deg, #fbfcfb 0%, #f2f5f2 100%);
+  --grad-sunk: linear-gradient(180deg, #e9ede9 0%, #eff2ef 100%);
+  --hair: inset 0 1px 0 rgba(255, 255, 255, 0.92);
+  --ring: inset 0 0 0 1px rgba(20, 28, 31, 0.045);
+  --sh-1: var(--hair), 0 1px 1px rgba(20,28,31,.05), 0 2px 4px -2px rgba(20,28,31,.07);
+  --sh-2: var(--hair), 0 1px 2px rgba(20,28,31,.05), 0 4px 10px -4px rgba(20,28,31,.10), 0 14px 30px -14px rgba(20,28,31,.14);
+  --sh-3: var(--hair), 0 2px 4px rgba(20,28,31,.06), 0 10px 22px -8px rgba(20,28,31,.14), 0 28px 60px -22px rgba(20,28,31,.22);
+  --sh-4: var(--hair), 0 4px 8px rgba(20,28,31,.07), 0 18px 40px -12px rgba(20,28,31,.18), 0 52px 110px -34px rgba(20,28,31,.34);
+}
+
+/* ============================================================================
+   ZÁKLAD
+   ============================================================================ */
+
+* { box-sizing: border-box; }
+
+html, body { max-width: 100vw; }
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--ui);
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  font-optical-sizing: auto;
+  font-kerning: normal;
+  font-feature-settings: "kern" 1, "liga" 1, "calt" 1;
+}
+
+button, input, textarea, select { font: inherit; color: inherit; }
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+a { color: inherit; }
+
+/* Velké stupně dostanou displejový řez, drobné popisky řez pro malá písma. */
+h1, h2, h3 { font-family: var(--ui-d); letter-spacing: -0.02em; margin: 0; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+
+/* ============================================================================
+   SDÍLENÉ PRVKY
+   ============================================================================ */
+
+.mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.eyebrow {
+  font-family: var(--ui-s);
+  font-size: 10.5px;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  font-weight: 700;
+  color: var(--faint);
+}
+
+/* Barevné tóny stavů. Nastaví --tone a --tone-soft, na které se pak
+   napojí .pill, .state a barevné proužky. */
+.o-me       { --tone: var(--me);       --tone-soft: var(--me-soft); }
+.o-client   { --tone: var(--client);   --tone-soft: var(--client-soft); }
+.o-supplier { --tone: var(--supplier); --tone-soft: var(--supplier-soft); }
+.o-done     { --tone: var(--done);     --tone-soft: var(--done-soft); }
+.o-alarm    { --tone: var(--alarm);    --tone-soft: var(--alarm-soft); }
+.o-flat     { --tone: var(--muted);    --tone-soft: var(--sunk); }
+
+.state {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--tone);
+  white-space: nowrap;
+}
+.state::before {
+  content: "";
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: var(--tone);
+  flex: none;
+}
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  border-radius: var(--r4);
+  font-size: 11.5px;
+  font-weight: 600;
+  background: var(--tone-soft);
+  color: var(--tone);
+  white-space: nowrap;
+}
+
+.tag {
+  font-family: var(--ui-s);
+  font-size: 11px;
+  color: var(--muted);
+  background: var(--raise);
+  border: 1px solid var(--line);
+  padding: 3px 9px;
+  border-radius: var(--r1);
+  white-space: nowrap;
+}
+
+code {
+  font-family: var(--mono);
+  font-size: 0.92em;
+  background: var(--sunk);
+  padding: 1px 5px;
+  border-radius: 4px;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  height: 34px;
+  padding: 0 14px;
+  border-radius: var(--r2);
+  border: 1px solid var(--line-2);
+  background: var(--grad);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ink);
+  white-space: nowrap;
+  text-decoration: none;
+  box-shadow: var(--sh-1);
+  transition: background 0.15s var(--ease), border-color 0.15s,
+              box-shadow 0.15s, transform 0.1s;
+}
+.btn:hover { background: var(--grad-raise); border-color: var(--muted); box-shadow: var(--sh-2); }
+.btn:active { transform: translateY(1px); box-shadow: inset 0 2px 4px rgba(20, 28, 31, 0.12); }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+.btn svg {
+  width: 15px; height: 15px;
+  stroke: currentColor; fill: none;
+  stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round;
+  flex: none;
+}
+
+.btn-primary {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: var(--paper);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.13), var(--sh-2);
+}
+.btn-primary:hover {
+  background: var(--ink);
+  border-color: var(--ink);
+  filter: brightness(1.28);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16), var(--sh-3);
+}
+
+.btn-ghost { border-color: transparent; background: transparent; box-shadow: none; }
+.btn-ghost:hover { background: var(--grad-raise); border-color: transparent; box-shadow: var(--sh-1); }
+
+.btn-lg { height: 40px; padding: 0 18px; font-size: 14px; }
+.btn-sm { height: 27px; padding: 0 10px; font-size: 12px; border-radius: var(--r1); }
+
+.panel {
+  background: var(--grad);
+  border: 1px solid var(--line);
+  border-radius: var(--r3);
+  box-shadow: var(--sh-2);
+}
+
+.field {
+  width: 100%;
+  height: 40px;
+  padding: 0 14px;
+  border-radius: var(--r2);
+  border: 1px solid var(--line-2);
+  background: var(--raise);
+  font-size: 14.5px;
+  outline: 0;
+  transition: border-color 0.15s, background 0.15s;
+}
+.field:focus { border-color: var(--accent); background: var(--surface); }
+.field::placeholder { color: var(--faint); }
+
+.wrap { max-width: 1160px; margin: 0 auto; width: 100%; }
+.spacer { margin-left: auto; }
+
+@keyframes enter {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* ============================================================================
+   TISK
+   ----------------------------------------------------------------------------
+   Report se do PDF ukládá přes tiskový dialog prohlížeče — díky tomu je
+   výsledek totožný s tím, co je na obrazovce, a nemusíme dokument kreslit
+   podruhé v nějaké knihovně.
+
+   Tenhle blok musí být až úplně na konci: přebíjí tmavý režim, který se
+   nastavuje výš. Na papíře nemá tmavé pozadí co dělat.
+   ============================================================================ */
+
+@page {
+  size: A4;
+  margin: 14mm 12mm;
+}
+
+@media print {
+  :root,
+  :root[data-theme="dark"],
+  :root[data-theme="light"] {
+    --paper: #ffffff;
+    --surface: #ffffff;
+    --raise: #ffffff;
+    --sunk: #f2f4f2;
+    --sheet: #ffffff;
+    --ink: #101416;
+    --ink-2: #33403f;
+    --muted: #5c6a6d;
+    --faint: #7d8b8d;
+    --line: #dde3df;
+    --line-2: #c3ccc7;
+    --accent: #0a6e80;
+    --accent-soft: #eaf4f6;
+    --me: #0a6e80;       --me-soft: #eaf4f6;
+    --client: #8a6a1f;   --client-soft: #f8f3e6;
+    --supplier: #7d3a63; --supplier-soft: #f8eef4;
+    --done: #3f6b52;     --done-soft: #edf4ef;
+    --alarm: #a8402f;    --alarm-soft: #fbeeeb;
+
+    /* Přechody a stíny jsou na papíře jen šeď navíc. */
+    --grad: none;
+    --grad-raise: none;
+    --grad-sunk: none;
+    --hair: none;
+    --ring: none;
+    --sh-1: none;
+    --sh-2: none;
+    --sh-3: none;
+    --sh-4: none;
+  }
+
+  body {
+    background: #fff;
+    /* Bez tohohle prohlížeč barevné plochy vynechá a z pruhu rozdělení
+       práce zbude bílá díra. */
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* Ovládací prvky na papír nepatří. */
+  .btn { display: none !important; }
+
+  a { text-decoration: none; color: inherit; }
+}

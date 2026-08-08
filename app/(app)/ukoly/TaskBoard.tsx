@@ -1,0 +1,340 @@
+"use client";
+
+import { useMemo, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
+import {
+  BALL_HINT,
+  BALL_LABEL,
+  BALL_ORDER,
+  BALL_SENTENCE,
+  FLOWS,
+  SIZE_LABEL,
+  type Ball,
+} from "@/lib/domain";
+import type { Category, Client, TaskRow } from "@/lib/tasks";
+import { moveTaskAction, cycleSizeAction } from "./actions";
+import Composer from "./Composer";
+import styles from "./tasks.module.css";
+
+type Filter = Ball | "all" | "late";
+
+const FILTERS: { key: Filter; label: string }[] = [
+  { key: "all", label: "Vše" },
+  { key: "me", label: "Na tobě" },
+  { key: "client", label: "U klienta" },
+  { key: "supplier", label: "U dodavatele" },
+  { key: "done", label: "Uzavřeno" },
+  { key: "late", label: "Po termínu" },
+];
+
+export default function TaskBoard({
+  tasks,
+  clients,
+  categories,
+  counts,
+  openComposer,
+}: {
+  tasks: TaskRow[];
+  clients: Client[];
+  categories: Category[];
+  counts: Record<string, number>;
+  openComposer: boolean;
+}) {
+  const router = useRouter();
+  const [filter, setFilter] = useState<Filter>("all");
+  const [query, setQuery] = useState("");
+  const [open, setOpen] = useState<string | null>(null);
+  const [closed, setClosed] = useState<Set<Ball>>(new Set());
+  const [composer, setComposer] = useState(openComposer);
+  const [pending, startTransition] = useTransition();
+
+  const visible = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return tasks.filter((t) => {
+      if (filter === "late" ? !t.is_late : filter !== "all" && t.ball !== filter) return false;
+      if (!q) return true;
+      return `${t.title} ${t.client_name ?? ""}`.toLowerCase().includes(q);
+    });
+  }, [tasks, filter, query]);
+
+  const groups = useMemo(
+    () =>
+      BALL_ORDER.map((ball) => ({ ball, rows: visible.filter((t) => t.ball === ball) }))
+        .filter((g) => g.rows.length > 0),
+    [visible],
+  );
+
+  function move(taskId: string, toStep: number) {
+    startTransition(async () => {
+      await moveTaskAction(taskId, toStep);
+      router.refresh();
+    });
+  }
+
+  function cycleSize(taskId: string, size: number) {
+    startTransition(async () => {
+      await cycleSizeAction(taskId, size);
+      router.refresh();
+    });
+  }
+
+  function toggleGroup(ball: Ball) {
+    setClosed((prev) => {
+      const next = new Set(prev);
+      if (next.has(ball)) next.delete(ball);
+      else next.add(ball);
+      return next;
+    });
+  }
+
+  return (
+    <div className={styles.wrap}>
+      <header className={styles.head}>
+        <div>
+          <h1 className={styles.h1}>Úkoly</h1>
+          <p className={styles.sub}>
+            {tasks.length === 0
+              ? "Zatím tu nic není"
+              : `${tasks.length} celkem · ${counts.me ?? 0} na tobě`}
+          </p>
+        </div>
+        <div className={styles.tools}>
+          <label className={styles.search}>
+            <svg viewBox="0 0 24 24" fill="none" strokeWidth="1.8">
+              <circle cx="11" cy="11" r="7" />
+              <path d="M20 20l-3.5-3.5" />
+            </svg>
+            <input
+              type="search"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Hledat…"
+              aria-label="Hledat v úkolech"
+            />
+          </label>
+          <button type="button" className="btn btn-primary" onClick={() => setComposer(true)}>
+            <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" /></svg>
+            <span>Zapsat</span>
+          </button>
+        </div>
+      </header>
+
+      {tasks.length > 0 && (
+        <div className={styles.filters}>
+          {FILTERS.map((f) => (
+            <button
+              key={f.key}
+              type="button"
+              onClick={() => setFilter(f.key)}
+              className={`${styles.chip} ${filter === f.key ? styles.chipOn : ""}`}
+            >
+              {f.label}
+              <span className={styles.chipCount}>{counts[f.key] ?? 0}</span>
+            </button>
+          ))}
+        </div>
+      )}
+
+      {tasks.length === 0 ? (
+        <Empty onAdd={() => setComposer(true)} />
+      ) : groups.length === 0 ? (
+        <p className={styles.blank}>Tomuhle filtru nic neodpovídá.</p>
+      ) : (
+        <div className={pending ? styles.busy : undefined}>
+          {groups.map(({ ball, rows }) => (
+            <section key={ball} className={`${styles.group} o-${ball}`}>
+              <button
+                type="button"
+                className={styles.groupHead}
+                onClick={() => toggleGroup(ball)}
+                aria-expanded={!closed.has(ball)}
+              >
+                <span className={styles.groupDot} aria-hidden="true" />
+                <span className={styles.groupName}>{BALL_LABEL[ball]}</span>
+                <span className={styles.groupCount}>{rows.length}</span>
+                <span className={styles.groupHint}>{BALL_HINT[ball]}</span>
+                <svg
+                  className={`${styles.chev} ${closed.has(ball) ? styles.chevClosed : ""}`}
+                  viewBox="0 0 24 24" fill="none" strokeWidth="2"
+                  strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"
+                >
+                  <path d="M6 9l6 6 6-6" />
+                </svg>
+              </button>
+
+              {!closed.has(ball) && (
+                <div className={styles.rows}>
+                  {rows.map((t) => (
+                    <Row
+                      key={t.id}
+                      task={t}
+                      open={open === t.id}
+                      onToggle={() => setOpen(open === t.id ? null : t.id)}
+                      onMove={move}
+                      onCycleSize={cycleSize}
+                    />
+                  ))}
+                </div>
+              )}
+            </section>
+          ))}
+        </div>
+      )}
+
+      {composer && (
+        <Composer
+          clients={clients}
+          categories={categories}
+          onClose={() => setComposer(false)}
+          onSaved={() => {
+            setComposer(false);
+            router.refresh();
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+
+function Row({
+  task,
+  open,
+  onToggle,
+  onMove,
+  onCycleSize,
+}: {
+  task: TaskRow;
+  open: boolean;
+  onToggle: () => void;
+  onMove: (id: string, step: number) => void;
+  onCycleSize: (id: string, size: number) => void;
+}) {
+  const flow = FLOWS[task.kind];
+  const tone = task.is_late ? "alarm" : task.ball;
+  const nextLabel = task.step + 1 < flow.length ? flow[task.step + 1].label : null;
+
+  return (
+    <>
+      <div
+        className={`${styles.row} o-${tone} ${open ? styles.rowOpen : ""}`}
+        onClick={onToggle}
+        role="button"
+        tabIndex={0}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            onToggle();
+          }
+        }}
+        aria-expanded={open}
+      >
+        <span className={styles.mini} aria-hidden="true">
+          {flow.map((_, i) => (
+            <i
+              key={i}
+              className={i < task.step ? styles.miniOn : i === task.step ? styles.miniAt : ""}
+            />
+          ))}
+        </span>
+
+        <span className={styles.rowMain}>
+          <span className={styles.rowTitle}>{task.title}</span>
+          <span className={styles.rowSub}>
+            {task.step_name}
+            {task.supplier_name ? ` · ${task.supplier_name}` : ""}
+          </span>
+        </span>
+
+        <span className={styles.rowClient}>
+          {task.client_name && (
+            <>
+              <i style={{ background: task.client_color ?? "var(--muted)" }} />
+              {task.client_name}
+            </>
+          )}
+        </span>
+
+        <span className={`${styles.rowDue} ${task.is_late ? styles.late : ""}`}>
+          {formatDue(task.due_at)}
+        </span>
+
+        <span className={styles.rowOwner}>{task.assignee_initials ?? "—"}</span>
+      </div>
+
+      {open && (
+        <div className={`${styles.detail} o-${tone}`}>
+          <div className={styles.relay}>
+            {flow.map((s, i) => (
+              <button
+                key={i}
+                type="button"
+                className={`${styles.step} ${
+                  i < task.step ? styles.stepOn : i === task.step ? styles.stepAt : ""
+                }`}
+                onClick={() => onMove(task.id, i)}
+              >
+                <b />
+                <span>{s.label}</span>
+              </button>
+            ))}
+          </div>
+
+          <div className={styles.acts}>
+            {nextLabel && (
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={() => onMove(task.id, task.step + 1)}
+              >
+                Posunout na „{nextLabel}“
+              </button>
+            )}
+            <button
+              type="button"
+              className="btn"
+              onClick={() => onCycleSize(task.id, task.size)}
+              title="Ovlivňuje procenta v reportu"
+            >
+              Velikost: {SIZE_LABEL[task.size]}
+            </button>
+          </div>
+
+          <dl className={styles.meta}>
+            <span><dt>Stav</dt><dd>{BALL_SENTENCE[task.ball]}</dd></span>
+            <span><dt>Typ</dt><dd>{flow.length} kroků</dd></span>
+            <span><dt>Termín</dt><dd>{formatDue(task.due_at) || "nestanoven"}</dd></span>
+          </dl>
+        </div>
+      )}
+    </>
+  );
+}
+
+function Empty({ onAdd }: { onAdd: () => void }) {
+  return (
+    <div className={styles.empty}>
+      <strong>Zatím žádné úkoly</strong>
+      <p>
+        Zapiš první. Stačí název — typ určí, kolik kroků bude mít štafeta
+        a kdy se míč přehodí na klienta nebo dodavatele.
+      </p>
+      <button type="button" className="btn btn-primary btn-lg" onClick={onAdd}>
+        Zapsat první úkol
+      </button>
+    </div>
+  );
+}
+
+function formatDue(value: string | null): string {
+  if (!value) return "";
+  const d = new Date(value);
+  const today = new Date();
+  const sameDay =
+    d.getDate() === today.getDate() &&
+    d.getMonth() === today.getMonth() &&
+    d.getFullYear() === today.getFullYear();
+  if (sameDay) return "dnes";
+  return `${d.getDate()}. ${d.getMonth() + 1}.`;
+}
