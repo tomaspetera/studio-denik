@@ -1,6 +1,12 @@
 "use server";
 
-import { moveTask, setTaskSize, createTask, type ActionResult } from "@/lib/tasks";
+import {
+  moveTask,
+  setTaskSize,
+  createTask,
+  deleteTask,
+  type ActionResult,
+} from "@/lib/tasks";
 import { getWorkspace } from "@/lib/workspace";
 import type { TaskKind } from "@/lib/domain";
 
@@ -10,6 +16,10 @@ export async function moveTaskAction(taskId: string, toStep: number): Promise<Ac
 
 export async function cycleSizeAction(taskId: string, current: number): Promise<ActionResult> {
   return setTaskSize(taskId, (current % 3) + 1);
+}
+
+export async function deleteTaskAction(taskId: string): Promise<ActionResult> {
+  return deleteTask(taskId);
 }
 
 export async function createTaskAction(form: {

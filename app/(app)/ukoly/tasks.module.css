@@ -307,6 +307,34 @@
 
 .acts { display: flex; align-items: center; gap: var(--s2); flex-wrap: wrap; }
 
+/* Odsune mazání od ostatních akcí, ať se na něj neklikne omylem. */
+.actsSpacer { flex: 1; min-width: var(--s5); }
+
+.danger {
+  background: var(--alarm);
+  border-color: var(--alarm);
+  color: #fff;
+  box-shadow: var(--sh-1);
+}
+.danger:hover {
+  background: var(--alarm);
+  border-color: var(--alarm);
+  filter: brightness(1.1);
+}
+
+.warn {
+  margin: var(--s3) 0 0;
+  padding: 9px 12px;
+  border-radius: var(--r2);
+  background: var(--alarm-soft);
+  color: var(--alarm);
+  font-family: var(--ui-s);
+  font-size: 12px;
+  line-height: 1.5;
+  border: 1px solid color-mix(in srgb, var(--alarm) 28%, transparent);
+  max-width: 66ch;
+}
+
 .meta {
   display: flex;
   gap: var(--s4);

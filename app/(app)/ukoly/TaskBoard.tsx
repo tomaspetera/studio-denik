@@ -12,7 +12,7 @@ import {
   type Ball,
 } from "@/lib/domain";
 import type { Category, Client, TaskRow } from "@/lib/tasks";
-import { moveTaskAction, cycleSizeAction } from "./actions";
+import { moveTaskAction, cycleSizeAction, deleteTaskAction } from "./actions";
 import Composer from "./Composer";
 import styles from "./tasks.module.css";
 
@@ -44,7 +44,10 @@ export default function TaskBoard({
   const [filter, setFilter] = useState<Filter>("all");
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState<string | null>(null);
-  const [closed, setClosed] = useState<Set<Ball>>(new Set());
+  // Uzavřené se sbalí samy. Jsou hotové — nemají důvod zabírat místo mezi
+  // tím, co se ještě řeší. Nadpis skupiny drží počet, takže je vidět,
+  // že existují, a jedno kliknutí je rozbalí.
+  const [closed, setClosed] = useState<Set<Ball>>(new Set<Ball>(["done"]));
   const [composer, setComposer] = useState(openComposer);
   const [pending, startTransition] = useTransition();
 
@@ -74,6 +77,14 @@ export default function TaskBoard({
   function cycleSize(taskId: string, size: number) {
     startTransition(async () => {
       await cycleSizeAction(taskId, size);
+      router.refresh();
+    });
+  }
+
+  function remove(taskId: string) {
+    startTransition(async () => {
+      await deleteTaskAction(taskId);
+      setOpen(null);
       router.refresh();
     });
   }
@@ -172,6 +183,7 @@ export default function TaskBoard({
                       onToggle={() => setOpen(open === t.id ? null : t.id)}
                       onMove={move}
                       onCycleSize={cycleSize}
+                      onDelete={remove}
                     />
                   ))}
                 </div>
@@ -204,16 +216,23 @@ function Row({
   onToggle,
   onMove,
   onCycleSize,
+  onDelete,
 }: {
   task: TaskRow;
   open: boolean;
   onToggle: () => void;
   onMove: (id: string, step: number) => void;
   onCycleSize: (id: string, size: number) => void;
+  onDelete: (id: string) => void;
 }) {
   const flow = FLOWS[task.kind];
   const tone = task.is_late ? "alarm" : task.ball;
   const nextLabel = task.step + 1 < flow.length ? flow[task.step + 1].label : null;
+
+  // Mazání na dvě kliknutí. Modální okno by tu bylo těžkopádné a `confirm()`
+  // v prohlížeči vypadá cize — tohle stačí a dá se to vzít zpět tím, že
+  // se prostě neklikne podruhé.
+  const [confirming, setConfirming] = useState(false);
 
   return (
     <>
@@ -299,7 +318,40 @@ function Row({
             >
               Velikost: {SIZE_LABEL[task.size]}
             </button>
+
+            <span className={styles.actsSpacer} />
+
+            {confirming ? (
+              <>
+                <button
+                  type="button"
+                  className={`btn ${styles.danger}`}
+                  onClick={() => onDelete(task.id)}
+                >
+                  Opravdu smazat
+                </button>
+                <button type="button" className="btn btn-ghost" onClick={() => setConfirming(false)}>
+                  Nechat
+                </button>
+              </>
+            ) : (
+              <button
+                type="button"
+                className="btn btn-ghost"
+                onClick={() => setConfirming(true)}
+              >
+                Smazat
+              </button>
+            )}
           </div>
+
+          {confirming && (
+            <p className={styles.warn} role="alert">
+              {task.ball === "done"
+                ? "Tenhle úkol je uzavřený a je součástí reportu. Smazáním zmizí i z už vystavených reportů — historie se maže s ním."
+                : "Smaže se i historie úkolu. Vrátit zpět to nejde."}
+            </p>
+          )}
 
           <dl className={styles.meta}>
             <span><dt>Stav</dt><dd>{BALL_SENTENCE[task.ball]}</dd></span>

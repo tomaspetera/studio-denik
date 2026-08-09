@@ -147,6 +147,22 @@ export async function setTaskSize(taskId: string, size: number): Promise<ActionR
   return { ok: true };
 }
 
+/**
+ * Smazání úkolu.
+ *
+ * Databáze s ním kaskádou odstraní i jeho historii a tiskovou zakázku —
+ * úkol tedy zmizí i ze všech starých reportů, ne jen z přehledu. Proto to
+ * rozhraní potvrzuje na dvě kliknutí a u uzavřených na to zvlášť upozorní.
+ */
+export async function deleteTask(taskId: string): Promise<ActionResult> {
+  const supabase = await supabaseServer();
+  const { error } = await supabase.from("tasks").delete().eq("id", taskId);
+  if (error) return { ok: false, message: error.message };
+
+  revalidatePath("/", "layout");
+  return { ok: true };
+}
+
 export type NewTask = {
   orgId: string;
   title: string;
