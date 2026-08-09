@@ -61,9 +61,12 @@ by se sahalo do kódu.
 
 ### Databáze
 
-V Supabase → SQL Editor spusť postupně `supabase/migrations/0001_schema.sql`,
-`0002_tokeny_bez_pgcrypto.sql` a `0003_verejny_report.sql`. Všechny skripty
-jdou pouštět opakovaně.
+V Supabase → SQL Editor spusť postupně všechny skripty z
+`supabase/migrations/` v pořadí podle čísla. Jdou pouštět opakovaně.
+
+Pohledy musí mít `security_invoker = true`. Bez toho se pohled vykonává
+právy svého vlastníka, práva na úrovni řádků se přeskočí a pohled vydá data
+všech organizací komukoliv přihlášenému. Hlídá to `npm run test:izolace`.
 
 Kdyby aplikace tvrdila, že tabulky neexistují, ačkoliv v Supabase jsou, chybí
 obnovit vyrovnávací paměť:
@@ -77,18 +80,24 @@ notify pgrst, 'reload schema';
 ```bash
 npm test             # celá sada proti skutečné databázi
 
-npm run overit        # připojení, schéma, shoda pravidla, dostupnost AI
-npm run test:ukoly    # štafeta, spouštěče, historie, ochrana rozsahu
-npm run test:uprava   # úprava úkolu a přepnutí typu mezi průchody
-npm run test:mazani   # kaskáda — mizí i historie a tisková zakázka
-npm run test:verejny  # co pustí sdílený odkaz nepřihlášenému návštěvníkovi
-npm run test:report   # kvalita textu reportu
-npm run test:stream   # jestli text opravdu teče průběžně
+npm run overit         # připojení, schéma, shoda pravidla, dostupnost AI
+npm run test:izolace   # vidí člověk z jedné organizace do druhé?
+npm run test:ukoly     # štafeta, spouštěče, historie, ochrana rozsahu
+npm run test:uprava    # úprava úkolu a přepnutí typu mezi průchody
+npm run test:mazani    # kaskáda — mizí i historie a tisková zakázka
+npm run test:verejny   # co pustí sdílený odkaz nepřihlášenému návštěvníkovi
+npm run test:pozvanky  # pozvání kolegy až po jeho první přihlášení
+npm run test:report    # kvalita textu reportu
+npm run test:stream    # jestli text opravdu teče průběžně
 ```
 
-Testy pracují v dočasné organizaci, kterou po sobě smažou. `test:verejny`
-schválně používá **veřejný klíč**, ne servisní — jinak by neměřil to, co
-potká skutečný návštěvník.
+Testy pracují v dočasné organizaci a s dočasnými účty, které po sobě smažou.
+
+Tři z nich se schválně ptají **veřejným klíčem** nebo pod **skutečně
+přihlášeným účtem**, ne servisním klíčem — servisní klíč obchází veškerá
+práva, takže by měřily něco jiného, než co potká skutečný uživatel.
+`test:izolace` běží první: nemá smysl mít pečlivě otestovanou štafetu, když
+by se organizace navzájem viděly.
 
 ## Poznámky k provozu
 

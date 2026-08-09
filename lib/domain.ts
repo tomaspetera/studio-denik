@@ -106,6 +106,28 @@ export const CLIENT_COLORS = [
   "#9C7838", "#57737E", "#A8556B", "#4F7A3E",
 ] as const;
 
+/* ------------------------------------------------------------------ */
+/* Role v týmu                                                         */
+/* ------------------------------------------------------------------ */
+/* Popisky žijí tady, ne v datové vrstvě — potřebuje je i formulář
+   v prohlížeči, a ten se k serverovým modulům nedostane.              */
+
+export type Role = "admin" | "member" | "viewer";
+
+export const ROLES: readonly Role[] = ["admin", "member", "viewer"];
+
+export const ROLE_LABEL: Record<Role, string> = {
+  admin: "Správce",
+  member: "Člen týmu",
+  viewer: "Příjemce",
+};
+
+export const ROLE_HINT: Record<Role, string> = {
+  admin: "Vidí a mění všechno včetně týmu a pozvánek.",
+  member: "Zapisuje úkoly, hlídá tisk, píše reporty. Nespravuje tým.",
+  viewer: "Vidí jen publikované reporty. Do provozních dat se nedostane.",
+};
+
 export function isLate(dueAt: string | null, ball: Ball, now = new Date()): boolean {
   if (!dueAt || ball === "done") return false;
   return new Date(dueAt).getTime() < now.getTime();

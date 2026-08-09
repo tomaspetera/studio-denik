@@ -10,11 +10,13 @@
     "overit": "node --env-file=.env.local scripts/overit-nastaveni.mjs",
     "test:ukoly": "node --env-file=.env.local scripts/test-ukoly.mjs",
     "test:report": "node --env-file=.env.local scripts/test-report.mjs",
-    "test": "npm run overit && npm run test:ukoly && npm run test:uprava && npm run test:mazani && npm run test:verejny",
+    "test": "npm run overit && npm run test:izolace && npm run test:ukoly && npm run test:uprava && npm run test:mazani && npm run test:verejny && npm run test:pozvanky",
     "test:stream": "node --env-file=.env.local scripts/test-stream.mjs",
     "test:mazani": "node --env-file=.env.local scripts/test-mazani.mjs",
     "test:uprava": "node --env-file=.env.local scripts/test-uprava.mjs",
-    "test:verejny": "node --env-file=.env.local scripts/test-verejny-report.mjs"
+    "test:verejny": "node --env-file=.env.local scripts/test-verejny-report.mjs",
+    "test:izolace": "node --env-file=.env.local scripts/test-izolace.mjs",
+    "test:pozvanky": "node --env-file=.env.local scripts/test-pozvanky.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.115.0",

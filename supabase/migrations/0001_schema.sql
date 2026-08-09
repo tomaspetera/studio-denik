@@ -291,7 +291,11 @@ create unique index if not exists reports_period_key on reports (org_id, period,
 -- POHLEDY
 -- ============================================================================
 
-create or replace view tasks_view as
+-- `security_invoker` je zásadní. Bez něj se pohled vykonává právy svého
+-- vlastníka, práva na úrovni řádků z tabulky `tasks` se přeskočí a pohled
+-- vydá úkoly všech organizací komukoliv přihlášenému. Aplikace čte úkoly
+-- výhradně přes tenhle pohled, takže by šlo o únik napříč celou aplikací.
+create or replace view tasks_view with (security_invoker = true) as
 select
   t.*,
   ball_of(t.kind, t.step)      as ball,
