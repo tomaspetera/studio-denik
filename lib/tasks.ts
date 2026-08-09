@@ -147,6 +147,91 @@ export async function setTaskSize(taskId: string, size: number): Promise<ActionR
   return { ok: true };
 }
 
+export type TaskEdit = {
+  taskId: string;
+  title: string;
+  kind: TaskKind;
+  clientId: string | null;
+  categoryId: string | null;
+  supplierId?: string | null;
+  dueAt: string | null;
+  size: number;
+  note?: string | null;
+};
+
+/**
+ * Úprava úkolu.
+ *
+ * Změna typu je záludná: každý typ má jiný počet kroků, takže úkol stojící
+ * na kroku 5 by se po přepnutí na tříkrokový typ ocitl mimo rozsah a databáze
+ * by zápis odmítla.
+ *
+ * Prosté srovnání na poslední platný krok ale nestačí — rozpracovaný tiskový
+ * úkol na kroku 3 by se po přepnutí na tříkrokový typ octl na kroku 2, což je
+ * „Hotovo“, a tiše by se uzavřel. Změna typu nesmí úkol dokončit za uživatele,
+ * takže otevřený zůstane otevřený a uzavřený uzavřený.
+ */
+export async function updateTask(input: TaskEdit): Promise<ActionResult> {
+  const title = input.title.trim();
+  if (!title) return { ok: false, message: "Úkol potřebuje název." };
+
+  const supabase = await supabaseServer();
+
+  const { data: current, error: readErr } = await supabase
+    .from("tasks")
+    .select("kind, step")
+    .eq("id", input.taskId)
+    .single();
+
+  if (readErr || !current) {
+    return { ok: false, message: readErr?.message ?? "Úkol se nenašel." };
+  }
+
+  const oldKind = current.kind as TaskKind;
+  const oldStep = current.step as number;
+
+  const step = stepAfterKindChange(oldKind, oldStep, input.kind);
+
+  const { error } = await supabase
+    .from("tasks")
+    .update({
+      title,
+      kind: input.kind,
+      step,
+      client_id: input.clientId,
+      category_id: input.categoryId,
+      supplier_id: input.supplierId ?? null,
+      due_at: input.dueAt,
+      size: Math.min(Math.max(Math.trunc(input.size), 1), 3),
+      note: input.note?.trim() || null,
+    })
+    .eq("id", input.taskId);
+
+  if (error) return { ok: false, message: error.message };
+
+  revalidatePath("/", "layout");
+  return { ok: true };
+}
+
+/**
+ * Kam úkol patří po změně typu.
+ *
+ * Uzavřený → poslední krok nového průchodu, tedy zůstane uzavřený.
+ * Otevřený → nejbližší platný krok, ale nikdy ne ten poslední, aby se
+ * úkol změnou typu tiše nedokončil.
+ */
+export function stepAfterKindChange(
+  fromKind: TaskKind,
+  fromStep: number,
+  toKind: TaskKind,
+): number {
+  const last = stepCountOf(toKind) - 1;
+  const wasDone = fromStep >= stepCountOf(fromKind) - 1;
+
+  if (wasDone) return last;
+  return Math.min(clampStep(toKind, fromStep), last - 1);
+}
+
 /**
  * Smazání úkolu.
  *

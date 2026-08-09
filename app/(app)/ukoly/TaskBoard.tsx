@@ -49,6 +49,8 @@ export default function TaskBoard({
   // že existují, a jedno kliknutí je rozbalí.
   const [closed, setClosed] = useState<Set<Ball>>(new Set<Ball>(["done"]));
   const [composer, setComposer] = useState(openComposer);
+  // Který úkol se právě upravuje. `null` znamená zakládání nového.
+  const [editTask, setEditTask] = useState<TaskRow | null>(null);
   const [pending, startTransition] = useTransition();
 
   const visible = useMemo(() => {
@@ -184,6 +186,7 @@ export default function TaskBoard({
                       onMove={move}
                       onCycleSize={cycleSize}
                       onDelete={remove}
+                      onEdit={() => { setEditTask(t); setComposer(true); }}
                     />
                   ))}
                 </div>
@@ -195,11 +198,13 @@ export default function TaskBoard({
 
       {composer && (
         <Composer
+          task={editTask ?? undefined}
           clients={clients}
           categories={categories}
-          onClose={() => setComposer(false)}
+          onClose={() => { setComposer(false); setEditTask(null); }}
           onSaved={() => {
             setComposer(false);
+            setEditTask(null);
             router.refresh();
           }}
         />
@@ -217,6 +222,7 @@ function Row({
   onMove,
   onCycleSize,
   onDelete,
+  onEdit,
 }: {
   task: TaskRow;
   open: boolean;
@@ -224,6 +230,7 @@ function Row({
   onMove: (id: string, step: number) => void;
   onCycleSize: (id: string, size: number) => void;
   onDelete: (id: string) => void;
+  onEdit: () => void;
 }) {
   const flow = FLOWS[task.kind];
   const tone = task.is_late ? "alarm" : task.ball;
@@ -310,6 +317,14 @@ function Row({
                 Posunout na „{nextLabel}“
               </button>
             )}
+            <button type="button" className="btn" onClick={onEdit}>
+              <svg viewBox="0 0 24 24" fill="none" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 20h9" />
+                <path d="M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4z" />
+              </svg>
+              Upravit
+            </button>
+
             <button
               type="button"
               className="btn"

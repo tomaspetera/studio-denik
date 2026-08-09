@@ -2,8 +2,8 @@
 
 import { useState, useTransition } from "react";
 import { KIND_LABEL, type TaskKind } from "@/lib/domain";
-import type { Category, Client } from "@/lib/tasks";
-import { createTaskAction } from "./actions";
+import type { Category, Client, TaskRow } from "@/lib/tasks";
+import { createTaskAction, updateTaskAction } from "./actions";
 import styles from "./tasks.module.css";
 
 const KINDS: { key: TaskKind; hint: string }[] = [
@@ -12,37 +12,52 @@ const KINDS: { key: TaskKind; hint: string }[] = [
   { key: "tisk", hint: "6 kroků — jde do tiskárny" },
 ];
 
+/**
+ * Zakládání i úprava v jednom. Když dostane `task`, přepne se do úpravy —
+ * dvě skoro stejné obrazovky by se dřív nebo později rozešly.
+ */
 export default function Composer({
+  task,
   clients,
   categories,
   onClose,
   onSaved,
 }: {
+  task?: TaskRow;
   clients: Client[];
   categories: Category[];
   onClose: () => void;
   onSaved: () => void;
 }) {
-  const [title, setTitle] = useState("");
-  const [kind, setKind] = useState<TaskKind>("klient");
-  const [clientId, setClientId] = useState<string>("");
+  const editing = Boolean(task);
+
+  const [title, setTitle] = useState(task?.title ?? "");
+  const [kind, setKind] = useState<TaskKind>(task?.kind ?? "klient");
+  const [clientId, setClientId] = useState<string>(task?.client_id ?? "");
   const [categoryId, setCategoryId] = useState<string>("");
-  const [dueAt, setDueAt] = useState<string>("");
-  const [size, setSize] = useState(2);
+  const [dueAt, setDueAt] = useState<string>(toDateInput(task?.due_at ?? null));
+  const [size, setSize] = useState(task?.size ?? 2);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+
+  const kindChanged = editing && kind !== task!.kind;
 
   function save() {
     setError(null);
     startTransition(async () => {
-      const res = await createTaskAction({
+      const common = {
         title,
         kind,
         clientId: clientId || null,
         categoryId: categoryId || null,
         dueAt: dueAt ? new Date(dueAt).toISOString() : null,
         size,
-      });
+      };
+
+      const res = task
+        ? await updateTaskAction({ taskId: task.id, ...common })
+        : await createTaskAction(common);
+
       if (res.ok) onSaved();
       else setError(res.message);
     });
@@ -54,16 +69,23 @@ export default function Composer({
       onClick={(e) => e.target === e.currentTarget && onClose()}
       onKeyDown={(e) => e.key === "Escape" && onClose()}
     >
-      <div className={styles.dialog} role="dialog" aria-modal="true" aria-label="Nový úkol">
+      <div
+        className={styles.dialog}
+        role="dialog"
+        aria-modal="true"
+        aria-label={editing ? "Upravit úkol" : "Nový úkol"}
+      >
         <header className={styles.dialogHead}>
-          <h2>Nový úkol</h2>
+          <h2>{editing ? "Upravit úkol" : "Nový úkol"}</h2>
           <button type="button" className="btn btn-ghost" onClick={onClose} aria-label="Zavřít">
             <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18" /></svg>
           </button>
         </header>
 
         <div className={styles.dialogBody}>
-          <label className={styles.label} htmlFor="t-title">Co jsi udělal nebo co je potřeba</label>
+          <label className={styles.label} htmlFor="t-title">
+            {editing ? "Název úkolu" : "Co jsi udělal nebo co je potřeba"}
+          </label>
           <input
             id="t-title"
             className="field"
@@ -87,6 +109,13 @@ export default function Composer({
               </button>
             ))}
           </div>
+
+          {kindChanged && (
+            <p className={styles.note} style={{ color: "var(--client)" }}>
+              Změnou typu se mění počet kroků. Úkol se přesune na nejbližší
+              platný krok — pokud byl uzavřený, zůstane uzavřený.
+            </p>
+          )}
 
           <div className={styles.grid2}>
             <div>
@@ -161,10 +190,16 @@ export default function Composer({
             onClick={save}
             disabled={pending || !title.trim()}
           >
-            {pending ? "Ukládám…" : "Uložit úkol"}
+            {pending ? "Ukládám…" : editing ? "Uložit změny" : "Uložit úkol"}
           </button>
         </footer>
       </div>
     </div>
   );
+}
+
+function toDateInput(value: string | null): string {
+  if (!value) return "";
+  const d = new Date(value);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }

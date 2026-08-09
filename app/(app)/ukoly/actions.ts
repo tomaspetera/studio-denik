@@ -4,6 +4,7 @@ import {
   moveTask,
   setTaskSize,
   createTask,
+  updateTask,
   deleteTask,
   type ActionResult,
 } from "@/lib/tasks";
@@ -20,6 +21,18 @@ export async function cycleSizeAction(taskId: string, current: number): Promise<
 
 export async function deleteTaskAction(taskId: string): Promise<ActionResult> {
   return deleteTask(taskId);
+}
+
+export async function updateTaskAction(form: {
+  taskId: string;
+  title: string;
+  kind: TaskKind;
+  clientId: string | null;
+  categoryId: string | null;
+  dueAt: string | null;
+  size: number;
+}): Promise<ActionResult> {
+  return updateTask(form);
 }
 
 export async function createTaskAction(form: {
