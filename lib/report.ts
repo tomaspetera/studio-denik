@@ -340,17 +340,108 @@ export async function saveEdit(reportId: string, text: string): Promise<void> {
   revalidatePath("/report");
 }
 
-export async function publishReport(reportId: string, recipient: string): Promise<void> {
+/** Zmrazená podoba reportu — to, co uvidí příjemce na sdíleném odkazu. */
+export type ReportSnapshot = {
+  rangeText: string;
+  counts: ReportData["counts"];
+  byCategory: ReportData["byCategory"];
+  byClient: {
+    client: string;
+    percent: number;
+    items: { title: string; ball: Ball; stepName: string; supplierName: string | null; isLate: boolean }[];
+  }[];
+  waiting: {
+    title: string;
+    clientName: string | null;
+    supplierName: string | null;
+    ball: Ball;
+    isLate: boolean;
+  }[];
+};
+
+/**
+ * Publikace reportu.
+ *
+ * Kromě přepnutí stavu uloží i snímek čísel a rozpadů. Bez něj by se
+ * dokument, který příjemce dostal, měnil pokaždé, když se v aplikaci
+ * posune nebo smaže úkol — a to u vystaveného reportu nesmí.
+ */
+export async function publishReport(
+  orgId: string,
+  reportId: string,
+  recipient: string,
+): Promise<void> {
   const supabase = await supabaseServer();
+  const data = await collectReport(orgId);
+
+  const snapshot: ReportSnapshot = {
+    rangeText: data.rangeText,
+    counts: data.counts,
+    byCategory: data.byCategory,
+    byClient: data.byClient.map((g) => ({
+      client: g.client,
+      percent: g.percent,
+      items: g.items.map((t) => ({
+        title: t.title,
+        ball: t.ball,
+        stepName: t.stepName,
+        supplierName: t.supplierName,
+        isLate: t.isLate,
+      })),
+    })),
+    waiting: data.open
+      .filter((t) => t.ball === "client" || t.ball === "supplier")
+      .map((t) => ({
+        title: t.title,
+        clientName: t.clientName,
+        supplierName: t.supplierName,
+        ball: t.ball,
+        isLate: t.isLate,
+      })),
+  };
+
   await supabase
     .from("reports")
     .update({
       status: "published",
       recipient: recipient.trim() || null,
       published_at: new Date().toISOString(),
+      snapshot,
     })
     .eq("id", reportId);
+
   revalidatePath("/report");
+}
+
+/* ================================================================== */
+/* Veřejné čtení přes odkaz                                            */
+/* ================================================================== */
+
+export type PublicReport = {
+  label: string | null;
+  starts_on: string;
+  ends_on: string;
+  summary: string | null;
+  outlook: string | null;
+  recipient: string | null;
+  org_name: string;
+  sender: string | null;
+  sender_mail: string | null;
+  published_at: string | null;
+  snapshot: ReportSnapshot | null;
+};
+
+/**
+ * Načte report podle tokenu z odkazu.
+ *
+ * Podmínky (platný token, publikovaný stav, nevypršelá platnost) kontroluje
+ * funkce v databázi, ne tenhle kód — jinak by je šlo obejít jiným dotazem.
+ */
+export async function loadPublicReport(token: string): Promise<PublicReport | null> {
+  const supabase = await supabaseServer();
+  const { data, error } = await supabase.rpc("public_report", { p_token: token });
+  if (error || !data) return null;
+  return data as PublicReport;
 }
 
 function isoDate(d: Date): string {

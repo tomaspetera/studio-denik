@@ -17,5 +17,7 @@ export async function saveEditAction(reportId: string, text: string): Promise<vo
 }
 
 export async function publishAction(reportId: string, recipient: string): Promise<void> {
-  await publishReport(reportId, recipient);
+  const ws = await getWorkspace();
+  if (!ws || ws.state !== "ready") return;
+  await publishReport(ws.orgId, reportId, recipient);
 }

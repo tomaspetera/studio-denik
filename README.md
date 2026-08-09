@@ -61,8 +61,9 @@ by se sahalo do kódu.
 
 ### Databáze
 
-V Supabase → SQL Editor spusť `supabase/migrations/0001_schema.sql`, pak
-`0002_tokeny_bez_pgcrypto.sql`. Oba skripty jdou pouštět opakovaně.
+V Supabase → SQL Editor spusť postupně `supabase/migrations/0001_schema.sql`,
+`0002_tokeny_bez_pgcrypto.sql` a `0003_verejny_report.sql`. Všechny skripty
+jdou pouštět opakovaně.
 
 Kdyby aplikace tvrdila, že tabulky neexistují, ačkoliv v Supabase jsou, chybí
 obnovit vyrovnávací paměť:
@@ -74,11 +75,20 @@ notify pgrst, 'reload schema';
 ## Ověření
 
 ```bash
-npm run overit       # připojení, schéma, shoda pravidla, dostupnost AI
-npm run test:ukoly   # štafeta, spouštěče, historie, ochrana rozsahu
-npm run test:report  # kvalita textu reportu
-npm run test:stream  # jestli text opravdu teče průběžně
+npm test             # celá sada proti skutečné databázi
+
+npm run overit        # připojení, schéma, shoda pravidla, dostupnost AI
+npm run test:ukoly    # štafeta, spouštěče, historie, ochrana rozsahu
+npm run test:uprava   # úprava úkolu a přepnutí typu mezi průchody
+npm run test:mazani   # kaskáda — mizí i historie a tisková zakázka
+npm run test:verejny  # co pustí sdílený odkaz nepřihlášenému návštěvníkovi
+npm run test:report   # kvalita textu reportu
+npm run test:stream   # jestli text opravdu teče průběžně
 ```
+
+Testy pracují v dočasné organizaci, kterou po sobě smažou. `test:verejny`
+schválně používá **veřejný klíč**, ne servisní — jinak by neměřil to, co
+potká skutečný návštěvník.
 
 ## Poznámky k provozu
 
