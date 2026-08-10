@@ -130,6 +130,14 @@ export default function Composer({
                 {clients.map((c) => (
                   <option key={c.id} value={c.id}>{c.name}</option>
                 ))}
+                {/* Archivovaný klient v nabídce chybí. Kdyby tu jeho úkol
+                    neměl vlastní položku, prohlížeč by spadl na první volbu
+                    a uložení by úkol od klienta tiše odpojilo. */}
+                {task?.client_id && !clients.some((c) => c.id === task.client_id) && (
+                  <option value={task.client_id}>
+                    {task.client_name ?? "Klient"} (v archivu)
+                  </option>
+                )}
               </select>
             </div>
             <div>

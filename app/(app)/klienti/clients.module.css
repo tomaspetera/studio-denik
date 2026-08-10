@@ -23,7 +23,18 @@
   margin: 4px 0 0;
 }
 
-.head button { margin-left: auto; }
+.headActs { margin-left: auto; display: flex; gap: var(--s2); flex-wrap: wrap; }
+
+.topError {
+  padding: 11px 14px;
+  border-radius: var(--r2);
+  background: var(--alarm-soft);
+  color: var(--alarm);
+  font-size: 13px;
+  line-height: 1.55;
+  margin: 0 0 var(--s5);
+  border: 1px solid color-mix(in srgb, var(--alarm) 28%, transparent);
+}
 
 /* ---------------------------------------------------------------- */
 /* Karty klientů                                                     */
@@ -128,6 +139,47 @@
   flex: 1;
   min-width: 0;
 }
+
+/* ---------------------------------------------------------------- */
+/* Akce na kartě                                                     */
+/* ---------------------------------------------------------------- */
+
+.actions {
+  border-top: 1px solid var(--line);
+  padding: 10px var(--s5) var(--s4);
+  background: var(--grad-sunk);
+}
+
+.actionRow { display: flex; align-items: center; gap: var(--s2); flex-wrap: wrap; }
+
+/* Odsune mazání od archivace, ať se na něj neklikne omylem. */
+.actionSpacer { flex: 1; min-width: var(--s4); }
+
+.danger {
+  background: var(--alarm);
+  border-color: var(--alarm);
+  color: #fff;
+}
+.danger:hover {
+  background: var(--alarm);
+  border-color: var(--alarm);
+  filter: brightness(1.1);
+}
+
+.warn {
+  margin: 0 0 var(--s3);
+  padding: 9px 12px;
+  border-radius: var(--r2);
+  background: var(--alarm-soft);
+  color: var(--alarm);
+  font-family: var(--ui-s);
+  font-size: 12px;
+  line-height: 1.5;
+  border: 1px solid color-mix(in srgb, var(--alarm) 28%, transparent);
+}
+
+.cardArchived { opacity: 0.72; }
+.cardArchived:hover { opacity: 1; }
 
 .hint {
   font-family: var(--ui-s);

@@ -1,6 +1,12 @@
 "use server";
 
-import { createClient, archiveClient, type ActionResult } from "@/lib/clients";
+import {
+  createClient,
+  archiveClient,
+  unarchiveClient,
+  deleteClient,
+  type ActionResult,
+} from "@/lib/clients";
 import { getWorkspace } from "@/lib/workspace";
 import { lookupAres, type AresResult } from "@/lib/ares";
 
@@ -44,4 +50,12 @@ export async function createClientAction(form: {
 
 export async function archiveClientAction(clientId: string): Promise<ActionResult> {
   return archiveClient(clientId);
+}
+
+export async function unarchiveClientAction(clientId: string): Promise<ActionResult> {
+  return unarchiveClient(clientId);
+}
+
+export async function deleteClientAction(clientId: string): Promise<ActionResult> {
+  return deleteClient(clientId);
 }

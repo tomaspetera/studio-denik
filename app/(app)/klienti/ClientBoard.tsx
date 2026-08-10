@@ -5,7 +5,13 @@ import { useRouter } from "next/navigation";
 import { BALL_LABEL, CLIENT_COLORS } from "@/lib/domain";
 import { isValidIco, normalizeIco } from "@/lib/ares";
 import type { ClientRow } from "@/lib/clients";
-import { createClientAction, lookupAresAction } from "./actions";
+import {
+  createClientAction,
+  lookupAresAction,
+  archiveClientAction,
+  unarchiveClientAction,
+  deleteClientAction,
+} from "./actions";
 import styles from "./clients.module.css";
 
 export default function ClientBoard({
@@ -18,6 +24,24 @@ export default function ClientBoard({
   const router = useRouter();
   const [composer, setComposer] = useState(false);
   const [copied, setCopied] = useState<string | null>(null);
+  const [showArchived, setShowArchived] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [pending, startTransition] = useTransition();
+
+  const active = clients.filter((c) => !c.archived);
+  const archived = clients.filter((c) => c.archived);
+  const shown = showArchived ? archived : active;
+
+  function run(fn: () => Promise<{ ok: boolean; message?: string }>) {
+    setError(null);
+    startTransition(async () => {
+      const res = await fn();
+      if (!res.ok) setError(res.message ?? "Nepodařilo se to.");
+      setConfirmDelete(null);
+      router.refresh();
+    });
+  }
 
   async function copyLink(token: string) {
     const base = siteUrl || window.location.origin;
@@ -36,16 +60,58 @@ export default function ClientBoard({
         <div>
           <h1 className={styles.h1}>Klienti</h1>
           <p className={styles.sub}>
-            {clients.length === 0 ? "Zatím žádní" : `${clients.length} aktivních`}
+            {active.length === 0 ? "Zatím žádní" : `${active.length} aktivních`}
+            {archived.length > 0 && ` · ${archived.length} v archivu`}
           </p>
         </div>
-        <button type="button" className="btn btn-primary" onClick={() => setComposer(true)}>
-          <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" /></svg>
-          <span>Přidat klienta</span>
-        </button>
+        <div className={styles.headActs}>
+          {archived.length > 0 && (
+            <button
+              type="button"
+              className="btn"
+              onClick={() => setShowArchived(!showArchived)}
+            >
+              {showArchived ? "Zpět na aktivní" : `Archiv (${archived.length})`}
+            </button>
+          )}
+          <button type="button" className="btn btn-primary" onClick={() => setComposer(true)}>
+            <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" /></svg>
+            <span>Přidat klienta</span>
+          </button>
+        </div>
       </header>
 
-      {clients.length === 0 ? (
+      {error && <p className={styles.topError} role="alert">{error}</p>}
+
+      {showArchived ? (
+        <div className={styles.grid}>
+          {archived.map((c) => (
+            <article key={c.id} className={`${styles.card} ${styles.cardArchived}`}>
+              <header className={styles.cardHead}>
+                <span className={styles.swatch} style={{ background: c.color }} aria-hidden="true" />
+                <span className={styles.nameBlock}>
+                  <span className={styles.name}>{c.name}</span>
+                  <span className={styles.ident}>
+                    {c.ico && <span className="mono">IČO {c.ico}</span>}
+                    {c.ico && (c.active + c.closed > 0) && " · "}
+                    {c.active + c.closed > 0 && `${c.active + c.closed} úkolů v historii`}
+                  </span>
+                </span>
+              </header>
+              <footer className={styles.actions}>
+                <button
+                  type="button"
+                  className="btn btn-sm"
+                  onClick={() => run(() => unarchiveClientAction(c.id))}
+                  disabled={pending}
+                >
+                  Vrátit mezi aktivní
+                </button>
+              </footer>
+            </article>
+          ))}
+        </div>
+      ) : clients.length === 0 ? (
         <div className={styles.empty}>
           <strong>Zatím žádní klienti</strong>
           <p>
@@ -58,7 +124,7 @@ export default function ClientBoard({
         </div>
       ) : (
         <div className={styles.grid}>
-          {clients.map((c) => (
+          {shown.map((c) => (
             <article key={c.id} className={styles.card}>
               <header className={styles.cardHead}>
                 <span className={styles.swatch} style={{ background: c.color }} aria-hidden="true" />
@@ -107,6 +173,59 @@ export default function ClientBoard({
                   {copied === c.share_token ? "Zkopírováno" : "Kopírovat"}
                 </button>
               </footer>
+
+              <div className={styles.actions}>
+                {confirmDelete === c.id ? (
+                  <>
+                    <p className={styles.warn}>
+                      {c.active + c.closed > 0
+                        ? `Klient má ${c.active + c.closed} úkolů. Úkoly zůstanou, ale přestanou vědět, komu patřily — v příštím reportu se přesunou mezi interní. Chceš spíš archivovat?`
+                        : "Klient nemá žádné úkoly, takže se nic dalšího neztratí."}
+                    </p>
+                    <div className={styles.actionRow}>
+                      <button
+                        type="button"
+                        className={`btn btn-sm ${styles.danger}`}
+                        onClick={() => run(() => deleteClientAction(c.id))}
+                        disabled={pending}
+                      >
+                        Opravdu smazat
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-sm btn-ghost"
+                        onClick={() => setConfirmDelete(null)}
+                      >
+                        Nechat
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <div className={styles.actionRow}>
+                    {/* Archivace je u klienta s historií rozumnější volba,
+                        proto stojí první. */}
+                    {c.active + c.closed > 0 && (
+                      <button
+                        type="button"
+                        className="btn btn-sm"
+                        onClick={() => run(() => archiveClientAction(c.id))}
+                        disabled={pending}
+                        title="Zmizí ze seznamů, ale historie zůstane"
+                      >
+                        Archivovat
+                      </button>
+                    )}
+                    <span className={styles.actionSpacer} />
+                    <button
+                      type="button"
+                      className="btn btn-sm btn-ghost"
+                      onClick={() => setConfirmDelete(c.id)}
+                    >
+                      Smazat
+                    </button>
+                  </div>
+                )}
+              </div>
             </article>
           ))}
         </div>
