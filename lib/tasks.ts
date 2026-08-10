@@ -31,6 +31,9 @@ export type TaskRow = {
   supplier_id: string | null;
   supplier_name: string | null;
   assignee_initials: string | null;
+  /** Co napsal klient na svém schvalovacím odkazu. */
+  client_reply: string | null;
+  client_reply_at: string | null;
 };
 
 export type Client = { id: string; name: string; color: string };
@@ -47,6 +50,7 @@ const TASK_COLUMNS = [
   "ball", "step_name", "step_count", "is_late",
   "client_id", "client_name", "client_color",
   "supplier_id", "supplier_name", "assignee_initials",
+  "client_reply", "client_reply_at",
 ].join(",");
 
 export async function listTasks(orgId: string): Promise<TaskRow[]> {

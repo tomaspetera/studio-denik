@@ -1,0 +1,320 @@
+/* Schvalovací stránka klienta.
+
+   Na rozdíl od reportu tohle není dokument ke čtení — klient sem chodí něco
+   udělat. Proto nahoře stojí to, co na něj čeká, a všechno ostatní je pod
+   tím jako kontext. */
+
+.stage {
+  min-height: 100dvh;
+  background: var(--sunk);
+  padding: var(--s6) var(--s5) var(--s8);
+  max-width: 720px;
+  margin: 0 auto;
+}
+
+/* ---------------------------------------------------------------- */
+/* Hlavička                                                          */
+/* ---------------------------------------------------------------- */
+
+.head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: var(--s5);
+  padding-bottom: var(--s4);
+  border-bottom: 1px solid var(--line);
+  flex-wrap: wrap;
+}
+
+.studio { display: flex; align-items: center; gap: 11px; }
+
+.logo {
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+  display: grid;
+  place-items: center;
+  background: var(--ink);
+  flex: none;
+}
+.logo svg { width: 17px; height: 17px; stroke: var(--paper); }
+
+.studioName {
+  display: block;
+  font-family: var(--ui-d);
+  font-size: 14.5px;
+  font-weight: 700;
+  letter-spacing: -0.018em;
+}
+.studioSub {
+  display: block;
+  font-family: var(--ui-s);
+  font-size: 11.5px;
+  color: var(--muted);
+  margin-top: 1px;
+}
+
+.forWhom {
+  text-align: right;
+  font-family: var(--ui-s);
+  font-size: 11px;
+  color: var(--faint);
+  line-height: 1.7;
+}
+.forWhom b {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-family: var(--ui-d);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.forWhom i { width: 9px; height: 9px; border-radius: 3px; flex: none; }
+
+/* ---------------------------------------------------------------- */
+/* Úvod                                                              */
+/* ---------------------------------------------------------------- */
+
+.title {
+  font-family: var(--ui-d);
+  font-size: 30px;
+  font-weight: 600;
+  letter-spacing: -0.032em;
+  line-height: 1.12;
+  margin: var(--s6) 0 var(--s3);
+  text-wrap: balance;
+}
+
+.lede {
+  font-size: 14.5px;
+  line-height: 1.65;
+  color: var(--muted);
+  max-width: 56ch;
+  margin: 0 0 var(--s6);
+}
+
+.error,
+.thanks {
+  padding: 12px 15px;
+  border-radius: var(--r2);
+  font-size: 13.5px;
+  line-height: 1.55;
+  margin: 0 0 var(--s5);
+}
+.error {
+  background: var(--alarm-soft);
+  color: var(--alarm);
+  border: 1px solid color-mix(in srgb, var(--alarm) 28%, transparent);
+}
+.thanks {
+  background: var(--done-soft);
+  color: var(--done);
+  border: 1px solid color-mix(in srgb, var(--done) 28%, transparent);
+}
+
+/* ---------------------------------------------------------------- */
+/* Karty ke schválení                                                */
+/* ---------------------------------------------------------------- */
+
+.deck { display: flex; flex-direction: column; gap: var(--s4); }
+
+.card {
+  background: var(--grad);
+  border: 1px solid var(--line-2);
+  border-radius: var(--r3);
+  box-shadow: var(--sh-2);
+  padding: var(--s5);
+  animation: enter 0.3s var(--ease);
+}
+.cardLate { border-color: color-mix(in srgb, var(--alarm) 45%, var(--line-2)); }
+
+.cardHead {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--s4);
+  margin-bottom: var(--s4);
+}
+.cardHead h2 {
+  font-family: var(--ui-d);
+  font-size: 19px;
+  font-weight: 600;
+  letter-spacing: -0.022em;
+  line-height: 1.25;
+  margin: 0;
+  text-wrap: balance;
+}
+
+.facts {
+  margin: 0 0 var(--s5);
+  padding: var(--s3) var(--s4);
+  border-radius: var(--r2);
+  background: var(--sunk);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.facts > span { display: flex; gap: var(--s3); font-size: 13px; line-height: 1.55; }
+.facts dt {
+  font-family: var(--ui-s);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  font-weight: 700;
+  color: var(--faint);
+  flex: none;
+  width: 96px;
+  padding-top: 2px;
+}
+.facts dd { margin: 0; color: var(--ink); }
+
+.acts { display: flex; gap: var(--s3); flex-wrap: wrap; }
+
+/* Schválení je hlavní důvod, proč sem klient přišel — musí to být vidět. */
+.approve {
+  background: var(--done);
+  border-color: var(--done);
+  color: #fff;
+}
+.approve:hover:not(:disabled) {
+  background: var(--done);
+  border-color: var(--done);
+  filter: brightness(1.08);
+}
+.approve svg { width: 17px; height: 17px; stroke: currentColor; fill: none; }
+
+.noteBox { display: flex; flex-direction: column; }
+
+.label {
+  font-family: var(--ui-s);
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  font-weight: 700;
+  color: var(--faint);
+  margin-bottom: var(--s2);
+}
+
+.noteBox textarea { resize: vertical; margin-bottom: var(--s4); }
+
+.lastReply {
+  margin: var(--s4) 0 0;
+  padding-top: var(--s3);
+  border-top: 1px solid var(--line);
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--faint);
+}
+
+/* ---------------------------------------------------------------- */
+/* Kontext pod tím                                                   */
+/* ---------------------------------------------------------------- */
+
+.list { margin-top: var(--s7); }
+
+.listHead {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  font-family: var(--ui-s);
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  font-weight: 700;
+  color: var(--faint);
+  margin: 0 0 var(--s3);
+}
+.listHead span {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0;
+  color: var(--muted);
+  background: var(--sunk);
+  border-radius: 999px;
+  padding: 1px 8px;
+}
+
+.list ul { list-style: none; margin: 0; padding: 0; }
+.list li {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  padding: 9px 0;
+  border-bottom: 1px solid var(--line);
+  font-size: 13.5px;
+}
+.list li:last-child { border-bottom: none; }
+
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  flex: none;
+  background: var(--tone, var(--muted));
+}
+
+.itemName {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.itemState {
+  font-family: var(--ui-s);
+  font-size: 11.5px;
+  color: var(--faint);
+  flex: none;
+}
+
+/* ---------------------------------------------------------------- */
+/* Patička a neplatný odkaz                                          */
+/* ---------------------------------------------------------------- */
+
+.foot {
+  margin-top: var(--s8);
+  padding-top: var(--s4);
+  border-top: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-family: var(--ui-s);
+  font-size: 11.5px;
+  color: var(--faint);
+  line-height: 1.6;
+}
+.foot span:first-child { font-weight: 600; color: var(--muted); }
+
+.gone {
+  margin-top: 18vh;
+  text-align: center;
+  padding: var(--s7) var(--s5);
+  background: var(--grad);
+  border: 1px solid var(--line);
+  border-radius: var(--r3);
+}
+.gone svg { width: 40px; height: 40px; stroke: var(--faint); fill: none; }
+.gone h1 {
+  font-family: var(--ui-d);
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.025em;
+  margin: var(--s4) 0 var(--s3);
+}
+.gone p {
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.6;
+  max-width: 42ch;
+  margin: 0 auto;
+}
+
+@media (max-width: 620px) {
+  .stage { padding: var(--s5) var(--s4) var(--s7); }
+  .title { font-size: 25px; }
+  .facts > span { flex-direction: column; gap: 1px; }
+  .facts dt { width: auto; }
+  .acts > button { width: 100%; }
+}

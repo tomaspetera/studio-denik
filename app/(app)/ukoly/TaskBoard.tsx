@@ -368,6 +368,13 @@ function Row({
             </p>
           )}
 
+          {task.client_reply && (
+            <p className={styles.reply}>
+              <b>{task.client_name ?? "Klient"} napsal{formatReplyDate(task.client_reply_at)}:</b>
+              {" "}„{task.client_reply}“
+            </p>
+          )}
+
           <dl className={styles.meta}>
             <span><dt>Stav</dt><dd>{BALL_SENTENCE[task.ball]}</dd></span>
             <span><dt>Typ</dt><dd>{flow.length} kroků</dd></span>
@@ -392,6 +399,12 @@ function Empty({ onAdd }: { onAdd: () => void }) {
       </button>
     </div>
   );
+}
+
+function formatReplyDate(value: string | null): string {
+  if (!value) return "";
+  const d = new Date(value);
+  return ` ${d.getDate()}. ${d.getMonth() + 1}.`;
 }
 
 function formatDue(value: string | null): string {

@@ -335,6 +335,27 @@
   max-width: 66ch;
 }
 
+/* Odpověď klienta ze schvalovacího odkazu. Nese vlastní tón, protože ji
+   nepsal nikdo ze studia — a když se úkol vrátil k přepracování, tohle je
+   jediné místo, kde je napsané proč. */
+.reply {
+  margin: var(--s4) 0 0;
+  padding: 10px 13px;
+  border-radius: var(--r2);
+  background: var(--client-soft);
+  color: var(--ink);
+  border-left: 3px solid var(--client);
+  font-size: 13px;
+  line-height: 1.6;
+  max-width: 72ch;
+}
+.reply b {
+  font-family: var(--ui-s);
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--client);
+}
+
 .meta {
   display: flex;
   gap: var(--s4);

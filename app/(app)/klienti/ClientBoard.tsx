@@ -233,9 +233,10 @@ export default function ClientBoard({
 
       {clients.length > 0 && (
         <p className={styles.hint}>
-          Schvalovací odkaz zatím jen kopíruje adresu — stránku, kde klient
-          odklikne „Schvaluji“, dodělám spolu s reportem. Klient k ní nebude
-          potřebovat účet.
+          Schvalovací odkaz pošli klientovi. Uvidí na něm, co čeká na jeho
+          slovo, a buď to schválí — úkol se posune sám — nebo napíše
+          připomínky a úkol se vrátí na „Dělám“. Účet k tomu nepotřebuje.
+          Archivovanému klientovi odkaz přestane platit.
         </p>
       )}
 
