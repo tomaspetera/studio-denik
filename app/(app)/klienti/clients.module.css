@@ -56,7 +56,11 @@
   padding: var(--s4) var(--s5) var(--s3);
 }
 
-.swatch { width: 12px; height: 12px; border-radius: 4px; flex: none; }
+.swatch { width: 12px; height: 12px; border-radius: 4px; flex: none; margin-top: 3px; }
+
+.cardHead { align-items: flex-start; }
+
+.nameBlock { min-width: 0; display: flex; flex-direction: column; }
 
 .name {
   font-family: var(--ui-d);
@@ -64,6 +68,17 @@
   font-weight: 600;
   letter-spacing: -0.018em;
   min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ident {
+  font-family: var(--ui-s);
+  font-size: 11.5px;
+  color: var(--faint);
+  line-height: 1.45;
+  margin-top: 2px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -218,6 +233,52 @@
   margin-bottom: var(--s2);
 }
 
+/* ---------------------------------------------------------------- */
+/* Dohledání v ARESu                                                 */
+/* ---------------------------------------------------------------- */
+
+.optional {
+  font-family: var(--ui-s);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: none;
+  font-weight: 500;
+  color: var(--faint);
+  margin-left: 6px;
+}
+
+.icoRow { display: flex; gap: var(--s2); }
+.icoRow input { flex: 1; min-width: 0; }
+.icoRow button { flex: none; }
+
+.hintSmall {
+  font-family: var(--ui-s);
+  font-size: 11.5px;
+  color: var(--faint);
+  line-height: 1.5;
+  margin: var(--s2) 0 0;
+  max-width: 54ch;
+}
+
+.aresOk,
+.aresErr {
+  margin: var(--s3) 0 0;
+  padding: 9px 12px;
+  border-radius: var(--r2);
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+.aresOk {
+  background: var(--done-soft);
+  color: var(--done);
+  border: 1px solid color-mix(in srgb, var(--done) 26%, transparent);
+}
+.aresErr {
+  background: var(--client-soft);
+  color: var(--client);
+  border: 1px solid color-mix(in srgb, var(--client) 28%, transparent);
+}
+
 .colors { display: flex; gap: 7px; flex-wrap: wrap; }
 .color {
   width: 30px;
@@ -254,4 +315,6 @@
 @media (max-width: 700px) {
   .grid2 { grid-template-columns: 1fr; }
   .head button { width: 100%; }
+  .icoRow { flex-direction: column; }
+  .icoRow button { width: 100%; }
 }

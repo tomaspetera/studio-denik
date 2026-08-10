@@ -16,7 +16,8 @@
     "test:uprava": "node --env-file=.env.local scripts/test-uprava.mjs",
     "test:verejny": "node --env-file=.env.local scripts/test-verejny-report.mjs",
     "test:izolace": "node --env-file=.env.local scripts/test-izolace.mjs",
-    "test:pozvanky": "node --env-file=.env.local scripts/test-pozvanky.mjs"
+    "test:pozvanky": "node --env-file=.env.local scripts/test-pozvanky.mjs",
+    "test:ares": "node scripts/test-ares.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.115.0",

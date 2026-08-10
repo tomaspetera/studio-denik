@@ -11,6 +11,9 @@ export type ClientRow = {
   contact: string | null;
   email: string | null;
   note: string | null;
+  ico: string | null;
+  dic: string | null;
+  address: string | null;
   share_token: string;
   /** Dopočítané z úkolů — neukládá se. */
   active: number;
@@ -26,7 +29,7 @@ export async function listClientsWithStats(orgId: string): Promise<ClientRow[]> 
   const [{ data: clients }, { data: tasks }] = await Promise.all([
     supabase
       .from("clients")
-      .select("id, name, color, contact, email, note, share_token")
+      .select("id, name, color, contact, email, note, ico, dic, address, share_token")
       .eq("org_id", orgId)
       .eq("archived", false)
       .order("name"),
@@ -79,6 +82,9 @@ export async function createClient(input: {
   contact?: string | null;
   email?: string | null;
   note?: string | null;
+  ico?: string | null;
+  dic?: string | null;
+  address?: string | null;
 }): Promise<ActionResult> {
   const name = input.name.trim();
   if (!name) return { ok: false, message: "Klient potřebuje jméno." };
@@ -91,9 +97,18 @@ export async function createClient(input: {
     contact: input.contact?.trim() || null,
     email: input.email?.trim() || null,
     note: input.note?.trim() || null,
+    ico: input.ico?.replace(/\D/g, "") || null,
+    dic: input.dic?.trim().toUpperCase() || null,
+    address: input.address?.trim() || null,
   });
 
-  if (error) return { ok: false, message: error.message };
+  if (error) {
+    // Jednoznačný index na (org_id, ico) u neaarchivovaných klientů.
+    if (error.code === "23505") {
+      return { ok: false, message: "Klient s tímhle IČO už v seznamu je." };
+    }
+    return { ok: false, message: error.message };
+  }
 
   revalidatePath("/", "layout");
   return { ok: true };

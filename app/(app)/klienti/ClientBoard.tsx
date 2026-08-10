@@ -3,8 +3,9 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { BALL_LABEL, CLIENT_COLORS } from "@/lib/domain";
+import { isValidIco, normalizeIco } from "@/lib/ares";
 import type { ClientRow } from "@/lib/clients";
-import { createClientAction } from "./actions";
+import { createClientAction, lookupAresAction } from "./actions";
 import styles from "./clients.module.css";
 
 export default function ClientBoard({
@@ -61,7 +62,16 @@ export default function ClientBoard({
             <article key={c.id} className={styles.card}>
               <header className={styles.cardHead}>
                 <span className={styles.swatch} style={{ background: c.color }} aria-hidden="true" />
-                <span className={styles.name}>{c.name}</span>
+                <span className={styles.nameBlock}>
+                  <span className={styles.name}>{c.name}</span>
+                  {(c.ico || c.address) && (
+                    <span className={styles.ident}>
+                      {c.ico && <span className="mono">IČO {c.ico}</span>}
+                      {c.ico && c.address && " · "}
+                      {c.address}
+                    </span>
+                  )}
+                </span>
               </header>
 
               <dl className={styles.rows}>
@@ -144,13 +154,49 @@ function Composer({
   const [contact, setContact] = useState("");
   const [email, setEmail] = useState("");
   const [note, setNote] = useState("");
+  const [ico, setIco] = useState("");
+  const [dic, setDic] = useState("");
+  const [address, setAddress] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [aresNote, setAresNote] = useState<string | null>(null);
+  const [aresErr, setAresErr] = useState<string | null>(null);
+  const [looking, setLooking] = useState(false);
   const [pending, startTransition] = useTransition();
+
+  // Tlačítko má smysl zpřístupnit až u čísla, které vůbec může existovat.
+  const icoUsable = isValidIco(ico);
+
+  async function lookup() {
+    setAresErr(null);
+    setAresNote(null);
+    setLooking(true);
+    try {
+      const res = await lookupAresAction(ico);
+      if (!res.ok) {
+        setAresErr(res.message);
+        return;
+      }
+      // Ručně vyplněné jméno nepřepisujeme — mohl sis ho schválně zkrátit.
+      setIco(res.company.ico);
+      if (!name.trim()) setName(res.company.name);
+      if (res.company.dic) setDic(res.company.dic);
+      if (res.company.address) setAddress(res.company.address);
+      setAresNote(
+        name.trim() && name.trim() !== res.company.name
+          ? `V rejstříku: ${res.company.name}. Tvoje jméno jsem nechal.`
+          : "Načteno z rejstříku. Cokoliv můžeš přepsat.",
+      );
+    } finally {
+      setLooking(false);
+    }
+  }
 
   function save() {
     setError(null);
     startTransition(async () => {
-      const res = await createClientAction({ name, color, contact, email, note });
+      const res = await createClientAction({
+        name, color, contact, email, note, ico, dic, address,
+      });
       if (res.ok) onSaved();
       else setError(res.message);
     });
@@ -171,14 +217,53 @@ function Composer({
         </header>
 
         <div className={styles.dialogBody}>
-          <label className={styles.label} htmlFor="c-name">Jméno</label>
+          <label className={styles.label} htmlFor="c-ico">
+            IČO <span className={styles.optional}>nepovinné</span>
+          </label>
+          <div className={styles.icoRow}>
+            <input
+              id="c-ico"
+              className="field"
+              inputMode="numeric"
+              value={ico}
+              onChange={(e) => { setIco(e.target.value); setAresErr(null); setAresNote(null); }}
+              onBlur={() => ico.trim() && setIco(normalizeIco(ico))}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && icoUsable && !looking) {
+                  e.preventDefault();
+                  lookup();
+                }
+              }}
+              placeholder="27604977"
+              aria-describedby="c-ico-hint"
+              autoFocus
+            />
+            <button
+              type="button"
+              className="btn"
+              onClick={lookup}
+              disabled={!icoUsable || looking}
+            >
+              {looking ? "Hledám…" : "Načíst z ARESu"}
+            </button>
+          </div>
+          <p id="c-ico-hint" className={styles.hintSmall}>
+            Zadej IČO a zbytek se doplní sám. Nemá-li klient IČO — třeba fyzická
+            osoba — nech pole prázdné a vyplň údaje ručně.
+          </p>
+
+          {aresErr && <p className={styles.aresErr} role="alert">{aresErr}</p>}
+          {aresNote && <p className={styles.aresOk}>{aresNote}</p>}
+
+          <label className={styles.label} style={{ marginTop: "var(--s5)" }} htmlFor="c-name">
+            Jméno
+          </label>
           <input
             id="c-name"
             className="field"
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="Pekárna U Lípy"
-            autoFocus
           />
 
           <span className={styles.label} style={{ marginTop: "var(--s5)" }}>Barva</span>
@@ -216,6 +301,29 @@ function Composer({
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="jana@pekarna.cz"
+              />
+            </div>
+          </div>
+
+          <div className={styles.grid2}>
+            <div>
+              <label className={styles.label} htmlFor="c-dic">DIČ</label>
+              <input
+                id="c-dic"
+                className="field"
+                value={dic}
+                onChange={(e) => setDic(e.target.value)}
+                placeholder="CZ27604977"
+              />
+            </div>
+            <div>
+              <label className={styles.label} htmlFor="c-addr">Sídlo</label>
+              <input
+                id="c-addr"
+                className="field"
+                value={address}
+                onChange={(e) => setAddress(e.target.value)}
+                placeholder="Ulice 1, 110 00 Praha"
               />
             </div>
           </div>

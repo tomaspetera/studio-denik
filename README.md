@@ -87,6 +87,7 @@ npm run test:uprava    # úprava úkolu a přepnutí typu mezi průchody
 npm run test:mazani    # kaskáda — mizí i historie a tisková zakázka
 npm run test:verejny   # co pustí sdílený odkaz nepřihlášenému návštěvníkovi
 npm run test:pozvanky  # pozvání kolegy až po jeho první přihlášení
+npm run test:ares      # kontrolní číslice IČO a dohledání v rejstříku
 npm run test:report    # kvalita textu reportu
 npm run test:stream    # jestli text opravdu teče průběžně
 ```
