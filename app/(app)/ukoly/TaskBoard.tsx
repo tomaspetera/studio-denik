@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
   BALL_HINT,
@@ -33,25 +33,48 @@ export default function TaskBoard({
   categories,
   counts,
   openComposer,
+  presetDate,
+  openTaskId,
 }: {
   tasks: TaskRow[];
   clients: Client[];
   categories: Category[];
   counts: Record<string, number>;
   openComposer: boolean;
+  /** Termín předvyplněný při zakládání — přichází z kliku na den v kalendáři. */
+  presetDate?: string;
+  /** Úkol, který se má rovnou rozbalit — přichází z kalendáře nebo jiného odkazu. */
+  openTaskId?: string;
 }) {
   const router = useRouter();
   const [filter, setFilter] = useState<Filter>("all");
   const [query, setQuery] = useState("");
-  const [open, setOpen] = useState<string | null>(null);
+  const [open, setOpen] = useState<string | null>(openTaskId ?? null);
   // Uzavřené se sbalí samy. Jsou hotové — nemají důvod zabírat místo mezi
   // tím, co se ještě řeší. Nadpis skupiny drží počet, takže je vidět,
   // že existují, a jedno kliknutí je rozbalí.
-  const [closed, setClosed] = useState<Set<Ball>>(new Set<Ball>(["done"]));
+  //
+  // Odkaz na konkrétní úkol musí umět rozbalit i skupinu „Uzavřeno“ — jinak
+  // by se detail otevřel uvnitř sbalené sekce a nebylo by ho vidět.
+  const [closed, setClosed] = useState<Set<Ball>>(() => {
+    const s = new Set<Ball>(["done"]);
+    const target = openTaskId ? tasks.find((t) => t.id === openTaskId) : undefined;
+    if (target) s.delete(target.ball);
+    return s;
+  });
   const [composer, setComposer] = useState(openComposer);
   // Který úkol se právě upravuje. `null` znamená zakládání nového.
   const [editTask, setEditTask] = useState<TaskRow | null>(null);
   const [pending, startTransition] = useTransition();
+
+  // Odkaz z kalendáře přijede přes URL, ne přes klik — sám scroll se proto
+  // musí dořešit po vykreslení, ne v inline handleru.
+  useEffect(() => {
+    if (!openTaskId) return;
+    document.getElementById(`ukol-${openTaskId}`)?.scrollIntoView({ block: "center" });
+    // Jen při prvním vykreslení stránky s tímhle odkazem.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const visible = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -201,6 +224,7 @@ export default function TaskBoard({
           task={editTask ?? undefined}
           clients={clients}
           categories={categories}
+          presetDate={editTask ? undefined : presetDate}
           onClose={() => { setComposer(false); setEditTask(null); }}
           onSaved={() => {
             setComposer(false);
@@ -244,6 +268,7 @@ function Row({
   return (
     <>
       <div
+        id={`ukol-${task.id}`}
         className={`${styles.row} o-${tone} ${open ? styles.rowOpen : ""}`}
         onClick={onToggle}
         role="button"

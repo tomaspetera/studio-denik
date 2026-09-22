@@ -20,12 +20,15 @@ export default function Composer({
   task,
   clients,
   categories,
+  presetDate,
   onClose,
   onSaved,
 }: {
   task?: TaskRow;
   clients: Client[];
   categories: Category[];
+  /** Termín předvyplněný z kliku na den v kalendáři — jen pro nový úkol. */
+  presetDate?: string;
   onClose: () => void;
   onSaved: () => void;
 }) {
@@ -35,7 +38,7 @@ export default function Composer({
   const [kind, setKind] = useState<TaskKind>(task?.kind ?? "klient");
   const [clientId, setClientId] = useState<string>(task?.client_id ?? "");
   const [categoryId, setCategoryId] = useState<string>("");
-  const [dueAt, setDueAt] = useState<string>(toDateInput(task?.due_at ?? null));
+  const [dueAt, setDueAt] = useState<string>(toDateInput(task?.due_at ?? null) || presetDate || "");
   const [size, setSize] = useState(task?.size ?? 2);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();

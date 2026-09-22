@@ -1,0 +1,424 @@
+.wrap { max-width: 1160px; margin: 0 auto; }
+
+.head {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--s5);
+  flex-wrap: wrap;
+  margin-bottom: var(--s5);
+}
+
+.h1 {
+  font-family: var(--ui-d);
+  font-size: 26px;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  line-height: 1.2;
+}
+
+.sub {
+  font-family: var(--ui-s);
+  font-size: 12.5px;
+  color: var(--faint);
+  margin: 4px 0 0;
+}
+
+.headActs { margin-left: auto; display: flex; gap: var(--s2); flex-wrap: wrap; }
+
+/* ---------------------------------------------------------------- */
+/* Panel nahoře — měsíc, rok, „Dnes“                                 */
+/* ---------------------------------------------------------------- */
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--s4);
+}
+
+.nav { display: flex; align-items: center; gap: 4px; }
+
+.monthBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 34px;
+  padding: 0 12px;
+  border-radius: var(--r2);
+  border: 1px solid transparent;
+  background: transparent;
+  cursor: pointer;
+  font-family: var(--ui-d);
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  color: var(--ink);
+  min-width: 168px;
+  justify-content: center;
+}
+.monthBtn:hover { background: var(--raise); border-color: var(--line); }
+.monthBtn svg { width: 14px; height: 14px; stroke: var(--faint); }
+
+.picker {
+  background: var(--grad);
+  border: 1px solid var(--line-2);
+  border-radius: var(--r3);
+  box-shadow: var(--sh-2);
+  padding: var(--s4);
+  margin: -var(--s2) 0 var(--s4);
+  animation: enter 0.16s var(--ease);
+}
+
+.pickerYear {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s4);
+  margin-bottom: var(--s3);
+  font-family: var(--mono);
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.pickerMonths {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+}
+
+.pickerMonth {
+  height: 32px;
+  border-radius: var(--r2);
+  border: 1px solid var(--line);
+  background: var(--surface);
+  cursor: pointer;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--ink-2);
+  text-transform: capitalize;
+}
+.pickerMonth:hover { border-color: var(--muted); background: var(--raise); }
+.pickerMonthOn {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: var(--paper);
+  font-weight: 600;
+}
+
+/* ---------------------------------------------------------------- */
+/* Mřížka                                                            */
+/* ---------------------------------------------------------------- */
+
+.weekHead {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  padding: 0 2px;
+  margin-bottom: 6px;
+}
+.weekHead span {
+  text-align: center;
+  font-family: var(--ui-s);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-weight: 700;
+  color: var(--faint);
+  padding: 4px 0;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  grid-auto-rows: minmax(96px, 1fr);
+  gap: 6px;
+  transition: opacity 0.15s;
+}
+.busy { opacity: 0.6; }
+
+.cell {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  text-align: left;
+  gap: 4px;
+  padding: 7px 6px;
+  border-radius: var(--r2);
+  border: 1px solid var(--line);
+  background: var(--surface);
+  cursor: pointer;
+  transition: border-color 0.14s, background 0.14s, box-shadow 0.14s;
+  min-width: 0;
+  overflow: hidden;
+}
+.cell:hover { border-color: var(--line-2); box-shadow: var(--sh-1); }
+
+.cellOut { background: var(--raise); }
+.cellOut .cellNum { color: var(--faint); }
+
+.cellToday {
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+.cellToday .cellNum {
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+
+.cellDrop {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.cellNum {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 5px;
+  border-radius: 999px;
+  font-family: var(--mono);
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--ink-2);
+}
+
+.items { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+
+.item {
+  display: block;
+  font-family: var(--ui-s);
+  font-size: 10.5px;
+  line-height: 1.5;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 5px;
+  background: var(--tone-soft);
+  color: var(--tone);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.item[draggable="true"] { cursor: grab; }
+.item[draggable="true"]:active { cursor: grabbing; }
+
+.more {
+  font-family: var(--ui-s);
+  font-size: 10px;
+  color: var(--faint);
+  padding: 0 6px;
+}
+
+/* ---------------------------------------------------------------- */
+/* Legenda                                                           */
+/* ---------------------------------------------------------------- */
+
+.legend {
+  display: flex;
+  align-items: center;
+  gap: var(--s5);
+  flex-wrap: wrap;
+  margin: var(--s4) 0 0;
+  font-family: var(--ui-s);
+  font-size: 11.5px;
+  color: var(--muted);
+}
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.legend i { width: 8px; height: 8px; border-radius: 3px; background: var(--tone); flex: none; }
+.legendHint { margin-left: auto; color: var(--faint); }
+
+/* ---------------------------------------------------------------- */
+/* Přehled dne / přidání kalendáře — sdílený vzhled dialogu           */
+/* ---------------------------------------------------------------- */
+
+.backdrop {
+  position: fixed;
+  inset: 0;
+  background: color-mix(in srgb, var(--ink) 40%, transparent);
+  backdrop-filter: blur(5px);
+  display: grid;
+  place-items: center;
+  z-index: 100;
+  padding: var(--s5);
+  animation: enter 0.18s var(--ease);
+}
+
+.sheet {
+  width: 100%;
+  max-width: 480px;
+  max-height: calc(100dvh - 2 * var(--s5));
+  overflow-y: auto;
+  background: var(--grad);
+  border: 1px solid var(--line-2);
+  border-radius: var(--r3);
+  box-shadow: var(--sh-4);
+}
+
+.sheetHead {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  padding: var(--s4) var(--s5);
+  border-bottom: 1px solid var(--line);
+  position: sticky;
+  top: 0;
+  background: var(--grad);
+  z-index: 1;
+}
+.sheetHead h2 {
+  font-family: var(--ui-d);
+  font-size: 15px;
+  font-weight: 600;
+  margin: 0 auto 0 0;
+  text-transform: capitalize;
+}
+
+.sheetBody { padding: var(--s5); }
+
+.sheetEmpty {
+  color: var(--faint);
+  font-size: 13.5px;
+  text-align: center;
+  padding: var(--s5) 0;
+}
+
+.sheetList { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+
+.sheetItem {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  padding: 10px 12px;
+  border-radius: var(--r2);
+  border: 1px solid var(--line);
+  background: var(--surface);
+  text-decoration: none;
+  color: inherit;
+  transition: border-color 0.14s, background 0.14s;
+}
+.sheetItem:hover { border-color: var(--line-2); background: var(--raise); }
+
+.sheetDot { width: 9px; height: 9px; border-radius: 50%; background: var(--tone); flex: none; }
+
+.sheetMain { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+
+.sheetKind {
+  font-family: var(--ui-s);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-weight: 700;
+  color: var(--faint);
+}
+
+.sheetTitle {
+  font-size: 13.5px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sheetClient {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-family: var(--ui-s);
+  font-size: 11px;
+  color: var(--muted);
+}
+.sheetClient i { width: 7px; height: 7px; border-radius: 3px; flex: none; }
+
+.sheetFoot {
+  padding: var(--s3) var(--s5) var(--s4);
+  border-top: 1px solid var(--line);
+  background: var(--grad-sunk);
+}
+.sheetFoot .btn { width: 100%; }
+
+/* ---------------------------------------------------------------- */
+/* Odběr do telefonu                                                 */
+/* ---------------------------------------------------------------- */
+
+.note {
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--ink-2);
+  margin: 0 0 var(--s5);
+}
+
+.label {
+  display: block;
+  font-family: var(--ui-s);
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  font-weight: 700;
+  color: var(--faint);
+  margin-bottom: var(--s2);
+}
+
+.urlRow { display: flex; gap: var(--s2); margin-bottom: var(--s5); }
+.urlBox {
+  flex: 1;
+  min-width: 0;
+  padding: 9px 12px;
+  border-radius: var(--r2);
+  background: var(--sunk);
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--ink-2);
+  overflow-x: auto;
+  white-space: nowrap;
+}
+
+.steps { margin: 0 0 var(--s4); padding-left: 20px; font-size: 13px; line-height: 1.7; color: var(--ink-2); }
+.steps li + li { margin-top: 6px; }
+
+.hintSmall {
+  font-family: var(--ui-s);
+  font-size: 11.5px;
+  color: var(--faint);
+  line-height: 1.55;
+  margin: 0;
+}
+
+.error {
+  padding: 10px 13px;
+  border-radius: var(--r2);
+  background: var(--alarm-soft);
+  color: var(--alarm);
+  font-size: 12.5px;
+}
+
+/* ---------------------------------------------------------------- */
+/* Mobil                                                             */
+/* ---------------------------------------------------------------- */
+
+@media (max-width: 700px) {
+  .head button span { display: none; }
+  .head .btn svg { margin: 0; }
+
+  .legendHint { display: none; }
+
+  .grid { grid-auto-rows: minmax(58px, 1fr); gap: 3px; }
+  .cell { padding: 4px 3px; border-radius: 8px; gap: 2px; }
+  .cellNum { font-size: 10.5px; min-width: 17px; height: 17px; }
+
+  /* Málo místa na text — den ukáže jen barevné tečky, popisek dá až
+     přehled dne po kliknutí. */
+  .item {
+    width: 6px;
+    height: 6px;
+    padding: 0;
+    border-radius: 50%;
+    font-size: 0;
+    color: transparent;
+    background: var(--tone);
+  }
+  .items { flex-direction: row; flex-wrap: wrap; gap: 3px; }
+  .more { display: none; }
+
+  .pickerMonths { grid-template-columns: repeat(3, 1fr); }
+}

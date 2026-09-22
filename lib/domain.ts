@@ -128,11 +128,6 @@ export const ROLE_HINT: Record<Role, string> = {
   viewer: "Vidí jen publikované reporty. Do provozních dat se nedostane.",
 };
 
-export function isLate(dueAt: string | null, ball: Ball, now = new Date()): boolean {
-  if (!dueAt || ball === "done") return false;
-  return new Date(dueAt).getTime() < now.getTime();
-}
-
 /**
  * Podíl kategorií v reportu. Váží se velikostí úkolu, ne časem —
  * hodiny by znamenaly stopky a ty nikdo dlouhodobě nevykazuje.
@@ -232,4 +227,87 @@ export function csRange(start: Date, end: Date): string {
   return sameMonth
     ? `${start.getDate()}.–${end.getDate()}. ${CS_MONTHS[end.getMonth()]} ${end.getFullYear()}`
     : `${start.getDate()}. ${CS_MONTHS[start.getMonth()]} – ${csDate(end)}`;
+}
+
+/* ------------------------------------------------------------------ */
+/* Kalendář                                                             */
+/* ------------------------------------------------------------------ */
+/*
+ * `due_at` je uložené jako půlnoc UTC dne, který si člověk vybral v poli
+ * typu „datum“ — je to datum, ne okamžik, a datum nemá časové pásmo.
+ * `is_task_late` v databázi proto místo porovnání okamžiků porovnává
+ * kalendářní dny v pražském čase (viz migrace 0008 — od toho se od dvou
+ * ráno úkol s dnešním termínem tvářil jako "po termínu").
+ *
+ * Mřížka kalendáře musí ctít stejné pravidlo, jinak by tu samou chybu
+ * zopakovala jinde: dny se proto počítají čistě v UTC (bez ohledu na to,
+ * v jakém pásmu je prohlížeč), a "dnešek" se čte výhradně přes Europe/Prague.
+ * Klíč dne je vždycky "YYYY-MM-DD" — obyčejný řetězec, se kterým se dá
+ * bezpečně porovnávat i řadit.
+ */
+export type DateKey = string;
+
+/** Klíč dne z ISO řetězce nebo Date, čtený z UTC složek — beze změny podle pásma prohlížeče. */
+export function dateKeyUTC(value: string | Date): DateKey {
+  const d = typeof value === "string" ? new Date(value) : value;
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`;
+}
+
+/** Dnešní datum v Praze — nezávisle na tom, v jakém pásmu běží prohlížeč nebo server. */
+export function todayKeyPrague(): DateKey {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Europe/Prague",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date());
+  const get = (t: string) => parts.find((p) => p.type === t)?.value ?? "";
+  return `${get("year")}-${get("month")}-${get("day")}`;
+}
+
+/** Klíč dne zpátky na `Date` (UTC půlnoc) — pro vstup `<input type="date">` a podobně. */
+export function dateFromKey(key: DateKey): Date {
+  const [y, m, d] = key.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, d));
+}
+
+export function addDaysKey(key: DateKey, days: number): DateKey {
+  const d = dateFromKey(key);
+  d.setUTCDate(d.getUTCDate() + days);
+  return dateKeyUTC(d);
+}
+
+/** Kladné = `b` je po `a`. */
+export function daysBetweenKeys(a: DateKey, b: DateKey): number {
+  return Math.round((dateFromKey(b).getTime() - dateFromKey(a).getTime()) / 86_400_000);
+}
+
+export function csDateFromKey(key: DateKey): string {
+  return csDate(dateFromKey(key));
+}
+
+export const CS_MONTHS_FULL = [
+  "Leden", "Únor", "Březen", "Duben", "Květen", "Červen",
+  "Červenec", "Srpen", "Září", "Říjen", "Listopad", "Prosinec",
+];
+
+export const CS_WEEKDAYS_SHORT = ["Po", "Út", "St", "Čt", "Pá", "So", "Ne"];
+
+/**
+ * Šest týdnů (42 dní) měsíce `year`-`month` (0–11), pondělí jako první den —
+ * včetně přesahu z okolních měsíců, přesně jako v Google Kalendáři.
+ */
+export function monthGridKeys(year: number, month: number): DateKey[] {
+  const first = new Date(Date.UTC(year, month, 1));
+  const firstWeekday = first.getUTCDay() || 7; // 1 = pondělí … 7 = neděle
+  const start = new Date(first);
+  start.setUTCDate(start.getUTCDate() - (firstWeekday - 1));
+
+  const days: DateKey[] = [];
+  for (let i = 0; i < 42; i++) {
+    const d = new Date(start);
+    d.setUTCDate(d.getUTCDate() + i);
+    days.push(dateKeyUTC(d));
+  }
+  return days;
 }

@@ -3,6 +3,7 @@
 import {
   moveTask,
   setTaskSize,
+  setTaskDueDate,
   createTask,
   updateTask,
   deleteTask,
@@ -21,6 +22,10 @@ export async function cycleSizeAction(taskId: string, current: number): Promise<
 
 export async function deleteTaskAction(taskId: string): Promise<ActionResult> {
   return deleteTask(taskId);
+}
+
+export async function setTaskDueDateAction(taskId: string, dueAt: string | null): Promise<ActionResult> {
+  return setTaskDueDate(taskId, dueAt);
 }
 
 export async function updateTaskAction(form: {

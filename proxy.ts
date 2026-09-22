@@ -10,15 +10,17 @@ import { NextResponse, type NextRequest } from "next/server";
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // Veřejné cesty: přihlášení, callback z e-mailu, sdílený report a
-  // schvalovací odkaz klienta. Obojí poslední jmenované se prokazuje tokenem
-  // v adrese a účet k nim z principu nepatří — kdyby sem nepatřily, klient
-  // by skončil na přihlašovací obrazovce a odkaz by byl k ničemu.
+  // Veřejné cesty: přihlášení, callback z e-mailu, sdílený report,
+  // schvalovací odkaz klienta a odběr kalendáře do telefonu. Všechny se
+  // prokazují tokenem v adrese a účet k nim z principu nepatří — kdyby sem
+  // nepatřily, žádost by skončila na přihlašovací obrazovce a odkaz by byl
+  // k ničemu (Google/Apple Kalendář se navíc přihlásit ani neumí).
   const isPublic =
     pathname.startsWith("/prihlaseni") ||
     pathname.startsWith("/auth/") ||
     pathname.startsWith("/r/") ||
-    pathname.startsWith("/s/");
+    pathname.startsWith("/s/") ||
+    pathname.startsWith("/api/kalendar/");
 
   // Dokud nejsou vyplněné klíče, appku nemá smysl chránit — pustíme ji dál,
   // aby uvítací obrazovka mohla vysvětlit, co doplnit.

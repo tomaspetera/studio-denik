@@ -151,6 +151,18 @@ export async function setTaskSize(taskId: string, size: number): Promise<ActionR
   return { ok: true };
 }
 
+/**
+ * Přesun termínu — používá kalendář při přetažení úkolu na jiný den.
+ * `dueAt` je `null`, když se termín má z úkolu úplně sundat.
+ */
+export async function setTaskDueDate(taskId: string, dueAt: string | null): Promise<ActionResult> {
+  const supabase = await supabaseServer();
+  const { error } = await supabase.from("tasks").update({ due_at: dueAt }).eq("id", taskId);
+  if (error) return { ok: false, message: error.message };
+  revalidatePath("/", "layout");
+  return { ok: true };
+}
+
 export type TaskEdit = {
   taskId: string;
   title: string;

@@ -8,7 +8,10 @@ export const dynamic = "force-dynamic";
 export default async function UkolyPage({
   searchParams,
 }: {
-  searchParams: Promise<{ zapsat?: string }>;
+  // `datum` přichází z kalendáře — klik na den předvyplní termín nového
+  // úkolu. `otevrit` přichází z kalendáře i odjinud — rovnou rozbalí detail
+  // konkrétního úkolu, ať se v seznamu nemusí hledat.
+  searchParams: Promise<{ zapsat?: string; datum?: string; otevrit?: string }>;
 }) {
   const ws = await getWorkspace();
   if (!ws) redirect("/prihlaseni");
@@ -20,7 +23,7 @@ export default async function UkolyPage({
     listCategories(ws.orgId),
   ]);
 
-  const { zapsat } = await searchParams;
+  const { zapsat, datum, otevrit } = await searchParams;
 
   return (
     <TaskBoard
@@ -29,6 +32,8 @@ export default async function UkolyPage({
       categories={categories}
       counts={countByBall(tasks)}
       openComposer={zapsat === "1"}
+      presetDate={datum}
+      openTaskId={otevrit}
     />
   );
 }
