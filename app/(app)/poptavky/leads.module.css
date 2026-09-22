@@ -131,6 +131,13 @@
 .card:active { cursor: grabbing; }
 .cardDragging { opacity: 0.4; }
 
+/* Krátký záblesk po doskrolování z globálního hledání. */
+.cardHighlight {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent);
+  transition: border-color 1.8s ease-out, box-shadow 1.8s ease-out;
+}
+
 .cardMain {
   display: flex;
   flex-direction: column;

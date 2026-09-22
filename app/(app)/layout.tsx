@@ -4,6 +4,7 @@ import { getWorkspace } from "@/lib/workspace";
 import { signOut } from "../prihlaseni/actions";
 import Nav from "./Nav";
 import ThemeToggle from "./ThemeToggle";
+import GlobalSearch from "./GlobalSearch";
 import styles from "./shell.module.css";
 
 export const dynamic = "force-dynamic";
@@ -55,6 +56,7 @@ export default async function AppLayout({
       <main className={styles.main}>
         <header className={styles.top}>
           <div className={styles.topIn}>
+            <GlobalSearch />
             <div className={styles.spacer} />
             <ThemeToggle />
             <Link href="/ukoly?zapsat=1" className="btn btn-primary">

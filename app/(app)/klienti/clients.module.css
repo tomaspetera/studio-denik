@@ -60,6 +60,14 @@
   transform: translateY(-2px);
 }
 
+/* Krátký záblesk po doskrolování z globálního hledání — ať je jasné,
+   která karta z několika stejně vypadajících je ta hledaná. */
+.cardHighlight {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent);
+  transition: border-color 1.8s ease-out, box-shadow 1.8s ease-out;
+}
+
 .cardHead {
   display: flex;
   align-items: center;

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { LEAD_STATUSES, LEAD_STATUS_LABEL, LEAD_STATUS_HINT, czk, type LeadStatus } from "@/lib/domain";
 import type { Lead } from "@/lib/leads";
@@ -23,7 +23,7 @@ import styles from "./leads.module.css";
  * ale bez kontroly platnosti cíle: na rozdíl od typu úkolu tu není nic,
  * co by některý přechod zakazovalo.
  */
-export default function LeadBoard({ leads }: { leads: Lead[] }) {
+export default function LeadBoard({ leads, highlightId }: { leads: Lead[]; highlightId?: string }) {
   const router = useRouter();
   const [composer, setComposer] = useState(false);
   const [editLead, setEditLead] = useState<Lead | null>(null);
@@ -31,6 +31,17 @@ export default function LeadBoard({ leads }: { leads: Lead[] }) {
   const [dragOverStatus, setDragOverStatus] = useState<LeadStatus | null>(null);
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  // Zvýraznění je jen dočasné — URL by ho jinak držela navždy i po obnovení.
+  const [highlighted, setHighlighted] = useState(highlightId ?? null);
+
+  useEffect(() => {
+    if (!highlightId) return;
+    document.getElementById(`lead-${highlightId}`)?.scrollIntoView({ block: "center" });
+    const t = setTimeout(() => setHighlighted(null), 2200);
+    return () => clearTimeout(t);
+    // Jen při prvním vykreslení stránky s tímhle odkazem.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const open = leads.filter((l) => l.status === "poptavka" || l.status === "nabidka");
   const openAmount = open.reduce((s, l) => s + (l.amount ?? 0), 0);
@@ -111,6 +122,7 @@ export default function LeadBoard({ leads }: { leads: Lead[] }) {
                     key={lead.id}
                     lead={lead}
                     dragging={draggingId === lead.id}
+                    highlighted={highlighted === lead.id}
                     onDragStart={() => setDraggingId(lead.id)}
                     onDragEnd={() => setDraggingId(null)}
                     onEdit={() => { setEditLead(lead); setComposer(true); }}
@@ -140,6 +152,7 @@ export default function LeadBoard({ leads }: { leads: Lead[] }) {
 function LeadCard({
   lead,
   dragging,
+  highlighted,
   onDragStart,
   onDragEnd,
   onEdit,
@@ -148,6 +161,7 @@ function LeadCard({
 }: {
   lead: Lead;
   dragging: boolean;
+  highlighted: boolean;
   onDragStart: () => void;
   onDragEnd: () => void;
   onEdit: () => void;
@@ -158,7 +172,8 @@ function LeadCard({
 
   return (
     <article
-      className={`${styles.card} ${dragging ? styles.cardDragging : ""}`}
+      id={`lead-${lead.id}`}
+      className={`${styles.card} ${dragging ? styles.cardDragging : ""} ${highlighted ? styles.cardHighlight : ""}`}
       draggable
       onDragStart={(e) => {
         onDragStart();

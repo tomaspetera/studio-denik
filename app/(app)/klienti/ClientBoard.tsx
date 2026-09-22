@@ -45,10 +45,13 @@ export default function ClientBoard({
   clients,
   contactsByClient,
   siteUrl,
+  highlightId,
 }: {
   clients: ClientRow[];
   contactsByClient: Record<string, ClientContact[]>;
   siteUrl: string;
+  /** Přichází z globálního hledání — rovnou odskroluje na tohohle klienta. */
+  highlightId?: string;
 }) {
   const router = useRouter();
   const [composer, setComposer] = useState(false);
@@ -60,6 +63,18 @@ export default function ClientBoard({
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+
+  // Zvýraznění je jen dočasné — sama URL by ho jinak držela navždy, i po
+  // obnovení stránky.
+  const [highlighted, setHighlighted] = useState(highlightId ?? null);
+  useEffect(() => {
+    if (!highlightId) return;
+    document.getElementById(`klient-${highlightId}`)?.scrollIntoView({ block: "center" });
+    const t = setTimeout(() => setHighlighted(null), 2200);
+    return () => clearTimeout(t);
+    // Jen při prvním vykreslení stránky s tímhle odkazem.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const active = clients.filter((c) => !c.archived);
   const archived = clients.filter((c) => c.archived);
@@ -159,7 +174,11 @@ export default function ClientBoard({
           {shown.map((c) => {
             const contacts = contactsByClient[c.id] ?? [];
             return (
-              <article key={c.id} className={styles.card}>
+              <article
+                key={c.id}
+                id={`klient-${c.id}`}
+                className={`${styles.card} ${highlighted === c.id ? styles.cardHighlight : ""}`}
+              >
                 <header className={styles.cardHead}>
                   <span className={styles.swatch} style={{ background: c.color }} aria-hidden="true" />
                   <span className={styles.nameBlock}>
