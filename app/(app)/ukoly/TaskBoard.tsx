@@ -370,7 +370,11 @@ function Row({
 
           {task.client_reply && (
             <p className={styles.reply}>
-              <b>{task.client_name ?? "Klient"} napsal{formatReplyDate(task.client_reply_at)}:</b>
+              <b>
+                Odpověď klienta
+                {task.client_name ? ` · ${task.client_name}` : ""}
+                {formatReplyDate(task.client_reply_at)}:
+              </b>
               {" "}„{task.client_reply}“
             </p>
           )}
@@ -404,7 +408,7 @@ function Empty({ onAdd }: { onAdd: () => void }) {
 function formatReplyDate(value: string | null): string {
   if (!value) return "";
   const d = new Date(value);
-  return ` ${d.getDate()}. ${d.getMonth() + 1}.`;
+  return `, ${d.getDate()}. ${d.getMonth() + 1}.`;
 }
 
 function formatDue(value: string | null): string {

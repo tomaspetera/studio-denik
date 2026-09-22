@@ -1,5 +1,6 @@
 import "server-only";
 
+import { cache } from "react";
 import { supabaseServer } from "./supabase/server";
 import type { Ball } from "./domain";
 
@@ -35,12 +36,13 @@ export type ClientBoard = {
   tasks: ClientTask[];
 };
 
-export async function loadClientBoard(token: string): Promise<ClientBoard | null> {
+// `cache`: titulek záložky i obsah stránky se ptají zvlášť, dotaz ale stačí jeden.
+export const loadClientBoard = cache(async (token: string): Promise<ClientBoard | null> => {
   const supabase = await supabaseServer();
   const { data, error } = await supabase.rpc("public_client_board", { p_token: token });
   if (error || !data) return null;
   return data as ClientBoard;
-}
+});
 
 export type DecideResult =
   | { ok: true; step_name: string; ball: Ball }

@@ -178,7 +178,7 @@ export default function ClientDesk({
 
               {t.reply && (
                 <p className={styles.lastReply}>
-                  Naposledy jsi napsal{t.reply_at ? ` ${csDate(t.reply_at)}` : ""}: „{t.reply}“
+                  Tvoje poslední zpráva{t.reply_at ? ` (${csDate(t.reply_at)})` : ""}: „{t.reply}“
                 </p>
               )}
             </article>

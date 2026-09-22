@@ -1,5 +1,6 @@
 import "server-only";
 
+import { cache } from "react";
 import { supabaseServer } from "./supabase/server";
 
 /**
@@ -38,7 +39,11 @@ function isSchemaMissing(err: { code?: string; message?: string } | null): boole
   );
 }
 
-export async function getWorkspace(): Promise<Workspace | null> {
+/**
+ * Jednou za požadavek. Rozvržení i stránka se ptají každé zvlášť a bez
+ * `cache` by každá vlastní cestou zopakovala tři dotazy do databáze.
+ */
+export const getWorkspace = cache(async (): Promise<Workspace | null> => {
   const supabase = await supabaseServer();
 
   const { data: { user } } = await supabase.auth.getUser();
@@ -84,4 +89,4 @@ export async function getWorkspace(): Promise<Workspace | null> {
     email,
     initials: local.slice(0, 2).toUpperCase(),
   };
-}
+});

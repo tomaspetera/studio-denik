@@ -1,5 +1,6 @@
 import "server-only";
 
+import { cache } from "react";
 import { revalidatePath } from "next/cache";
 import { supabaseServer } from "./supabase/server";
 import { writeProse, streamProse, availableProviders, type Provider } from "./ai";
@@ -437,12 +438,13 @@ export type PublicReport = {
  * Podmínky (platný token, publikovaný stav, nevypršelá platnost) kontroluje
  * funkce v databázi, ne tenhle kód — jinak by je šlo obejít jiným dotazem.
  */
-export async function loadPublicReport(token: string): Promise<PublicReport | null> {
+// `cache`: titulek záložky i obsah stránky se ptají zvlášť, dotaz ale stačí jeden.
+export const loadPublicReport = cache(async (token: string): Promise<PublicReport | null> => {
   const supabase = await supabaseServer();
   const { data, error } = await supabase.rpc("public_report", { p_token: token });
   if (error || !data) return null;
   return data as PublicReport;
-}
+});
 
 function isoDate(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
