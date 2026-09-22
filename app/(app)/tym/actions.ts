@@ -8,7 +8,8 @@ import {
   removeMember,
   type ActionResult,
 } from "@/lib/team";
-import type { Role } from "@/lib/domain";
+import { createAbsence, deleteAbsence } from "@/lib/absences";
+import type { Role, DateKey } from "@/lib/domain";
 
 async function orgOrFail(): Promise<{ orgId: string } | { error: ActionResult }> {
   const ws = await getWorkspace();
@@ -38,4 +39,19 @@ export async function removeMemberAction(userId: string): Promise<ActionResult> 
   const res = await orgOrFail();
   if ("error" in res) return res.error;
   return removeMember(res.orgId, userId);
+}
+
+export async function createAbsenceAction(form: {
+  userId: string;
+  from: DateKey;
+  to: DateKey;
+  note: string;
+}): Promise<ActionResult> {
+  const res = await orgOrFail();
+  if ("error" in res) return res.error;
+  return createAbsence({ orgId: res.orgId, ...form });
+}
+
+export async function deleteAbsenceAction(id: string): Promise<ActionResult> {
+  return deleteAbsence(id);
 }

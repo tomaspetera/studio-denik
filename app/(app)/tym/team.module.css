@@ -194,6 +194,54 @@
   white-space: nowrap;
 }
 
+.away {
+  font-family: var(--ui-s);
+  font-style: normal;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-weight: 700;
+  color: var(--faint);
+  background: var(--sunk);
+  padding: 1px 6px;
+  border-radius: var(--r4);
+}
+
+/* ---------------------------------------------------------------- */
+/* Kapacita — bez hodin, jen počet a velikost otevřených úkolů        */
+/* ---------------------------------------------------------------- */
+
+.capRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+  max-width: 280px;
+}
+
+.capBarTrack {
+  flex: 1;
+  height: 5px;
+  border-radius: 999px;
+  background: var(--sunk);
+  overflow: hidden;
+}
+.capBarFill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--accent);
+  transition: width 0.3s var(--ease);
+}
+
+.capCount {
+  flex: none;
+  font-family: var(--ui-s);
+  font-size: 11px;
+  color: var(--faint);
+  white-space: nowrap;
+}
+
 .controls { display: flex; align-items: center; gap: var(--s2); flex-wrap: wrap; }
 
 .select {
@@ -227,8 +275,54 @@
   max-width: 62ch;
 }
 
+/* ---------------------------------------------------------------- */
+/* Nepřítomnost                                                       */
+/* ---------------------------------------------------------------- */
+
+.absenceEmpty {
+  padding: var(--s4) var(--s5);
+  color: var(--faint);
+  font-size: 13px;
+}
+
+.absenceAddRow { padding: var(--s3) var(--s5); }
+
+.pastAbsences { border-top: 1px solid var(--line); }
+.pastAbsences summary {
+  padding: var(--s3) var(--s5);
+  cursor: pointer;
+  font-family: var(--ui-s);
+  font-size: 12px;
+  color: var(--faint);
+  user-select: none;
+}
+.pastAbsences .list { border-top: 1px solid var(--line); }
+
+.absenceForm {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+  padding: var(--s4) var(--s5);
+  border-top: 1px solid var(--line);
+  background: var(--grad-sunk);
+}
+
+.absenceDates { display: flex; gap: var(--s3); }
+.absenceDates label { flex: 1; display: flex; flex-direction: column; gap: 4px; }
+.absenceDates label span {
+  font-family: var(--ui-s);
+  font-size: 10.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-weight: 700;
+  color: var(--faint);
+}
+
+.absenceFormActs { display: flex; gap: var(--s2); margin-top: 2px; }
+
 @media (max-width: 640px) {
   .roles { grid-template-columns: 1fr; }
   .inviteRow { flex-direction: column; }
   .controls { width: 100%; }
+  .absenceDates { flex-direction: column; }
 }

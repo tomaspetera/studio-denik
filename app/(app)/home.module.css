@@ -63,7 +63,7 @@
 
 .strip {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(5, 1fr);
   border: 1px solid var(--line);
   border-radius: var(--r3);
   overflow: hidden;
@@ -182,6 +182,40 @@
   border-top: 1px solid var(--line);
   background: var(--grad-sunk);
   border-radius: 0 0 var(--r3) var(--r3);
+}
+
+/* ---------------------------------------------------------------- */
+/* Tým dnes — kapacita bez hodin (počet + velikost otevřených úkolů) */
+/* ---------------------------------------------------------------- */
+
+.awayTag {
+  font-family: var(--ui-s);
+  font-style: normal;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-weight: 700;
+  color: var(--faint);
+  background: var(--sunk);
+  padding: 1px 6px;
+  border-radius: var(--r4);
+  margin-left: 8px;
+}
+
+.capBarTrack {
+  display: block;
+  height: 4px;
+  max-width: 320px;
+  margin-right: 36px;
+  border-radius: 999px;
+  background: var(--sunk);
+  overflow: hidden;
+}
+.capBarFill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--accent);
 }
 
 .blank {

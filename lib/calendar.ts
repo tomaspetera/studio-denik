@@ -1,8 +1,9 @@
 import "server-only";
 
 import { supabaseServer } from "./supabase/server";
-import { dateKeyUTC, type Ball, type DateKey } from "./domain";
+import { dateKeyUTC, addDaysKey, type Ball, type DateKey } from "./domain";
 import { listReminders } from "./reminders";
+import { listAbsences } from "./absences";
 
 /**
  * Kalendář uvnitř aplikace čte přímo `tasks_view`, `print_jobs`
@@ -15,17 +16,17 @@ import { listReminders } from "./reminders";
  * to "u koho leží míč" (případně po termínu), u připomínky vlastní odstín
  * "note", který s míčem nemá co dělat.
  */
-/** Barevný tón položky. "alarm" a "note" nejsou stavy míče, jen vlastní odstíny navíc. */
-export type CalendarTone = Ball | "alarm" | "note";
+/** Barevný tón položky. "alarm", "note" a "flat" nejsou stavy míče, jen vlastní odstíny navíc. */
+export type CalendarTone = Ball | "alarm" | "note" | "flat";
 
 export type CalendarEvent = {
   id: string;
-  /** `null` u připomínky — ta žádný úkol nemá. */
+  /** `null` u připomínky a nepřítomnosti — ty na žádný úkol vázané nejsou. */
   taskId: string | null;
-  /** `null` u všeho, co pochází z úkolu. */
+  /** `null` u všeho, co nepochází z připomínky. */
   reminderId: string | null;
   dateKey: DateKey;
-  kind: "due" | "agreed" | "print" | "reminder";
+  kind: "due" | "agreed" | "print" | "reminder" | "absence";
   title: string;
   note: string | null;
   /** Jen u připomínky se dá v kalendáři měnit — u úkolu se klient mění v Úkolech. */
@@ -47,7 +48,7 @@ export async function getCalendarToken(orgId: string): Promise<string | null> {
 export async function listCalendarEvents(orgId: string): Promise<CalendarEvent[]> {
   const supabase = await supabaseServer();
 
-  const [{ data: tasks }, { data: jobs }, reminders] = await Promise.all([
+  const [{ data: tasks }, { data: jobs }, reminders, absences] = await Promise.all([
     supabase
       .from("tasks_view")
       .select("id,title,due_at,agreed_at,agreed_note,ball,is_late,client_name,client_color,step_name")
@@ -57,7 +58,14 @@ export async function listCalendarEvents(orgId: string): Promise<CalendarEvent[]
       .select("task_id,promised_at,delivered_at")
       .eq("org_id", orgId),
     listReminders(orgId),
+    listAbsences(orgId),
   ]);
+
+  // Jen na dohledání jména k nepřítomnosti — organizace je malá.
+  const { data: profiles } = absences.length
+    ? await supabase.from("profiles").select("id, full_name, initials").in("id", absences.map((a) => a.userId))
+    : { data: [] as { id: string; full_name: string | null; initials: string | null }[] };
+  const nameByUser = new Map((profiles ?? []).map((p) => [p.id as string, p.full_name ?? p.initials ?? "Někdo"]));
 
   const rows = (tasks ?? []) as unknown as {
     id: string; title: string; due_at: string | null; agreed_at: string | null;
@@ -145,6 +153,29 @@ export async function listCalendarEvents(orgId: string): Promise<CalendarEvent[]
       stepName: r.createdByInitials ? `zapsal ${r.createdByInitials}` : null,
       done: r.done,
     });
+  }
+
+  // Rozsah "od-do" se v mřížce rozepíše na jednotlivé dny — buňky kalendáře
+  // umí zobrazit jen položky vázané na jeden den, žádný vícedenní pruh.
+  for (const a of absences) {
+    const name = nameByUser.get(a.userId) ?? "Někdo";
+    for (let day = a.from; day <= a.to; day = addDaysKey(day, 1)) {
+      events.push({
+        id: `absence-${a.id}-${day}`,
+        taskId: null,
+        reminderId: null,
+        dateKey: day,
+        kind: "absence",
+        title: `${name} je pryč`,
+        note: a.note,
+        clientId: null,
+        clientName: null,
+        clientColor: null,
+        tone: "flat",
+        stepName: null,
+        done: false,
+      });
+    }
   }
 
   return events;

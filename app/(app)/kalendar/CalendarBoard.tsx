@@ -27,12 +27,14 @@ const KIND_LABEL = {
   agreed: "Domluveno",
   print: "Slíbeno tiskárnou",
   reminder: "Připomínka",
+  absence: "Nepřítomnost",
 } as const;
-const KIND_ORDER = { due: 0, reminder: 1, agreed: 2, print: 3 } as const;
+const KIND_ORDER = { due: 0, reminder: 1, agreed: 2, print: 3, absence: 4 } as const;
 
 function toneLabel(tone: CalendarTone): string {
   if (tone === "alarm") return "po termínu";
   if (tone === "note") return "Připomínka";
+  if (tone === "flat") return "Nepřítomnost";
   return BALL_LABEL[tone];
 }
 
@@ -215,6 +217,7 @@ export default function CalendarBoard({
         <span><i className="o-client" />U klienta</span>
         <span><i className="o-supplier" />U dodavatele</span>
         <span><i className="o-note" />Připomínka</span>
+        <span><i className="o-flat" />Nepřítomnost</span>
         <span><i className="o-alarm" />Po termínu</span>
         <span className={styles.legendHint}>Termín (plná barva) jde přetáhnout na jiný den.</span>
       </p>
@@ -278,16 +281,33 @@ function DaySheet({
             <p className={styles.sheetEmpty}>Na tenhle den zatím nic není.</p>
           ) : (
             <ul className={styles.sheetList}>
-              {events.map((ev) =>
-                ev.kind === "reminder" ? (
-                  <ReminderItem
-                    key={ev.id}
-                    event={ev}
-                    clients={clients}
-                    onError={setError}
-                    onChanged={refresh}
-                  />
-                ) : (
+              {events.map((ev) => {
+                if (ev.kind === "reminder") {
+                  return (
+                    <ReminderItem
+                      key={ev.id}
+                      event={ev}
+                      clients={clients}
+                      onError={setError}
+                      onChanged={refresh}
+                    />
+                  );
+                }
+                // Nepřítomnost nemá úkol, na který by se dalo skočit — ani
+                // ji odsud nejde upravit, to patří na stránku Tým.
+                if (ev.kind === "absence") {
+                  return (
+                    <li key={ev.id} className={styles.sheetItem}>
+                      <span className={`${styles.sheetDot} o-${ev.tone}`} aria-hidden="true" />
+                      <span className={styles.sheetMain}>
+                        <span className={styles.sheetKind}>{KIND_LABEL[ev.kind]}</span>
+                        <span className={styles.sheetTitle}>{ev.title}</span>
+                        {ev.note && <span className={styles.sheetClient}>{ev.note}</span>}
+                      </span>
+                    </li>
+                  );
+                }
+                return (
                   <li key={ev.id}>
                     <Link href={`/ukoly?otevrit=${ev.taskId}`} className={styles.sheetItem}>
                       <span className={`${styles.sheetDot} o-${ev.tone}`} aria-hidden="true" />
@@ -304,8 +324,8 @@ function DaySheet({
                       <span className={`pill o-${ev.tone}`}>{toneLabel(ev.tone)}</span>
                     </Link>
                   </li>
-                ),
-              )}
+                );
+              })}
             </ul>
           )}
 

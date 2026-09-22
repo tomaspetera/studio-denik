@@ -3,7 +3,10 @@ import { redirect } from "next/navigation";
 import { getWorkspace } from "@/lib/workspace";
 import { signOut } from "../prihlaseni/actions";
 import { listTasks, countByBall } from "@/lib/tasks";
-import { BALL_HINT, BALL_LABEL, BALL_ORDER, csDate, type Ball } from "@/lib/domain";
+import { loadTeam } from "@/lib/team";
+import { loadCapacity } from "@/lib/capacity";
+import { listLeads } from "@/lib/leads";
+import { BALL_HINT, BALL_LABEL, BALL_ORDER, csDate, csDateFromKey, type Ball } from "@/lib/domain";
 import styles from "./home.module.css";
 
 export const dynamic = "force-dynamic";
@@ -14,12 +17,20 @@ export default async function DnesPage() {
 
   if (ws.state !== "ready") return <SetupNeeded ws={ws} />;
 
-  const tasks = await listTasks(ws.orgId);
+  const [tasks, { members }, capacity, leads] = await Promise.all([
+    listTasks(ws.orgId),
+    loadTeam(ws.orgId),
+    loadCapacity(ws.orgId),
+    listLeads(ws.orgId),
+  ]);
   const counts = countByBall(tasks);
 
   const dnes = new Date();
   const hori = tasks.filter((t) => t.is_late);
   const naTobe = tasks.filter((t) => t.ball === "me");
+  const capacityByUser = new Map(capacity.map((c) => [c.userId, c]));
+  const maxLoad = Math.max(1, ...capacity.map((c) => c.loadSize));
+  const otevrenePoptavky = leads.filter((l) => l.status === "poptavka" || l.status === "nabidka").length;
 
   return (
     <div className={styles.wrap}>
@@ -50,6 +61,7 @@ export default async function DnesPage() {
             <Tile tone="me" label="Na tobě" value={counts.me} hint="nikdo jiný neposune" />
             <Tile tone="client" label="U klienta" value={counts.client} hint="čeká na schválení" />
             <Tile tone="alarm" label="Po termínu" value={counts.late} hint="vyžaduje zásah" />
+            <Tile tone="note" label="Poptávky" value={otevrenePoptavky} hint="čeká na rozhodnutí" />
           </div>
 
           <div className={styles.cols}>
@@ -129,6 +141,45 @@ export default async function DnesPage() {
               </ul>
             </section>
           )}
+
+          {members.length > 1 && (
+            <section className="panel" style={{ marginTop: "var(--s5)" }}>
+              <header className={styles.panelHead}>
+                <h2>Tým dnes</h2>
+                <span className={styles.note}>
+                  {/* Bez hodin — počet a velikost otevřených úkolů, stejně jako v Týmu. */}
+                  podle otevřených úkolů
+                </span>
+              </header>
+              <ul className={styles.list}>
+                {members.map((m) => {
+                  const cap = capacityByUser.get(m.userId);
+                  return (
+                    <li key={m.userId}>
+                      <span className={styles.itemTitle}>
+                        {m.fullName ?? m.email}
+                        {cap?.absentToday && (
+                          <em className={styles.awayTag} title={cap.absentUntil ? `Do ${csDateFromKey(cap.absentUntil)}` : undefined}>
+                            pryč
+                          </em>
+                        )}
+                      </span>
+                      <span className={styles.capBarTrack}>
+                        <span
+                          className={styles.capBarFill}
+                          style={{ width: `${((cap?.loadSize ?? 0) / maxLoad) * 100}%` }}
+                        />
+                      </span>
+                      <span className={styles.itemRight}>{cap?.openCount ?? 0}</span>
+                    </li>
+                  );
+                })}
+              </ul>
+              <footer className={styles.panelFoot}>
+                <Link href="/tym" className="btn">Zapsat nepřítomnost</Link>
+              </footer>
+            </section>
+          )}
         </>
       )}
     </div>
@@ -137,7 +188,7 @@ export default async function DnesPage() {
 
 function Tile({
   tone, label, value, hint,
-}: { tone: Ball | "alarm"; label: string; value: number; hint: string }) {
+}: { tone: Ball | "alarm" | "note"; label: string; value: number; hint: string }) {
   return (
     <div className={`${styles.tile} o-${tone}`}>
       <span className={styles.tileLabel}>{label}</span>
