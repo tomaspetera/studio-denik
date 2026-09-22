@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
   BALL_HINT,
@@ -9,6 +9,7 @@ import {
   BALL_SENTENCE,
   FLOWS,
   SIZE_LABEL,
+  firstStepForBall,
   type Ball,
 } from "@/lib/domain";
 import type { Category, Client, TaskRow } from "@/lib/tasks";
@@ -66,6 +67,10 @@ export default function TaskBoard({
   // Který úkol se právě upravuje. `null` znamená zakládání nového.
   const [editTask, setEditTask] = useState<TaskRow | null>(null);
   const [pending, startTransition] = useTransition();
+  // Úkol tažený mezi skupinami a skupina, nad kterou zrovna visí.
+  const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [dragOverBall, setDragOverBall] = useState<Ball | null>(null);
+  const searchRef = useRef<HTMLInputElement>(null);
 
   // Odkaz z kalendáře přijede přes URL, ne přes klik — sám scroll se proto
   // musí dořešit po vykreslení, ne v inline handleru.
@@ -76,6 +81,26 @@ export default function TaskBoard({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Klávesové zkratky — jen když se zrovna nepíše do pole a není otevřený
+  // dialog, jinak by "n" v názvu úkolu otevíralo nový formulář uprostřed psaní.
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      const el = document.activeElement as HTMLElement | null;
+      const typing = !!el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable);
+      if (typing || composer) return;
+      if (e.key === "n" || e.key === "N") {
+        e.preventDefault();
+        setEditTask(null);
+        setComposer(true);
+      } else if (e.key === "/") {
+        e.preventDefault();
+        searchRef.current?.focus();
+      }
+    }
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [composer]);
+
   const visible = useMemo(() => {
     const q = query.trim().toLowerCase();
     return tasks.filter((t) => {
@@ -85,12 +110,15 @@ export default function TaskBoard({
     });
   }, [tasks, filter, query]);
 
-  const groups = useMemo(
-    () =>
-      BALL_ORDER.map((ball) => ({ ball, rows: visible.filter((t) => t.ball === ball) }))
-        .filter((g) => g.rows.length > 0),
-    [visible],
-  );
+  const draggingTask = draggingId ? (tasks.find((t) => t.id === draggingId) ?? null) : null;
+
+  const groups = useMemo(() => {
+    const base = BALL_ORDER.map((ball) => ({ ball, rows: visible.filter((t) => t.ball === ball) }));
+    if (!draggingTask) return base.filter((g) => g.rows.length > 0);
+    // Během tažení se ukážou i prázdné skupiny, kam by úkol mohl přistát —
+    // jinak by neměly kam, když v tom sloupci zrovna nic není.
+    return base.filter((g) => g.rows.length > 0 || firstStepForBall(draggingTask.kind, g.ball) !== null);
+  }, [visible, draggingTask]);
 
   function move(taskId: string, toStep: number) {
     startTransition(async () => {
@@ -141,14 +169,21 @@ export default function TaskBoard({
               <path d="M20 20l-3.5-3.5" />
             </svg>
             <input
+              ref={searchRef}
               type="search"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Hledat…"
               aria-label="Hledat v úkolech"
+              title="Zkratka: /"
             />
           </label>
-          <button type="button" className="btn btn-primary" onClick={() => setComposer(true)}>
+          <button
+            type="button"
+            className="btn btn-primary"
+            onClick={() => { setEditTask(null); setComposer(true); }}
+            title="Zkratka: N"
+          >
             <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" /></svg>
             <span>Zapsat</span>
           </button>
@@ -177,45 +212,73 @@ export default function TaskBoard({
         <p className={styles.blank}>Tomuhle filtru nic neodpovídá.</p>
       ) : (
         <div className={pending ? styles.busy : undefined}>
-          {groups.map(({ ball, rows }) => (
-            <section key={ball} className={`${styles.group} o-${ball}`}>
-              <button
-                type="button"
-                className={styles.groupHead}
-                onClick={() => toggleGroup(ball)}
-                aria-expanded={!closed.has(ball)}
-              >
-                <span className={styles.groupDot} aria-hidden="true" />
-                <span className={styles.groupName}>{BALL_LABEL[ball]}</span>
-                <span className={styles.groupCount}>{rows.length}</span>
-                <span className={styles.groupHint}>{BALL_HINT[ball]}</span>
-                <svg
-                  className={`${styles.chev} ${closed.has(ball) ? styles.chevClosed : ""}`}
-                  viewBox="0 0 24 24" fill="none" strokeWidth="2"
-                  strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"
-                >
-                  <path d="M6 9l6 6 6-6" />
-                </svg>
-              </button>
+          {groups.map(({ ball, rows }) => {
+            // Cíl je platný, jen když tažený úkol má v tomhle typu vůbec
+            // krok patřící téhle skupině — jinak by přetažení skočilo na
+            // náhodný krok, který s cílovou skupinou nemá co dělat.
+            const validTarget =
+              draggingTask && ball !== draggingTask.ball
+                ? firstStepForBall(draggingTask.kind, ball)
+                : null;
 
-              {!closed.has(ball) && (
-                <div className={styles.rows}>
-                  {rows.map((t) => (
-                    <Row
-                      key={t.id}
-                      task={t}
-                      open={open === t.id}
-                      onToggle={() => setOpen(open === t.id ? null : t.id)}
-                      onMove={move}
-                      onCycleSize={cycleSize}
-                      onDelete={remove}
-                      onEdit={() => { setEditTask(t); setComposer(true); }}
-                    />
-                  ))}
-                </div>
-              )}
-            </section>
-          ))}
+            return (
+              <section
+                key={ball}
+                className={`${styles.group} o-${ball} ${dragOverBall === ball ? styles.groupDragOver : ""}`}
+                onDragOver={(e) => {
+                  if (validTarget === null) return;
+                  e.preventDefault();
+                  setDragOverBall(ball);
+                }}
+                onDragLeave={() => setDragOverBall((b) => (b === ball ? null : b))}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  setDragOverBall(null);
+                  if (draggingTask && validTarget !== null) move(draggingTask.id, validTarget);
+                }}
+              >
+                <button
+                  type="button"
+                  className={styles.groupHead}
+                  onClick={() => toggleGroup(ball)}
+                  aria-expanded={!closed.has(ball)}
+                >
+                  <span className={styles.groupDot} aria-hidden="true" />
+                  <span className={styles.groupName}>{BALL_LABEL[ball]}</span>
+                  <span className={styles.groupCount}>{rows.length}</span>
+                  <span className={styles.groupHint}>{BALL_HINT[ball]}</span>
+                  <svg
+                    className={`${styles.chev} ${closed.has(ball) ? styles.chevClosed : ""}`}
+                    viewBox="0 0 24 24" fill="none" strokeWidth="2"
+                    strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"
+                  >
+                    <path d="M6 9l6 6 6-6" />
+                  </svg>
+                </button>
+
+                {rows.length === 0 ? (
+                  <p className={styles.dropHint}>Sem přetáhni úkol, ať se posune na „{BALL_LABEL[ball]}“.</p>
+                ) : !closed.has(ball) ? (
+                  <div className={styles.rows}>
+                    {rows.map((t) => (
+                      <Row
+                        key={t.id}
+                        task={t}
+                        open={open === t.id}
+                        onToggle={() => setOpen(open === t.id ? null : t.id)}
+                        onMove={move}
+                        onCycleSize={cycleSize}
+                        onDelete={remove}
+                        onEdit={() => { setEditTask(t); setComposer(true); }}
+                        onDragStart={() => setDraggingId(t.id)}
+                        onDragEnd={() => setDraggingId(null)}
+                      />
+                    ))}
+                  </div>
+                ) : null}
+              </section>
+            );
+          })}
         </div>
       )}
 
@@ -247,6 +310,8 @@ function Row({
   onCycleSize,
   onDelete,
   onEdit,
+  onDragStart,
+  onDragEnd,
 }: {
   task: TaskRow;
   open: boolean;
@@ -255,6 +320,8 @@ function Row({
   onCycleSize: (id: string, size: number) => void;
   onDelete: (id: string) => void;
   onEdit: () => void;
+  onDragStart: () => void;
+  onDragEnd: () => void;
 }) {
   const flow = FLOWS[task.kind];
   const tone = task.is_late ? "alarm" : task.ball;
@@ -280,6 +347,13 @@ function Row({
           }
         }}
         aria-expanded={open}
+        draggable
+        onDragStart={(e) => {
+          onDragStart();
+          e.dataTransfer.effectAllowed = "move";
+        }}
+        onDragEnd={onDragEnd}
+        title="Přetažením do jiné skupiny posuneš úkol dál"
       >
         <span className={styles.mini} aria-hidden="true">
           {flow.map((_, i) => (

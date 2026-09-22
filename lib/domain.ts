@@ -56,6 +56,17 @@ export function isFinalStep(kind: TaskKind, step: number): boolean {
   return clampStep(kind, step) === FLOWS[kind].length - 1;
 }
 
+/**
+ * Krok, na který spadne úkol daného typu, když ho někdo přetáhne do skupiny
+ * `ball` (viz kanban v Úkolech). `null`, když štafeta toho typu takový krok
+ * vůbec nemá — třeba interní úkol nemá krok u klienta ani u dodavatele,
+ * a přetažení tam proto musí selhat, ne skočit na nejbližší náhodný krok.
+ */
+export function firstStepForBall(kind: TaskKind, ball: Ball): number | null {
+  const i = FLOWS[kind].findIndex((s) => s.owner === ball);
+  return i === -1 ? null : i;
+}
+
 /** Popisky pro uživatele. Držíme je na jednom místě, ať se nerozcházejí. */
 export const BALL_LABEL: Record<Ball, string> = {
   me: "Na tobě",
