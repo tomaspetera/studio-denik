@@ -157,6 +157,28 @@
 }
 .signout:hover { background: var(--raise); color: var(--ink); }
 
+.pushWrap { position: relative; display: inline-flex; }
+
+/* Zapnutá upozornění dostanou nenápadné zvýraznění barvou akcentu, ať jde
+   od pohledu poznat, jestli je zařízení "na drátě". */
+.pushOn { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 40%, var(--line-2)); }
+
+.pushError {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  width: 220px;
+  padding: 8px 10px;
+  border-radius: var(--r2);
+  background: var(--alarm-soft);
+  color: var(--alarm);
+  font-style: normal;
+  font-size: 11px;
+  line-height: 1.4;
+  box-shadow: var(--sh-2);
+  z-index: 40;
+}
+
 /* ---------------------------------------------------------------- */
 /* Obsah                                                             */
 /* ---------------------------------------------------------------- */

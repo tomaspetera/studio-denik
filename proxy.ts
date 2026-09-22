@@ -15,12 +15,27 @@ export async function proxy(request: NextRequest) {
   // prokazují tokenem v adrese a účet k nim z principu nepatří — kdyby sem
   // nepatřily, žádost by skončila na přihlašovací obrazovce a odkaz by byl
   // k ničemu (Google/Apple Kalendář se navíc přihlásit ani neumí).
+  //
+  // `/api/cron/` patří sem ze stejného principu, i když ho nevolá člověk —
+  // Vercel na naplánovanou úlohu žádnou přihlašovací session nemá, ověřuje
+  // se vlastním tajným klíčem uvnitř té trasy. Cron navíc přesměrování
+  // nenásleduje, takže by se bez týhle výjimky nikdy doopravdy nespustil.
+  // Manifest a service worker patří sem ze stejného důvodu jako favicon —
+  // je to veřejný statický soubor bez citlivého obsahu, který si prohlížeč
+  // umí natáhnout i dřív, než má appka jistotu, že je někdo přihlášený
+  // (manifest se generuje pro celou appku, tedy i pro veřejnou přihlašovací
+  // stránku).
   const isPublic =
     pathname.startsWith("/prihlaseni") ||
     pathname.startsWith("/auth/") ||
     pathname.startsWith("/r/") ||
     pathname.startsWith("/s/") ||
-    pathname.startsWith("/api/kalendar/");
+    pathname.startsWith("/api/kalendar/") ||
+    pathname.startsWith("/api/cron/") ||
+    pathname === "/manifest.webmanifest" ||
+    pathname === "/sw.js" ||
+    pathname === "/icon-192" ||
+    pathname === "/icon-512";
 
   // Dokud nejsou vyplněné klíče, appku nemá smysl chránit — pustíme ji dál,
   // aby uvítací obrazovka mohla vysvětlit, co doplnit.

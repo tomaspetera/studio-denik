@@ -5,6 +5,7 @@ import { signOut } from "../prihlaseni/actions";
 import Nav from "./Nav";
 import ThemeToggle from "./ThemeToggle";
 import GlobalSearch from "./GlobalSearch";
+import PushSetup from "./PushSetup";
 import styles from "./shell.module.css";
 
 export const dynamic = "force-dynamic";
@@ -58,6 +59,7 @@ export default async function AppLayout({
           <div className={styles.topIn}>
             <GlobalSearch />
             <div className={styles.spacer} />
+            <PushSetup />
             <ThemeToggle />
             <Link href="/ukoly?zapsat=1" className="btn btn-primary">
               <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" /></svg>
