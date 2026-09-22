@@ -42,6 +42,15 @@ const PROVOZ = [
     ),
   },
   {
+    href: "/poptavky",
+    label: "Poptávky",
+    icon: (
+      <>
+        <path d="M12 2l2.9 6.3 6.9.8-5.1 4.7 1.4 6.8L12 17.3 5.9 20.6l1.4-6.8-5.1-4.7 6.9-.8z" />
+      </>
+    ),
+  },
+  {
     href: "/klienti",
     label: "Klienti",
     icon: (

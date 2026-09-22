@@ -139,6 +139,36 @@ export const ROLE_HINT: Record<Role, string> = {
   viewer: "Vidí jen publikované reporty. Do provozních dat se nedostane.",
 };
 
+/* ------------------------------------------------------------------ */
+/* Poptávky a nabídky (pipeline)                                        */
+/* ------------------------------------------------------------------ */
+/* Krok před založeným klientem. Malá pevná sada stavů, na kterou appka
+   přímo větví (vyhráno nabídne založení klienta) — proto enum, ne volný
+   text jako `clients.relationship`. */
+
+export type LeadStatus = "poptavka" | "nabidka" | "vyhrano" | "prohrano";
+
+export const LEAD_STATUSES: readonly LeadStatus[] = ["poptavka", "nabidka", "vyhrano", "prohrano"];
+
+export const LEAD_STATUS_LABEL: Record<LeadStatus, string> = {
+  poptavka: "Poptávka",
+  nabidka: "Poslaná nabídka",
+  vyhrano: "Vyhráno",
+  prohrano: "Prohráno",
+};
+
+export const LEAD_STATUS_HINT: Record<LeadStatus, string> = {
+  poptavka: "ozvali se, zatím nic poslané",
+  nabidka: "čeká se na jejich rozhodnutí",
+  vyhrano: "jde založit jako klienta",
+  prohrano: "nezajímalo je to, nebo vybrali jinde",
+};
+
+/** Kč bez desetin — poptávky se odhadují na stovky/tisíce, ne na haléře. */
+export function czk(amount: number): string {
+  return `${Math.round(amount).toLocaleString("cs-CZ")} Kč`;
+}
+
 /**
  * Podíl kategorií v reportu. Váží se velikostí úkolu, ne časem —
  * hodiny by znamenaly stopky a ty nikdo dlouhodobě nevykazuje.
