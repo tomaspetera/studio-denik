@@ -10,7 +10,7 @@
     "overit": "node --env-file=.env.local scripts/overit-nastaveni.mjs",
     "test:ukoly": "node --env-file=.env.local scripts/test-ukoly.mjs",
     "test:report": "node --env-file=.env.local scripts/test-report.mjs",
-    "test": "npm run overit && npm run test:izolace && npm run test:ukoly && npm run test:uprava && npm run test:mazani && npm run test:klienti && npm run test:schvaleni && npm run test:kalendar && npm run test:verejny && npm run test:pozvanky",
+    "test": "npm run overit && npm run test:izolace && npm run test:ukoly && npm run test:uprava && npm run test:mazani && npm run test:klienti && npm run test:schvaleni && npm run test:kalendar && npm run test:pripominky && npm run test:verejny && npm run test:pozvanky",
     "test:stream": "node --env-file=.env.local scripts/test-stream.mjs",
     "test:mazani": "node --env-file=.env.local scripts/test-mazani.mjs",
     "test:uprava": "node --env-file=.env.local scripts/test-uprava.mjs",
@@ -20,6 +20,7 @@
     "test:klienti": "node --env-file=.env.local scripts/test-klienti.mjs",
     "test:schvaleni": "node --env-file=.env.local scripts/test-schvaleni.mjs",
     "test:kalendar": "node --env-file=.env.local scripts/test-kalendar.mjs",
+    "test:pripominky": "node --env-file=.env.local scripts/test-pripominky.mjs",
     "test:ares": "node scripts/test-ares.mjs"
   },
   "dependencies": {

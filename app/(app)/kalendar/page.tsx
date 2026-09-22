@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { getWorkspace, siteUrl } from "@/lib/workspace";
 import { listCalendarEvents, getCalendarToken } from "@/lib/calendar";
+import { listClients } from "@/lib/tasks";
 import { todayKeyPrague } from "@/lib/domain";
 import CalendarBoard from "./CalendarBoard";
 
@@ -11,9 +12,10 @@ export default async function KalendarPage() {
   if (!ws) redirect("/prihlaseni");
   if (ws.state !== "ready") redirect("/");
 
-  const [events, calendarToken] = await Promise.all([
+  const [events, calendarToken, clients] = await Promise.all([
     listCalendarEvents(ws.orgId),
     getCalendarToken(ws.orgId),
+    listClients(ws.orgId),
   ]);
 
   return (
@@ -22,6 +24,7 @@ export default async function KalendarPage() {
       today={todayKeyPrague()}
       calendarToken={calendarToken}
       siteUrl={siteUrl()}
+      clients={clients}
     />
   );
 }

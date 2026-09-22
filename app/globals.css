@@ -33,6 +33,8 @@
   --supplier: #7d3a63;  --supplier-soft: #f3e7ef;
   --done: #3f6b52;      --done-soft: #e4ede7;
   --alarm: #a8402f;     --alarm-soft: #f7e7e3;
+  /* připomínka — nemá s míčem nic společného, proto vlastní odstín */
+  --note: #5b5fa8;      --note-soft: #ecebf6;
 
   /* podstínění — přechod plochy, vlasová horní hrana, vrstvené stíny */
   --grad: linear-gradient(180deg, #ffffff 0%, #f8faf8 100%);
@@ -75,6 +77,7 @@
     --supplier: #be83a6; --supplier-soft: #2c1826;
     --done: #6ea98a;    --done-soft: #132a1f;
     --alarm: #d2705c;   --alarm-soft: #2e1713;
+    --note: #9b9ee8;    --note-soft: #201f38;
     --grad: linear-gradient(180deg, #181e21 0%, #12181a 100%);
     --grad-raise: linear-gradient(180deg, #1e2528 0%, #171e20 100%);
     --grad-sunk: linear-gradient(180deg, #0d1113 0%, #111618 100%);
@@ -96,6 +99,7 @@
   --me: #57b7c8; --me-soft: #0c2c33; --client: #c49a4d; --client-soft: #2b2312;
   --supplier: #be83a6; --supplier-soft: #2c1826; --done: #6ea98a; --done-soft: #132a1f;
   --alarm: #d2705c; --alarm-soft: #2e1713;
+  --note: #9b9ee8; --note-soft: #201f38;
   --grad: linear-gradient(180deg, #181e21 0%, #12181a 100%);
   --grad-raise: linear-gradient(180deg, #1e2528 0%, #171e20 100%);
   --grad-sunk: linear-gradient(180deg, #0d1113 0%, #111618 100%);
@@ -115,6 +119,7 @@
   --me: #0a6e80; --me-soft: #e0eff2; --client: #8a6a1f; --client-soft: #f4eede;
   --supplier: #7d3a63; --supplier-soft: #f3e7ef; --done: #3f6b52; --done-soft: #e4ede7;
   --alarm: #a8402f; --alarm-soft: #f7e7e3;
+  --note: #5b5fa8; --note-soft: #ecebf6;
   --grad: linear-gradient(180deg, #ffffff 0%, #f8faf8 100%);
   --grad-raise: linear-gradient(180deg, #fbfcfb 0%, #f2f5f2 100%);
   --grad-sunk: linear-gradient(180deg, #e9ede9 0%, #eff2ef 100%);
@@ -188,6 +193,7 @@ h1, h2, h3 { font-family: var(--ui-d); letter-spacing: -0.02em; margin: 0; }
 .o-supplier { --tone: var(--supplier); --tone-soft: var(--supplier-soft); }
 .o-done     { --tone: var(--done);     --tone-soft: var(--done-soft); }
 .o-alarm    { --tone: var(--alarm);    --tone-soft: var(--alarm-soft); }
+.o-note     { --tone: var(--note);     --tone-soft: var(--note-soft); }
 .o-flat     { --tone: var(--muted);    --tone-soft: var(--sunk); }
 
 .state {
@@ -356,6 +362,7 @@ code {
     --supplier: #7d3a63; --supplier-soft: #f8eef4;
     --done: #3f6b52;     --done-soft: #edf4ef;
     --alarm: #a8402f;    --alarm-soft: #fbeeeb;
+    --note: #5b5fa8;     --note-soft: #eeeef8;
 
     /* Přechody a stíny jsou na papíře jen šeď navíc. */
     --grad: none;

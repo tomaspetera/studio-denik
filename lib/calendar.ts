@@ -2,25 +2,39 @@ import "server-only";
 
 import { supabaseServer } from "./supabase/server";
 import { dateKeyUTC, type Ball, type DateKey } from "./domain";
+import { listReminders } from "./reminders";
 
 /**
- * Kalendář uvnitř aplikace čte přímo `tasks_view` a `print_jobs` —
- * přístupová práva na nich už existují, takže sem netřeba vytvářet novou
- * cestu k datům. Veřejný odběr do telefonu (níž) je jiný případ: tam se
- * ptá cizí kalendářová appka bez přihlášení, a pro to slouží
- * `public_calendar_feed` z migrace 0008.
+ * Kalendář uvnitř aplikace čte přímo `tasks_view`, `print_jobs`
+ * a `reminders_view` — přístupová práva na nich už existují, takže sem
+ * netřeba vytvářet novou cestu k datům. Veřejný odběr do telefonu (níž)
+ * je jiný případ: tam se ptá cizí kalendářová appka bez přihlášení, a pro
+ * to slouží `public_calendar_feed` z migrace 0008/0009.
+ *
+ * `tone` sjednocuje barvu bez ohledu na typ události — u termínu úkolu je
+ * to "u koho leží míč" (případně po termínu), u připomínky vlastní odstín
+ * "note", který s míčem nemá co dělat.
  */
+/** Barevný tón položky. "alarm" a "note" nejsou stavy míče, jen vlastní odstíny navíc. */
+export type CalendarTone = Ball | "alarm" | "note";
+
 export type CalendarEvent = {
   id: string;
-  taskId: string;
+  /** `null` u připomínky — ta žádný úkol nemá. */
+  taskId: string | null;
+  /** `null` u všeho, co pochází z úkolu. */
+  reminderId: string | null;
   dateKey: DateKey;
-  kind: "due" | "agreed" | "print";
+  kind: "due" | "agreed" | "print" | "reminder";
   title: string;
+  note: string | null;
+  /** Jen u připomínky se dá v kalendáři měnit — u úkolu se klient mění v Úkolech. */
+  clientId: string | null;
   clientName: string | null;
   clientColor: string | null;
-  ball: Ball;
-  isLate: boolean;
-  stepName: string;
+  tone: CalendarTone;
+  stepName: string | null;
+  done: boolean;
 };
 
 /** Token pro odběr do telefonu. Existuje od migrace 0008 u každé organizace. */
@@ -33,7 +47,7 @@ export async function getCalendarToken(orgId: string): Promise<string | null> {
 export async function listCalendarEvents(orgId: string): Promise<CalendarEvent[]> {
   const supabase = await supabaseServer();
 
-  const [{ data: tasks }, { data: jobs }] = await Promise.all([
+  const [{ data: tasks }, { data: jobs }, reminders] = await Promise.all([
     supabase
       .from("tasks_view")
       .select("id,title,due_at,agreed_at,agreed_note,ball,is_late,client_name,client_color,step_name")
@@ -42,6 +56,7 @@ export async function listCalendarEvents(orgId: string): Promise<CalendarEvent[]
       .from("print_jobs")
       .select("task_id,promised_at,delivered_at")
       .eq("org_id", orgId),
+    listReminders(orgId),
   ]);
 
   const rows = (tasks ?? []) as unknown as {
@@ -62,28 +77,36 @@ export async function listCalendarEvents(orgId: string): Promise<CalendarEvent[]
       events.push({
         id: `due-${t.id}`,
         taskId: t.id,
+        reminderId: null,
         dateKey: dateKeyUTC(t.due_at),
         kind: "due",
         title: t.title,
+        note: null,
+        clientId: null,
         clientName: t.client_name,
         clientColor: t.client_color,
-        ball: t.ball,
-        isLate: t.is_late,
+        // `is_late` je z definice `is_task_late` vždy false pro hotové
+        // úkoly (migrace 0008), takže tahle větev nikdy nezakryje "done".
+        tone: t.is_late ? "alarm" : t.ball,
         stepName: t.step_name,
+        done: t.ball === "done",
       });
     }
     if (t.agreed_at) {
       events.push({
         id: `agreed-${t.id}`,
         taskId: t.id,
+        reminderId: null,
         dateKey: dateKeyUTC(t.agreed_at),
         kind: "agreed",
         title: t.agreed_note ? `${t.title} — ${t.agreed_note}` : t.title,
+        note: null,
+        clientId: null,
         clientName: t.client_name,
         clientColor: t.client_color,
-        ball: t.ball,
-        isLate: false,
+        tone: t.ball,
         stepName: t.step_name,
+        done: t.ball === "done",
       });
     }
     const promised = jobsByTask.get(t.id);
@@ -91,16 +114,37 @@ export async function listCalendarEvents(orgId: string): Promise<CalendarEvent[]
       events.push({
         id: `print-${t.id}`,
         taskId: t.id,
+        reminderId: null,
         dateKey: dateKeyUTC(promised),
         kind: "print",
         title: t.title,
+        note: null,
+        clientId: null,
         clientName: t.client_name,
         clientColor: t.client_color,
-        ball: t.ball,
-        isLate: t.is_late,
+        tone: t.is_late ? "alarm" : t.ball,
         stepName: t.step_name,
+        done: t.ball === "done",
       });
     }
+  }
+
+  for (const r of reminders) {
+    events.push({
+      id: `reminder-${r.id}`,
+      taskId: null,
+      reminderId: r.id,
+      dateKey: r.date,
+      kind: "reminder",
+      title: r.title,
+      note: r.note,
+      clientId: r.clientId,
+      clientName: r.clientName,
+      clientColor: r.clientColor,
+      tone: "note",
+      stepName: r.createdByInitials ? `zapsal ${r.createdByInitials}` : null,
+      done: r.done,
+    });
   }
 
   return events;
@@ -115,13 +159,14 @@ type FeedEvent = {
   date: string;
   title: string;
   client: string | null;
-  kind: "due" | "agreed" | "print";
+  kind: "due" | "agreed" | "print" | "reminder";
 };
 
 const KIND_PREFIX: Record<FeedEvent["kind"], string> = {
   due: "Termín",
   agreed: "Domluveno",
   print: "Slíbeno tiskárnou",
+  reminder: "Připomínka",
 };
 
 export async function loadCalendarFeedIcs(token: string): Promise<string | null> {

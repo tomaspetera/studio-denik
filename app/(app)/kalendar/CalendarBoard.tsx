@@ -11,32 +11,56 @@ import {
   monthGridKeys,
   type DateKey,
 } from "@/lib/domain";
-import type { CalendarEvent } from "@/lib/calendar";
-import { setTaskDueDateAction } from "../ukoly/actions";
+import type { CalendarEvent, CalendarTone } from "@/lib/calendar";
+import type { Client } from "@/lib/tasks";
+import {
+  setTaskDueDateAction,
+  createReminderAction,
+  updateReminderAction,
+  setReminderDoneAction,
+  deleteReminderAction,
+} from "./actions";
 import styles from "./calendar.module.css";
 
-const KIND_LABEL = { due: "Termín", agreed: "Domluveno", print: "Slíbeno tiskárnou" } as const;
-const KIND_ORDER = { due: 0, agreed: 1, print: 2 } as const;
+const KIND_LABEL = {
+  due: "Termín",
+  agreed: "Domluveno",
+  print: "Slíbeno tiskárnou",
+  reminder: "Připomínka",
+} as const;
+const KIND_ORDER = { due: 0, reminder: 1, agreed: 2, print: 3 } as const;
+
+function toneLabel(tone: CalendarTone): string {
+  if (tone === "alarm") return "po termínu";
+  if (tone === "note") return "Připomínka";
+  return BALL_LABEL[tone];
+}
 
 /**
  * Měsíční mřížka jako v Google Kalendáři — celý měsíc, všech šest týdnů
  * včetně přesahu z okolních měsíců. Den se otevře na klik (seznam toho dne
- * + rychlé přidání úkolu), termín (kroužek typu „due“) jde přetáhnout na
- * jiný den přímo v mřížce.
+ * + rychlé přidání úkolu nebo připomínky), termín (kroužek typu „due“) jde
+ * přetáhnout na jiný den přímo v mřížce.
  *
- * Domluva s klientem a slib tiskárny se nepřesouvají odsud — to jsou
- * hodnoty zapsané u úkolu, ne termín, a jejich úprava patří do Úkolů/Tisku.
+ * Připomínka je oproti úkolu úmyslně chudší — jen text, volitelná poznámka,
+ * volitelný klient a hotovo/nehotovo. Nemá kroky ani míč, protože ne
+ * všechno, co si člověk potřebuje poznamenat, je "úkol se štafetou".
+ *
+ * Domluva s klientem a slib tiskárny se odsud nepřesouvají ani needitují —
+ * to jsou hodnoty zapsané u úkolu, jejich úprava patří do Úkolů/Tisku.
  */
 export default function CalendarBoard({
   events,
   today,
   calendarToken,
   siteUrl,
+  clients,
 }: {
   events: CalendarEvent[];
   today: DateKey;
   calendarToken: string | null;
   siteUrl: string;
+  clients: Client[];
 }) {
   const router = useRouter();
   const [todayY, todayM] = today.split("-").map(Number);
@@ -89,7 +113,7 @@ export default function CalendarBoard({
       <header className={styles.head}>
         <div>
           <h1 className={styles.h1}>Kalendář</h1>
-          <p className={styles.sub}>Termíny, domluvy s klienty a sliby tiskárny na jednom místě.</p>
+          <p className={styles.sub}>Termíny, domluvy, sliby tiskárny a připomínky na jednom místě.</p>
         </div>
         <div className={styles.headActs}>
           <button type="button" className="btn" onClick={() => setShowSubscribe(true)}>
@@ -166,10 +190,11 @@ export default function CalendarBoard({
                 {dayEvents.slice(0, 3).map((ev) => (
                   <span
                     key={ev.id}
-                    className={`${styles.item} o-${ev.isLate ? "alarm" : ev.ball}`}
+                    className={`${styles.item} o-${ev.tone} ${ev.done ? styles.itemDone : ""}`}
                     draggable={ev.kind === "due"}
                     onDragStart={(e) => {
                       e.stopPropagation();
+                      if (!ev.taskId) return;
                       e.dataTransfer.setData("text/task-id", ev.taskId);
                       e.dataTransfer.effectAllowed = "move";
                     }}
@@ -189,6 +214,7 @@ export default function CalendarBoard({
         <span><i className="o-me" />Na tobě</span>
         <span><i className="o-client" />U klienta</span>
         <span><i className="o-supplier" />U dodavatele</span>
+        <span><i className="o-note" />Připomínka</span>
         <span><i className="o-alarm" />Po termínu</span>
         <span className={styles.legendHint}>Termín (plná barva) jde přetáhnout na jiný den.</span>
       </p>
@@ -197,6 +223,7 @@ export default function CalendarBoard({
         <DaySheet
           dateKey={selectedDay}
           events={(byDay.get(selectedDay) ?? []).slice().sort((a, b) => KIND_ORDER[a.kind] - KIND_ORDER[b.kind])}
+          clients={clients}
           onClose={() => setSelectedDay(null)}
         />
       )}
@@ -213,12 +240,23 @@ export default function CalendarBoard({
 function DaySheet({
   dateKey,
   events,
+  clients,
   onClose,
 }: {
   dateKey: DateKey;
   events: CalendarEvent[];
+  clients: Client[];
   onClose: () => void;
 }) {
+  const router = useRouter();
+  const [adding, setAdding] = useState(false);
+  const [pending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+
+  function refresh() {
+    startTransition(() => router.refresh());
+  }
+
   return (
     <div
       className={styles.backdrop}
@@ -233,32 +271,57 @@ function DaySheet({
           </button>
         </header>
 
-        <div className={styles.sheetBody}>
-          {events.length === 0 ? (
+        <div className={`${styles.sheetBody} ${pending ? styles.busy : ""}`}>
+          {error && <p className={styles.error} role="alert">{error}</p>}
+
+          {events.length === 0 && !adding ? (
             <p className={styles.sheetEmpty}>Na tenhle den zatím nic není.</p>
           ) : (
             <ul className={styles.sheetList}>
-              {events.map((ev) => (
-                <li key={ev.id}>
-                  <Link href={`/ukoly?otevrit=${ev.taskId}`} className={styles.sheetItem}>
-                    <span className={`${styles.sheetDot} o-${ev.isLate ? "alarm" : ev.ball}`} aria-hidden="true" />
-                    <span className={styles.sheetMain}>
-                      <span className={styles.sheetKind}>{KIND_LABEL[ev.kind]}</span>
-                      <span className={styles.sheetTitle}>{ev.title}</span>
-                      {ev.clientName && (
-                        <span className={styles.sheetClient}>
-                          <i style={{ background: ev.clientColor ?? "var(--muted)" }} />
-                          {ev.clientName}
-                        </span>
-                      )}
-                    </span>
-                    <span className={`pill o-${ev.isLate ? "alarm" : ev.ball}`}>
-                      {ev.isLate ? "po termínu" : BALL_LABEL[ev.ball]}
-                    </span>
-                  </Link>
-                </li>
-              ))}
+              {events.map((ev) =>
+                ev.kind === "reminder" ? (
+                  <ReminderItem
+                    key={ev.id}
+                    event={ev}
+                    clients={clients}
+                    onError={setError}
+                    onChanged={refresh}
+                  />
+                ) : (
+                  <li key={ev.id}>
+                    <Link href={`/ukoly?otevrit=${ev.taskId}`} className={styles.sheetItem}>
+                      <span className={`${styles.sheetDot} o-${ev.tone}`} aria-hidden="true" />
+                      <span className={styles.sheetMain}>
+                        <span className={styles.sheetKind}>{KIND_LABEL[ev.kind]}</span>
+                        <span className={styles.sheetTitle}>{ev.title}</span>
+                        {ev.clientName && (
+                          <span className={styles.sheetClient}>
+                            <i style={{ background: ev.clientColor ?? "var(--muted)" }} />
+                            {ev.clientName}
+                          </span>
+                        )}
+                      </span>
+                      <span className={`pill o-${ev.tone}`}>{toneLabel(ev.tone)}</span>
+                    </Link>
+                  </li>
+                ),
+              )}
             </ul>
+          )}
+
+          {adding ? (
+            <ReminderComposer
+              dateKey={dateKey}
+              clients={clients}
+              onError={setError}
+              onDone={() => { setAdding(false); refresh(); }}
+              onCancel={() => setAdding(false)}
+            />
+          ) : (
+            <button type="button" className={`btn ${styles.addReminderBtn}`} onClick={() => { setAdding(true); setError(null); }}>
+              <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" /></svg>
+              <span>Připomínka</span>
+            </button>
           )}
         </div>
 
@@ -268,6 +331,164 @@ function DaySheet({
             <span>Přidat úkol na tento den</span>
           </Link>
         </footer>
+      </div>
+    </div>
+  );
+}
+
+/** Řádek existující připomínky — odškrtnutí, úprava na místě, smazání. */
+function ReminderItem({
+  event,
+  clients,
+  onError,
+  onChanged,
+}: {
+  event: CalendarEvent;
+  clients: Client[];
+  onError: (m: string | null) => void;
+  onChanged: () => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  async function run(fn: () => Promise<{ ok: boolean; message?: string }>) {
+    onError(null);
+    setBusy(true);
+    const res = await fn();
+    setBusy(false);
+    if (!res.ok) onError(res.message ?? "Nepodařilo se to.");
+    else onChanged();
+  }
+
+  if (editing) {
+    return (
+      <li>
+        <ReminderComposer
+          dateKey={event.dateKey}
+          clients={clients}
+          initial={{ id: event.reminderId!, title: event.title, note: event.note, clientId: event.clientId }}
+          onError={onError}
+          onDone={() => { setEditing(false); onChanged(); }}
+          onCancel={() => setEditing(false)}
+        />
+      </li>
+    );
+  }
+
+  return (
+    <li>
+      <div className={`${styles.sheetItem} ${styles.sheetReminder} o-note`}>
+        <button
+          type="button"
+          className={`${styles.checkbox} ${event.done ? styles.checkboxOn : ""}`}
+          disabled={busy}
+          aria-label={event.done ? "Označit jako nesplněné" : "Označit jako splněné"}
+          onClick={() => run(() => setReminderDoneAction(event.reminderId!, !event.done))}
+        >
+          {event.done && (
+            <svg viewBox="0 0 24 24" fill="none" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M4 12l6 6L20 6" />
+            </svg>
+          )}
+        </button>
+
+        <button type="button" className={styles.sheetMain} onClick={() => setEditing(true)} title="Upravit">
+          <span className={styles.sheetKind}>Připomínka{event.stepName ? ` · ${event.stepName}` : ""}</span>
+          <span className={`${styles.sheetTitle} ${event.done ? styles.sheetTitleDone : ""}`}>{event.title}</span>
+          {event.note && <span className={styles.sheetNote}>{event.note}</span>}
+          {event.clientName && (
+            <span className={styles.sheetClient}>
+              <i style={{ background: event.clientColor ?? "var(--muted)" }} />
+              {event.clientName}
+            </span>
+          )}
+        </button>
+
+        <button
+          type="button"
+          className={styles.sheetDelete}
+          disabled={busy}
+          aria-label="Smazat připomínku"
+          onClick={() => run(() => deleteReminderAction(event.reminderId!))}
+        >
+          <svg viewBox="0 0 24 24" fill="none" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M6 6l12 12M18 6L6 18" />
+          </svg>
+        </button>
+      </div>
+    </li>
+  );
+}
+
+/** Formulář pro novou i upravovanou připomínku — stejné pole v obou případech. */
+function ReminderComposer({
+  dateKey,
+  clients,
+  initial,
+  onError,
+  onDone,
+  onCancel,
+}: {
+  dateKey: DateKey;
+  clients: Client[];
+  initial?: { id: string; title: string; note: string | null; clientId: string | null };
+  onError: (m: string | null) => void;
+  onDone: () => void;
+  onCancel: () => void;
+}) {
+  const [title, setTitle] = useState(initial?.title ?? "");
+  const [note, setNote] = useState(initial?.note ?? "");
+  const [clientId, setClientId] = useState(initial?.clientId ?? "");
+  const [showNote, setShowNote] = useState(Boolean(initial?.note));
+  const [saving, setSaving] = useState(false);
+
+  async function save() {
+    if (!title.trim()) return;
+    onError(null);
+    setSaving(true);
+    const res = initial
+      ? await updateReminderAction({ id: initial.id, title, note, clientId: clientId || null })
+      : await createReminderAction({ title, note, date: dateKey, clientId: clientId || null });
+    setSaving(false);
+    if (!res.ok) onError(res.message ?? "Nepodařilo se to.");
+    else onDone();
+  }
+
+  return (
+    <div className={styles.reminderForm}>
+      <input
+        className="field"
+        value={title}
+        onChange={(e) => setTitle(e.target.value)}
+        placeholder="Zavolat klientovi kvůli…"
+        autoFocus
+        onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && save()}
+      />
+
+      {showNote ? (
+        <textarea
+          className="field"
+          rows={2}
+          value={note}
+          onChange={(e) => setNote(e.target.value)}
+          placeholder="Poznámka navíc (nepovinné)…"
+        />
+      ) : (
+        <button type="button" className={styles.linkBtn} onClick={() => setShowNote(true)}>+ poznámka</button>
+      )}
+
+      {clients.length > 0 && (
+        <select className="field" value={clientId} onChange={(e) => setClientId(e.target.value)}>
+          <option value="">— bez klienta —</option>
+          {clients.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+        </select>
+      )}
+
+      <div className={styles.reminderFormActs}>
+        <button type="button" className="btn btn-primary btn-sm" disabled={saving || !title.trim()} onClick={save}>
+          {saving ? "Ukládám…" : "Uložit"}
+        </button>
+        <button type="button" className="btn btn-ghost btn-sm" onClick={onCancel}>Zrušit</button>
       </div>
     </div>
   );
@@ -346,10 +567,10 @@ function SubscribeSheet({
 
         <div className={styles.sheetBody}>
           <p className={styles.note}>
-            Termíny, domluvy s klienty a sliby tiskárny se objeví přímo
-            v kalendáři telefonu — v Googlu i na iPhonu. Odkaz je neveřejný:
-            funguje stejně jako schvalovací odkaz klienta, kdo ho má, ten
-            termíny vidí.
+            Termíny, domluvy s klienty, sliby tiskárny i připomínky se objeví
+            přímo v kalendáři telefonu — v Googlu i na iPhonu. Odkaz je
+            neveřejný: funguje stejně jako schvalovací odkaz klienta, kdo ho
+            má, ten termíny vidí.
           </p>
 
           {token ? (
