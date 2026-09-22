@@ -5,24 +5,36 @@ import { useRouter } from "next/navigation";
 import { BALL_LABEL, CLIENT_COLORS } from "@/lib/domain";
 import { isValidIco, normalizeIco } from "@/lib/ares";
 import type { ClientRow } from "@/lib/clients";
+import type { ClientContact } from "@/lib/client-contacts";
 import {
   createClientAction,
+  updateClientAction,
   lookupAresAction,
   archiveClientAction,
   unarchiveClientAction,
   deleteClientAction,
+  createClientContactAction,
+  updateClientContactAction,
+  deleteClientContactAction,
 } from "./actions";
 import styles from "./clients.module.css";
 
+/** Pár typických hodnot do rychlé volby — pole samotné je volný text. */
+const RELATIONSHIP_PRESETS = ["Stálý klient", "Jednorázová zakázka", "Nový klient"];
+
 export default function ClientBoard({
   clients,
+  contactsByClient,
   siteUrl,
 }: {
   clients: ClientRow[];
+  contactsByClient: Record<string, ClientContact[]>;
   siteUrl: string;
 }) {
   const router = useRouter();
   const [composer, setComposer] = useState(false);
+  const [editClient, setEditClient] = useState<ClientRow | null>(null);
+  const [contactsFor, setContactsFor] = useState<ClientRow | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
   const [showArchived, setShowArchived] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
@@ -74,7 +86,7 @@ export default function ClientBoard({
               {showArchived ? "Zpět na aktivní" : `Archiv (${archived.length})`}
             </button>
           )}
-          <button type="button" className="btn btn-primary" onClick={() => setComposer(true)}>
+          <button type="button" className="btn btn-primary" onClick={() => { setEditClient(null); setComposer(true); }}>
             <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" /></svg>
             <span>Přidat klienta</span>
           </button>
@@ -118,116 +130,126 @@ export default function ClientBoard({
             Klient dává úkolům komu patří — a report se pak dá rozdělit
             po klientech, což je přesně to, co příjemce chce vidět.
           </p>
-          <button type="button" className="btn btn-primary btn-lg" onClick={() => setComposer(true)}>
+          <button type="button" className="btn btn-primary btn-lg" onClick={() => { setEditClient(null); setComposer(true); }}>
             Přidat prvního klienta
           </button>
         </div>
       ) : (
         <div className={styles.grid}>
-          {shown.map((c) => (
-            <article key={c.id} className={styles.card}>
-              <header className={styles.cardHead}>
-                <span className={styles.swatch} style={{ background: c.color }} aria-hidden="true" />
-                <span className={styles.nameBlock}>
-                  <span className={styles.name}>{c.name}</span>
-                  {(c.ico || c.address) && (
-                    <span className={styles.ident}>
-                      {c.ico && <span className="mono">IČO {c.ico}</span>}
-                      {c.ico && c.address && " · "}
-                      {c.address}
-                    </span>
-                  )}
-                </span>
-              </header>
-
-              <dl className={styles.rows}>
-                <div>
-                  <dt>Otevřené úkoly</dt>
-                  <dd>{c.active}</dd>
-                </div>
-                <div>
-                  <dt>Uzavřeno</dt>
-                  <dd>{c.closed}</dd>
-                </div>
-                <div>
-                  <dt>Nejbližší termín</dt>
-                  <dd>{formatDate(c.nextDue) || "—"}</dd>
-                </div>
-                <div>
-                  <dt>Míč u koho</dt>
-                  <dd>
-                    {c.late > 0 ? (
-                      <span className="pill o-alarm">{c.late} po termínu</span>
-                    ) : c.ball ? (
-                      <span className={`pill o-${c.ball}`}>{BALL_LABEL[c.ball]}</span>
-                    ) : (
-                      <span className="pill o-flat">nic neběží</span>
+          {shown.map((c) => {
+            const contacts = contactsByClient[c.id] ?? [];
+            return (
+              <article key={c.id} className={styles.card}>
+                <header className={styles.cardHead}>
+                  <span className={styles.swatch} style={{ background: c.color }} aria-hidden="true" />
+                  <span className={styles.nameBlock}>
+                    <span className={styles.name}>{c.name}</span>
+                    {(c.ico || c.address) && (
+                      <span className={styles.ident}>
+                        {c.ico && <span className="mono">IČO {c.ico}</span>}
+                        {c.ico && c.address && " · "}
+                        {c.address}
+                      </span>
                     )}
-                  </dd>
-                </div>
-              </dl>
+                    {c.relationship && <span className={`tag ${styles.relTag}`}>{c.relationship}</span>}
+                  </span>
+                </header>
 
-              <footer className={styles.link}>
-                <code>/s/{c.share_token.slice(0, 10)}…</code>
-                <button type="button" className="btn btn-sm" onClick={() => copyLink(c.share_token)}>
-                  {copied === c.share_token ? "Zkopírováno" : "Kopírovat"}
-                </button>
-              </footer>
+                <dl className={styles.rows}>
+                  <div>
+                    <dt>Otevřené úkoly</dt>
+                    <dd>{c.active}</dd>
+                  </div>
+                  <div>
+                    <dt>Uzavřeno</dt>
+                    <dd>{c.closed}</dd>
+                  </div>
+                  <div>
+                    <dt>Nejbližší termín</dt>
+                    <dd>{formatDate(c.nextDue) || "—"}</dd>
+                  </div>
+                  <div>
+                    <dt>Míč u koho</dt>
+                    <dd>
+                      {c.late > 0 ? (
+                        <span className="pill o-alarm">{c.late} po termínu</span>
+                      ) : c.ball ? (
+                        <span className={`pill o-${c.ball}`}>{BALL_LABEL[c.ball]}</span>
+                      ) : (
+                        <span className="pill o-flat">nic neběží</span>
+                      )}
+                    </dd>
+                  </div>
+                </dl>
 
-              <div className={styles.actions}>
-                {confirmDelete === c.id ? (
-                  <>
-                    <p className={styles.warn}>
-                      {c.active + c.closed > 0
-                        ? `Klient má ${c.active + c.closed} úkolů. Úkoly zůstanou, ale přestanou vědět, komu patřily — v příštím reportu se přesunou mezi interní. Chceš spíš archivovat?`
-                        : "Klient nemá žádné úkoly, takže se nic dalšího neztratí."}
-                    </p>
+                <footer className={styles.link}>
+                  <code>/s/{c.share_token.slice(0, 10)}…</code>
+                  <button type="button" className="btn btn-sm" onClick={() => copyLink(c.share_token)}>
+                    {copied === c.share_token ? "Zkopírováno" : "Kopírovat"}
+                  </button>
+                </footer>
+
+                <div className={styles.actions}>
+                  {confirmDelete === c.id ? (
+                    <>
+                      <p className={styles.warn}>
+                        {c.active + c.closed > 0
+                          ? `Klient má ${c.active + c.closed} úkolů. Úkoly zůstanou, ale přestanou vědět, komu patřily — v příštím reportu se přesunou mezi interní. Chceš spíš archivovat?`
+                          : "Klient nemá žádné úkoly, takže se nic dalšího neztratí."}
+                      </p>
+                      <div className={styles.actionRow}>
+                        <button
+                          type="button"
+                          className={`btn btn-sm ${styles.danger}`}
+                          onClick={() => run(() => deleteClientAction(c.id))}
+                          disabled={pending}
+                        >
+                          Opravdu smazat
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-sm btn-ghost"
+                          onClick={() => setConfirmDelete(null)}
+                        >
+                          Nechat
+                        </button>
+                      </div>
+                    </>
+                  ) : (
                     <div className={styles.actionRow}>
-                      <button
-                        type="button"
-                        className={`btn btn-sm ${styles.danger}`}
-                        onClick={() => run(() => deleteClientAction(c.id))}
-                        disabled={pending}
-                      >
-                        Opravdu smazat
+                      <button type="button" className="btn btn-sm" onClick={() => { setEditClient(c); setComposer(true); }}>
+                        Upravit
                       </button>
+                      <button type="button" className="btn btn-sm" onClick={() => setContactsFor(c)}>
+                        Kontakty{contacts.length > 0 ? ` (${contacts.length})` : ""}
+                      </button>
+                      {/* Archivace je u klienta s historií rozumnější volba,
+                          proto stojí před mazáním. */}
+                      {c.active + c.closed > 0 && (
+                        <button
+                          type="button"
+                          className="btn btn-sm"
+                          onClick={() => run(() => archiveClientAction(c.id))}
+                          disabled={pending}
+                          title="Zmizí ze seznamů, ale historie zůstane"
+                        >
+                          Archivovat
+                        </button>
+                      )}
+                      <span className={styles.actionSpacer} />
                       <button
                         type="button"
                         className="btn btn-sm btn-ghost"
-                        onClick={() => setConfirmDelete(null)}
+                        onClick={() => setConfirmDelete(c.id)}
                       >
-                        Nechat
+                        Smazat
                       </button>
                     </div>
-                  </>
-                ) : (
-                  <div className={styles.actionRow}>
-                    {/* Archivace je u klienta s historií rozumnější volba,
-                        proto stojí první. */}
-                    {c.active + c.closed > 0 && (
-                      <button
-                        type="button"
-                        className="btn btn-sm"
-                        onClick={() => run(() => archiveClientAction(c.id))}
-                        disabled={pending}
-                        title="Zmizí ze seznamů, ale historie zůstane"
-                      >
-                        Archivovat
-                      </button>
-                    )}
-                    <span className={styles.actionSpacer} />
-                    <button
-                      type="button"
-                      className="btn btn-sm btn-ghost"
-                      onClick={() => setConfirmDelete(c.id)}
-                    >
-                      Smazat
-                    </button>
-                  </div>
-                )}
-              </div>
-            </article>
-          ))}
+                  )}
+                </div>
+              </article>
+            );
+          })}
         </div>
       )}
 
@@ -242,12 +264,23 @@ export default function ClientBoard({
 
       {composer && (
         <Composer
-          usedColors={clients.map((c) => c.color)}
-          onClose={() => setComposer(false)}
+          client={editClient}
+          usedColors={clients.filter((c) => c.id !== editClient?.id).map((c) => c.color)}
+          onClose={() => { setComposer(false); setEditClient(null); }}
           onSaved={() => {
             setComposer(false);
+            setEditClient(null);
             router.refresh();
           }}
+        />
+      )}
+
+      {contactsFor && (
+        <ContactsDialog
+          client={contactsFor}
+          contacts={contactsByClient[contactsFor.id] ?? []}
+          onClose={() => setContactsFor(null)}
+          onChanged={() => router.refresh()}
         />
       )}
     </div>
@@ -256,27 +289,37 @@ export default function ClientBoard({
 
 /* ------------------------------------------------------------------ */
 
+/**
+ * Zakládání i úprava v jednom — stejný důvod jako u Composeru v Úkolech:
+ * dvě skoro stejné obrazovky by se dřív nebo později rozešly. Doteď appka
+ * uměla klienta jen založit, archivovat nebo smazat; překlep v jméně nebo
+ * dodatečné doplnění typu spolupráce nešlo opravit vůbec.
+ */
 function Composer({
+  client,
   usedColors,
   onClose,
   onSaved,
 }: {
+  client: ClientRow | null;
   usedColors: string[];
   onClose: () => void;
   onSaved: () => void;
 }) {
+  const editing = Boolean(client);
   // Přednabídneme barvu, kterou ještě nikdo nemá — ať se klienti v seznamu
   // rozliší samy od sebe a uživatel to nemusí řešit.
   const firstFree = CLIENT_COLORS.find((c) => !usedColors.includes(c)) ?? CLIENT_COLORS[0];
 
-  const [name, setName] = useState("");
-  const [color, setColor] = useState<string>(firstFree);
-  const [contact, setContact] = useState("");
-  const [email, setEmail] = useState("");
-  const [note, setNote] = useState("");
-  const [ico, setIco] = useState("");
-  const [dic, setDic] = useState("");
-  const [address, setAddress] = useState("");
+  const [name, setName] = useState(client?.name ?? "");
+  const [color, setColor] = useState<string>(client?.color ?? firstFree);
+  const [contact, setContact] = useState(client?.contact ?? "");
+  const [email, setEmail] = useState(client?.email ?? "");
+  const [note, setNote] = useState(client?.note ?? "");
+  const [ico, setIco] = useState(client?.ico ?? "");
+  const [dic, setDic] = useState(client?.dic ?? "");
+  const [address, setAddress] = useState(client?.address ?? "");
+  const [relationship, setRelationship] = useState(client?.relationship ?? "");
   const [error, setError] = useState<string | null>(null);
   const [aresNote, setAresNote] = useState<string | null>(null);
   const [aresErr, setAresErr] = useState<string | null>(null);
@@ -313,10 +356,11 @@ function Composer({
 
   function save() {
     setError(null);
+    const form = { name, color, contact, email, note, ico, dic, address, relationship };
     startTransition(async () => {
-      const res = await createClientAction({
-        name, color, contact, email, note, ico, dic, address,
-      });
+      const res = editing
+        ? await updateClientAction({ id: client!.id, ...form })
+        : await createClientAction(form);
       if (res.ok) onSaved();
       else setError(res.message);
     });
@@ -328,9 +372,9 @@ function Composer({
       onClick={(e) => e.target === e.currentTarget && onClose()}
       onKeyDown={(e) => e.key === "Escape" && onClose()}
     >
-      <div className={styles.dialog} role="dialog" aria-modal="true" aria-label="Nový klient">
+      <div className={styles.dialog} role="dialog" aria-modal="true" aria-label={editing ? "Upravit klienta" : "Nový klient"}>
         <header className={styles.dialogHead}>
-          <h2>Nový klient</h2>
+          <h2>{editing ? "Upravit klienta" : "Nový klient"}</h2>
           <button type="button" className="btn btn-ghost" onClick={onClose} aria-label="Zavřít">
             <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18" /></svg>
           </button>
@@ -356,7 +400,7 @@ function Composer({
               }}
               placeholder="27604977"
               aria-describedby="c-ico-hint"
-              autoFocus
+              autoFocus={!editing}
             />
             <button
               type="button"
@@ -384,6 +428,7 @@ function Composer({
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="Pekárna U Lípy"
+            autoFocus={editing}
           />
 
           <span className={styles.label} style={{ marginTop: "var(--s5)" }}>Barva</span>
@@ -400,6 +445,30 @@ function Composer({
               />
             ))}
           </div>
+
+          <label className={styles.label} style={{ marginTop: "var(--s5)" }} htmlFor="c-rel">
+            Typ spolupráce <span className={styles.optional}>nepovinné</span>
+          </label>
+          <div className={styles.presetRow}>
+            {RELATIONSHIP_PRESETS.map((p) => (
+              <button
+                key={p}
+                type="button"
+                className={`${styles.preset} ${relationship === p ? styles.presetOn : ""}`}
+                onClick={() => setRelationship(relationship === p ? "" : p)}
+              >
+                {p}
+              </button>
+            ))}
+          </div>
+          <input
+            id="c-rel"
+            className="field"
+            style={{ marginTop: "var(--s2)" }}
+            value={relationship}
+            onChange={(e) => setRelationship(e.target.value)}
+            placeholder="Vlastní popisek…"
+          />
 
           <div className={styles.grid2}>
             <div>
@@ -471,9 +540,185 @@ function Composer({
             onClick={save}
             disabled={pending || !name.trim()}
           >
-            {pending ? "Ukládám…" : "Uložit klienta"}
+            {pending ? "Ukládám…" : editing ? "Uložit změny" : "Uložit klienta"}
           </button>
         </footer>
+      </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Kontakty klienta                                                    */
+/* ------------------------------------------------------------------ */
+
+function ContactsDialog({
+  client,
+  contacts,
+  onClose,
+  onChanged,
+}: {
+  client: ClientRow;
+  contacts: ClientContact[];
+  onClose: () => void;
+  onChanged: () => void;
+}) {
+  const [adding, setAdding] = useState(contacts.length === 0);
+  const [error, setError] = useState<string | null>(null);
+
+  return (
+    <div
+      className={styles.backdrop}
+      onClick={(e) => e.target === e.currentTarget && onClose()}
+      onKeyDown={(e) => e.key === "Escape" && onClose()}
+    >
+      <div className={styles.dialog} role="dialog" aria-modal="true" aria-label={`Kontakty — ${client.name}`}>
+        <header className={styles.dialogHead}>
+          <h2>Kontakty — {client.name}</h2>
+          <button type="button" className="btn btn-ghost" onClick={onClose} aria-label="Zavřít">
+            <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18" /></svg>
+          </button>
+        </header>
+
+        <div className={styles.dialogBody}>
+          <p className={styles.hintSmall} style={{ marginTop: 0 }}>
+            Vedle hlavního kontaktu na kartě klienta sem patří další lidé,
+            se kterými se komunikuje — grafik na jejich straně, marketing,
+            účetní…
+          </p>
+
+          {error && <p className={styles.error} role="alert">{error}</p>}
+
+          {contacts.length > 0 && (
+            <ul className={styles.contactList}>
+              {contacts.map((ct) => (
+                <ContactRow key={ct.id} contact={ct} onError={setError} onChanged={onChanged} />
+              ))}
+            </ul>
+          )}
+
+          {adding ? (
+            <ContactForm
+              clientId={client.id}
+              onError={setError}
+              onDone={() => { setAdding(false); onChanged(); }}
+              onCancel={() => setAdding(false)}
+            />
+          ) : (
+            <button type="button" className="btn" style={{ marginTop: "var(--s4)" }} onClick={() => { setAdding(true); setError(null); }}>
+              <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" /></svg>
+              <span>Přidat kontakt</span>
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ContactRow({
+  contact,
+  onError,
+  onChanged,
+}: {
+  contact: ClientContact;
+  onError: (m: string | null) => void;
+  onChanged: () => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  async function remove() {
+    onError(null);
+    setBusy(true);
+    const res = await deleteClientContactAction(contact.id);
+    setBusy(false);
+    if (!res.ok) onError(res.message ?? "Nepodařilo se to.");
+    else onChanged();
+  }
+
+  if (editing) {
+    return (
+      <li>
+        <ContactForm
+          initial={contact}
+          onError={onError}
+          onDone={() => { setEditing(false); onChanged(); }}
+          onCancel={() => setEditing(false)}
+        />
+      </li>
+    );
+  }
+
+  return (
+    <li className={styles.contactRow}>
+      <button type="button" className={styles.contactMain} onClick={() => setEditing(true)} title="Upravit">
+        <span className={styles.contactName}>
+          {contact.name}
+          {contact.role && <em> · {contact.role}</em>}
+        </span>
+        <span className={styles.contactMeta}>
+          {contact.phone}
+          {contact.phone && contact.email && " · "}
+          {contact.email}
+        </span>
+      </button>
+      <button type="button" className={styles.sheetDelete} disabled={busy} aria-label="Smazat kontakt" onClick={remove}>
+        <svg viewBox="0 0 24 24" fill="none" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M6 6l12 12M18 6L6 18" />
+        </svg>
+      </button>
+    </li>
+  );
+}
+
+function ContactForm({
+  clientId,
+  initial,
+  onError,
+  onDone,
+  onCancel,
+}: {
+  /** Jen pro založení nového kontaktu — při úpravě (`initial` je zadané) se nepoužije. */
+  clientId?: string;
+  initial?: ClientContact;
+  onError: (m: string | null) => void;
+  onDone: () => void;
+  onCancel: () => void;
+}) {
+  const [name, setName] = useState(initial?.name ?? "");
+  const [role, setRole] = useState(initial?.role ?? "");
+  const [phone, setPhone] = useState(initial?.phone ?? "");
+  const [email, setEmail] = useState(initial?.email ?? "");
+  const [saving, setSaving] = useState(false);
+
+  async function save() {
+    if (!name.trim()) return;
+    onError(null);
+    setSaving(true);
+    const res = initial
+      ? await updateClientContactAction({ id: initial.id, name, role, phone, email })
+      : await createClientContactAction({ clientId: clientId!, name, role, phone, email });
+    setSaving(false);
+    if (!res.ok) onError(res.message ?? "Nepodařilo se to.");
+    else onDone();
+  }
+
+  return (
+    <div className={styles.contactForm}>
+      <div className={styles.grid2}>
+        <input className="field" value={name} onChange={(e) => setName(e.target.value)} placeholder="Jméno" autoFocus />
+        <input className="field" value={role} onChange={(e) => setRole(e.target.value)} placeholder="Funkce (nepovinné)" />
+      </div>
+      <div className={styles.grid2}>
+        <input className="field" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="Telefon" />
+        <input className="field" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="E-mail" />
+      </div>
+      <div className={styles.formActs}>
+        <button type="button" className="btn btn-primary btn-sm" disabled={saving || !name.trim()} onClick={save}>
+          {saving ? "Ukládám…" : "Uložit"}
+        </button>
+        <button type="button" className="btn btn-ghost btn-sm" onClick={onCancel}>Zrušit</button>
       </div>
     </div>
   );

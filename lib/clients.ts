@@ -14,6 +14,7 @@ export type ClientRow = {
   ico: string | null;
   dic: string | null;
   address: string | null;
+  relationship: string | null;
   archived: boolean;
   share_token: string;
   /** Dopočítané z úkolů — neukládá se. */
@@ -32,7 +33,7 @@ export async function listClientsWithStats(orgId: string): Promise<ClientRow[]> 
     // ukázat, jinak by nešly vrátit zpátky.
     supabase
       .from("clients")
-      .select("id, name, color, contact, email, note, ico, dic, address, archived, share_token")
+      .select("id, name, color, contact, email, note, ico, dic, address, relationship, archived, share_token")
       .eq("org_id", orgId)
       .order("archived")
       .order("name"),
@@ -81,8 +82,7 @@ export async function listClientsWithStats(orgId: string): Promise<ClientRow[]> 
 
 export type ActionResult = { ok: true } | { ok: false; message: string };
 
-export async function createClient(input: {
-  orgId: string;
+type ClientFields = {
   name: string;
   color: string;
   contact?: string | null;
@@ -91,14 +91,12 @@ export async function createClient(input: {
   ico?: string | null;
   dic?: string | null;
   address?: string | null;
-}): Promise<ActionResult> {
-  const name = input.name.trim();
-  if (!name) return { ok: false, message: "Klient potřebuje jméno." };
+  relationship?: string | null;
+};
 
-  const supabase = await supabaseServer();
-  const { error } = await supabase.from("clients").insert({
-    org_id: input.orgId,
-    name,
+function toRow(input: ClientFields) {
+  return {
+    name: input.name.trim(),
     color: input.color,
     contact: input.contact?.trim() || null,
     email: input.email?.trim() || null,
@@ -106,10 +104,45 @@ export async function createClient(input: {
     ico: input.ico?.replace(/\D/g, "") || null,
     dic: input.dic?.trim().toUpperCase() || null,
     address: input.address?.trim() || null,
+    relationship: input.relationship?.trim() || null,
+  };
+}
+
+export async function createClient(input: ClientFields & { orgId: string }): Promise<ActionResult> {
+  const name = input.name.trim();
+  if (!name) return { ok: false, message: "Klient potřebuje jméno." };
+
+  const supabase = await supabaseServer();
+  const { error } = await supabase.from("clients").insert({
+    org_id: input.orgId,
+    ...toRow(input),
   });
 
   if (error) {
     // Jednoznačný index na (org_id, ico) u neaarchivovaných klientů.
+    if (error.code === "23505") {
+      return { ok: false, message: "Klient s tímhle IČO už v seznamu je." };
+    }
+    return { ok: false, message: error.message };
+  }
+
+  revalidatePath("/", "layout");
+  return { ok: true };
+}
+
+/**
+ * Úprava existujícího klienta. Doteď appka uměla klienta jen založit,
+ * archivovat nebo smazat — přepsat překlep v jménu nebo doplnit typ
+ * spolupráce dodatečně nešlo vůbec.
+ */
+export async function updateClient(input: ClientFields & { id: string }): Promise<ActionResult> {
+  const name = input.name.trim();
+  if (!name) return { ok: false, message: "Klient potřebuje jméno." };
+
+  const supabase = await supabaseServer();
+  const { error } = await supabase.from("clients").update(toRow(input)).eq("id", input.id);
+
+  if (error) {
     if (error.code === "23505") {
       return { ok: false, message: "Klient s tímhle IČO už v seznamu je." };
     }

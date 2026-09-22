@@ -2,11 +2,17 @@
 
 import {
   createClient,
+  updateClient,
   archiveClient,
   unarchiveClient,
   deleteClient,
   type ActionResult,
 } from "@/lib/clients";
+import {
+  createClientContact,
+  updateClientContact,
+  deleteClientContact,
+} from "@/lib/client-contacts";
 import { getWorkspace } from "@/lib/workspace";
 import { lookupAres, type AresResult } from "@/lib/ares";
 
@@ -20,7 +26,7 @@ export async function lookupAresAction(ico: string): Promise<AresResult> {
   return lookupAres(ico);
 }
 
-export async function createClientAction(form: {
+type ClientForm = {
   name: string;
   color: string;
   contact: string;
@@ -29,23 +35,20 @@ export async function createClientAction(form: {
   ico: string;
   dic: string;
   address: string;
-}): Promise<ActionResult> {
+  relationship: string;
+};
+
+export async function createClientAction(form: ClientForm): Promise<ActionResult> {
   const ws = await getWorkspace();
   if (!ws || ws.state !== "ready") {
     return { ok: false, message: "Pracovní prostor není připravený." };
   }
 
-  return createClient({
-    orgId: ws.orgId,
-    name: form.name,
-    color: form.color,
-    contact: form.contact,
-    email: form.email,
-    note: form.note,
-    ico: form.ico,
-    dic: form.dic,
-    address: form.address,
-  });
+  return createClient({ orgId: ws.orgId, ...form });
+}
+
+export async function updateClientAction(form: ClientForm & { id: string }): Promise<ActionResult> {
+  return updateClient(form);
 }
 
 export async function archiveClientAction(clientId: string): Promise<ActionResult> {
@@ -58,4 +61,32 @@ export async function unarchiveClientAction(clientId: string): Promise<ActionRes
 
 export async function deleteClientAction(clientId: string): Promise<ActionResult> {
   return deleteClient(clientId);
+}
+
+export async function createClientContactAction(form: {
+  clientId: string;
+  name: string;
+  role: string;
+  phone: string;
+  email: string;
+}): Promise<ActionResult> {
+  const ws = await getWorkspace();
+  if (!ws || ws.state !== "ready") {
+    return { ok: false, message: "Pracovní prostor není připravený." };
+  }
+  return createClientContact({ orgId: ws.orgId, ...form });
+}
+
+export async function updateClientContactAction(form: {
+  id: string;
+  name: string;
+  role: string;
+  phone: string;
+  email: string;
+}): Promise<ActionResult> {
+  return updateClientContact(form);
+}
+
+export async function deleteClientContactAction(id: string): Promise<ActionResult> {
+  return deleteClientContact(id);
 }
