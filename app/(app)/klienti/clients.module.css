@@ -469,6 +469,90 @@
 
 .formActs { display: flex; gap: var(--s2); margin-top: 2px; }
 
+/* ---------------------------------------------------------------- */
+/* Historie komunikace                                               */
+/* ---------------------------------------------------------------- */
+
+.timelineList {
+  list-style: none;
+  margin: var(--s4) 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+}
+
+.timelineItem {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s3);
+}
+
+.timelineDot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--tone);
+  flex: none;
+  margin-top: 6px;
+}
+
+.timelineBody {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 8px 12px;
+  border-radius: var(--r2);
+  border: 1px solid var(--line);
+  background: var(--surface);
+  /* U poznámky je tohle skutečné tlačítko (klik = úprava), u odvozených
+     položek jen dekorativní obal — reset je neškodný v obou případech. */
+  text-align: left;
+  border-width: 1px;
+  cursor: default;
+  font: inherit;
+  color: inherit;
+}
+button.timelineBody { cursor: pointer; }
+button.timelineBody:hover { border-color: var(--line-2); background: var(--raise); }
+
+.timelineHead { display: flex; align-items: center; gap: var(--s2); flex-wrap: wrap; }
+
+.timelineDate {
+  font-family: var(--ui-s);
+  font-size: 11px;
+  color: var(--faint);
+}
+
+.timelineAuthor {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--faint);
+  margin-left: auto;
+}
+
+.timelineTitle {
+  font-size: 13px;
+  font-weight: 600;
+  color: inherit;
+  text-decoration: none;
+}
+a.timelineTitle:hover { text-decoration: underline; }
+
+.timelineNoteText {
+  font-size: 13px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
+.timelineDetail {
+  font-size: 12.5px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
 @media (max-width: 700px) {
   .grid2 { grid-template-columns: 1fr; }
   .head button { width: 100%; }

@@ -1,11 +1,13 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useCallback, useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { BALL_LABEL, CLIENT_COLORS } from "@/lib/domain";
+import Link from "next/link";
+import { BALL_LABEL, CLIENT_COLORS, csDate } from "@/lib/domain";
 import { isValidIco, normalizeIco } from "@/lib/ares";
 import type { ClientRow } from "@/lib/clients";
 import type { ClientContact } from "@/lib/client-contacts";
+import type { TimelineEntry } from "@/lib/client-timeline";
 import {
   createClientAction,
   updateClientAction,
@@ -16,8 +18,25 @@ import {
   createClientContactAction,
   updateClientContactAction,
   deleteClientContactAction,
+  getClientTimelineAction,
+  createClientNoteAction,
+  updateClientNoteAction,
+  deleteClientNoteAction,
 } from "./actions";
 import styles from "./clients.module.css";
+
+const TIMELINE_LABEL: Record<TimelineEntry["kind"], string> = {
+  note: "Poznámka",
+  closed: "Uzavřeno",
+  client_approved: "Klient schválil",
+  client_changes: "Klient chce úpravu",
+};
+const TIMELINE_TONE: Record<TimelineEntry["kind"], string> = {
+  note: "note",
+  closed: "done",
+  client_approved: "done",
+  client_changes: "client",
+};
 
 /** Pár typických hodnot do rychlé volby — pole samotné je volný text. */
 const RELATIONSHIP_PRESETS = ["Stálý klient", "Jednorázová zakázka", "Nový klient"];
@@ -35,6 +54,7 @@ export default function ClientBoard({
   const [composer, setComposer] = useState(false);
   const [editClient, setEditClient] = useState<ClientRow | null>(null);
   const [contactsFor, setContactsFor] = useState<ClientRow | null>(null);
+  const [timelineFor, setTimelineFor] = useState<ClientRow | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
   const [showArchived, setShowArchived] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
@@ -223,6 +243,9 @@ export default function ClientBoard({
                       <button type="button" className="btn btn-sm" onClick={() => setContactsFor(c)}>
                         Kontakty{contacts.length > 0 ? ` (${contacts.length})` : ""}
                       </button>
+                      <button type="button" className="btn btn-sm" onClick={() => setTimelineFor(c)}>
+                        Historie
+                      </button>
                       {/* Archivace je u klienta s historií rozumnější volba,
                           proto stojí před mazáním. */}
                       {c.active + c.closed > 0 && (
@@ -282,6 +305,10 @@ export default function ClientBoard({
           onClose={() => setContactsFor(null)}
           onChanged={() => router.refresh()}
         />
+      )}
+
+      {timelineFor && (
+        <TimelineDialog client={timelineFor} onClose={() => setTimelineFor(null)} />
       )}
     </div>
   );
@@ -716,6 +743,202 @@ function ContactForm({
       </div>
       <div className={styles.formActs}>
         <button type="button" className="btn btn-primary btn-sm" disabled={saving || !name.trim()} onClick={save}>
+          {saving ? "Ukládám…" : "Uložit"}
+        </button>
+        <button type="button" className="btn btn-ghost btn-sm" onClick={onCancel}>Zrušit</button>
+      </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Historie komunikace                                                 */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Poskládaná osa: ruční poznámky vedle toho, co appka o klientovi už sama
+ * ví (uzavřené úkoly, schválení a připomínky přes jeho odkaz). Editovat
+ * nebo smazat jde jen ruční poznámka — zbytek jsou odvozená fakta, ne
+ * vlastní záznam téhle obrazovky.
+ */
+function TimelineDialog({ client, onClose }: { client: ClientRow; onClose: () => void }) {
+  const [entries, setEntries] = useState<TimelineEntry[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [adding, setAdding] = useState(false);
+
+  const load = useCallback(() => {
+    getClientTimelineAction(client.id)
+      .then(setEntries)
+      .catch(() => setError("Historii se nepodařilo načíst."));
+  }, [client.id]);
+
+  useEffect(() => { load(); }, [load]);
+
+  return (
+    <div
+      className={styles.backdrop}
+      onClick={(e) => e.target === e.currentTarget && onClose()}
+      onKeyDown={(e) => e.key === "Escape" && onClose()}
+    >
+      <div className={styles.dialog} role="dialog" aria-modal="true" aria-label={`Historie — ${client.name}`}>
+        <header className={styles.dialogHead}>
+          <h2>Historie — {client.name}</h2>
+          <button type="button" className="btn btn-ghost" onClick={onClose} aria-label="Zavřít">
+            <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18" /></svg>
+          </button>
+        </header>
+
+        <div className={styles.dialogBody}>
+          {error && <p className={styles.error} role="alert">{error}</p>}
+
+          {adding ? (
+            <NoteForm
+              clientId={client.id}
+              onError={setError}
+              onDone={() => { setAdding(false); load(); }}
+              onCancel={() => setAdding(false)}
+            />
+          ) : (
+            <button type="button" className="btn" onClick={() => { setAdding(true); setError(null); }}>
+              <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" /></svg>
+              <span>Přidat poznámku</span>
+            </button>
+          )}
+
+          {entries === null ? (
+            <p className={styles.hintSmall}>Načítám…</p>
+          ) : entries.length === 0 ? (
+            <p className={styles.hintSmall}>
+              U tohohle klienta zatím není žádná historie — ani ruční
+              poznámka, ani uzavřený úkol.
+            </p>
+          ) : (
+            <ul className={styles.timelineList}>
+              {entries.map((e) =>
+                e.kind === "note" ? (
+                  <NoteRow key={e.id} entry={e} onError={setError} onChanged={load} />
+                ) : (
+                  <li key={e.id} className={styles.timelineItem}>
+                    <span className={`${styles.timelineDot} o-${TIMELINE_TONE[e.kind]}`} aria-hidden="true" />
+                    <span className={styles.timelineBody}>
+                      <span className={styles.timelineHead}>
+                        <span className={`pill o-${TIMELINE_TONE[e.kind]}`}>{TIMELINE_LABEL[e.kind]}</span>
+                        <span className={styles.timelineDate}>{csDate(new Date(e.at))}</span>
+                      </span>
+                      {e.taskId ? (
+                        <Link href={`/ukoly?otevrit=${e.taskId}`} className={styles.timelineTitle}>{e.title}</Link>
+                      ) : (
+                        <span className={styles.timelineTitle}>{e.title}</span>
+                      )}
+                      {e.detail && <span className={styles.timelineDetail}>{e.detail}</span>}
+                    </span>
+                  </li>
+                ),
+              )}
+            </ul>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function NoteRow({
+  entry,
+  onError,
+  onChanged,
+}: {
+  entry: TimelineEntry;
+  onError: (m: string | null) => void;
+  onChanged: () => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const noteId = entry.noteId!;
+
+  async function remove() {
+    onError(null);
+    setBusy(true);
+    const res = await deleteClientNoteAction(noteId);
+    setBusy(false);
+    if (!res.ok) onError(res.message ?? "Nepodařilo se to.");
+    else onChanged();
+  }
+
+  if (editing) {
+    return (
+      <li>
+        <NoteForm
+          initial={{ id: noteId, body: entry.title }}
+          onError={onError}
+          onDone={() => { setEditing(false); onChanged(); }}
+          onCancel={() => setEditing(false)}
+        />
+      </li>
+    );
+  }
+
+  return (
+    <li className={styles.timelineItem}>
+      <span className={`${styles.timelineDot} o-note`} aria-hidden="true" />
+      <button type="button" className={styles.timelineBody} onClick={() => setEditing(true)} title="Upravit">
+        <span className={styles.timelineHead}>
+          <span className="pill o-note">Poznámka</span>
+          <span className={styles.timelineDate}>{csDate(new Date(entry.at))}</span>
+          {entry.authorInitials && <span className={styles.timelineAuthor}>{entry.authorInitials}</span>}
+        </span>
+        <span className={styles.timelineNoteText}>{entry.title}</span>
+      </button>
+      <button type="button" className={styles.sheetDelete} disabled={busy} aria-label="Smazat poznámku" onClick={remove}>
+        <svg viewBox="0 0 24 24" fill="none" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M6 6l12 12M18 6L6 18" />
+        </svg>
+      </button>
+    </li>
+  );
+}
+
+function NoteForm({
+  clientId,
+  initial,
+  onError,
+  onDone,
+  onCancel,
+}: {
+  /** Jen pro novou poznámku — při úpravě (`initial` zadané) se nepoužije. */
+  clientId?: string;
+  initial?: { id: string; body: string };
+  onError: (m: string | null) => void;
+  onDone: () => void;
+  onCancel: () => void;
+}) {
+  const [body, setBody] = useState(initial?.body ?? "");
+  const [saving, setSaving] = useState(false);
+
+  async function save() {
+    if (!body.trim()) return;
+    onError(null);
+    setSaving(true);
+    const res = initial
+      ? await updateClientNoteAction({ id: initial.id, body })
+      : await createClientNoteAction({ clientId: clientId!, body });
+    setSaving(false);
+    if (!res.ok) onError(res.message ?? "Nepodařilo se to.");
+    else onDone();
+  }
+
+  return (
+    <div className={styles.contactForm}>
+      <textarea
+        className="field"
+        rows={3}
+        value={body}
+        onChange={(e) => setBody(e.target.value)}
+        placeholder="Volal jsem, domluvili jsme se na…"
+        autoFocus
+      />
+      <div className={styles.formActs}>
+        <button type="button" className="btn btn-primary btn-sm" disabled={saving || !body.trim()} onClick={save}>
           {saving ? "Ukládám…" : "Uložit"}
         </button>
         <button type="button" className="btn btn-ghost btn-sm" onClick={onCancel}>Zrušit</button>

@@ -13,6 +13,12 @@ import {
   updateClientContact,
   deleteClientContact,
 } from "@/lib/client-contacts";
+import {
+  createClientNote,
+  updateClientNote,
+  deleteClientNote,
+} from "@/lib/client-notes";
+import { listClientTimeline, type TimelineEntry } from "@/lib/client-timeline";
 import { getWorkspace } from "@/lib/workspace";
 import { lookupAres, type AresResult } from "@/lib/ares";
 
@@ -89,4 +95,30 @@ export async function updateClientContactAction(form: {
 
 export async function deleteClientContactAction(id: string): Promise<ActionResult> {
   return deleteClientContact(id);
+}
+
+/**
+ * Historie se načítá až na vyžádání, ne dopředu pro každého klienta jako
+ * kontakty — je to potenciálně větší čtení (všechny uzavřené úkoly
+ * a všechny záznamy o schválení) a většinu návštěv Klientů si ji nikdo
+ * neotevře.
+ */
+export async function getClientTimelineAction(clientId: string): Promise<TimelineEntry[]> {
+  return listClientTimeline(clientId);
+}
+
+export async function createClientNoteAction(form: { clientId: string; body: string }): Promise<ActionResult> {
+  const ws = await getWorkspace();
+  if (!ws || ws.state !== "ready") {
+    return { ok: false, message: "Pracovní prostor není připravený." };
+  }
+  return createClientNote({ orgId: ws.orgId, ...form });
+}
+
+export async function updateClientNoteAction(form: { id: string; body: string }): Promise<ActionResult> {
+  return updateClientNote(form);
+}
+
+export async function deleteClientNoteAction(id: string): Promise<ActionResult> {
+  return deleteClientNote(id);
 }
