@@ -1,6 +1,9 @@
 import { redirect } from "next/navigation";
 import { getWorkspace } from "@/lib/workspace";
 import { listTasks, listClients, listCategories, countByBall } from "@/lib/tasks";
+import { listTemplates } from "@/lib/templates";
+import { listRecurring } from "@/lib/recurring";
+import { todayKeyPrague } from "@/lib/domain";
 import TaskBoard from "./TaskBoard";
 
 export const dynamic = "force-dynamic";
@@ -17,10 +20,12 @@ export default async function UkolyPage({
   if (!ws) redirect("/prihlaseni");
   if (ws.state !== "ready") redirect("/");
 
-  const [tasks, clients, categories] = await Promise.all([
+  const [tasks, clients, categories, templates, rules] = await Promise.all([
     listTasks(ws.orgId),
     listClients(ws.orgId),
     listCategories(ws.orgId),
+    listTemplates(ws.orgId),
+    listRecurring(ws.orgId),
   ]);
 
   const { zapsat, datum, otevrit } = await searchParams;
@@ -30,6 +35,9 @@ export default async function UkolyPage({
       tasks={tasks}
       clients={clients}
       categories={categories}
+      templates={templates}
+      rules={rules}
+      today={todayKeyPrague()}
       counts={countByBall(tasks)}
       openComposer={zapsat === "1"}
       presetDate={datum}

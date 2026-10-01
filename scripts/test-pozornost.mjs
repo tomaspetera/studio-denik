@@ -99,4 +99,6 @@ zkouska("přestupný rok", isValidDateKey("2028-02-29") && !isValidDateKey("2026
 zkouska("špatný formát", !isValidDateKey("5. 10. 2026") && !isValidDateKey("2026-10-5"), "jiný zápis než RRRR-MM-DD se nepřijme");
 
 console.log(chyby === 0 ? "\nPravidla pozornosti drží." : `\nProblémů: ${chyby}`);
-process.exit(chyby === 0 ? 0 : 1);
+// Žádná otevřená spojení, proces doběhne sám. `process.exit()` hned po zápisu
+// do roury na Windows občas spadne v knihovně libuv a vrátí chybný kód.
+process.exitCode = chyby === 0 ? 0 : 1;

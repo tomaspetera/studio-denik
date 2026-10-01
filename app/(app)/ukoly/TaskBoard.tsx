@@ -11,10 +11,14 @@ import {
   SIZE_LABEL,
   firstStepForBall,
   type Ball,
+  type DateKey,
 } from "@/lib/domain";
 import type { Category, Client, TaskRow } from "@/lib/tasks";
+import type { TaskTemplate } from "@/lib/templates";
+import type { RecurringRule } from "@/lib/recurring";
 import { moveTaskAction, cycleSizeAction, deleteTaskAction } from "./actions";
 import Composer from "./Composer";
+import PresetsDialog from "./PresetsDialog";
 import styles from "./tasks.module.css";
 
 type Filter = Ball | "all" | "late";
@@ -32,6 +36,9 @@ export default function TaskBoard({
   tasks,
   clients,
   categories,
+  templates,
+  rules,
+  today,
   counts,
   openComposer,
   presetDate,
@@ -40,6 +47,10 @@ export default function TaskBoard({
   tasks: TaskRow[];
   clients: Client[];
   categories: Category[];
+  templates: TaskTemplate[];
+  rules: RecurringRule[];
+  /** Dnešek podle Prahy, počítaný na serveru — prohlížeč by ho mohl mít v jiném pásmu. */
+  today: DateKey;
   counts: Record<string, number>;
   openComposer: boolean;
   /** Termín předvyplněný při zakládání — přichází z kliku na den v kalendáři. */
@@ -64,6 +75,7 @@ export default function TaskBoard({
     return s;
   });
   const [composer, setComposer] = useState(openComposer);
+  const [presets, setPresets] = useState(false);
   // Který úkol se právě upravuje. `null` znamená zakládání nového.
   const [editTask, setEditTask] = useState<TaskRow | null>(null);
   const [pending, startTransition] = useTransition();
@@ -87,7 +99,7 @@ export default function TaskBoard({
     function onKeyDown(e: KeyboardEvent) {
       const el = document.activeElement as HTMLElement | null;
       const typing = !!el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable);
-      if (typing || composer) return;
+      if (typing || composer || presets) return;
       if (e.key === "n" || e.key === "N") {
         e.preventDefault();
         setEditTask(null);
@@ -99,7 +111,7 @@ export default function TaskBoard({
     }
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
-  }, [composer]);
+  }, [composer, presets]);
 
   const visible = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -178,6 +190,14 @@ export default function TaskBoard({
               title="Zkratka: /"
             />
           </label>
+          <button
+            type="button"
+            className="btn"
+            onClick={() => setPresets(true)}
+            title="Předvyplněné úkoly a úkoly, které se zakládají samy"
+          >
+            <span>Šablony a opakování</span>
+          </button>
           <button
             type="button"
             className="btn btn-primary"
@@ -287,6 +307,8 @@ export default function TaskBoard({
           task={editTask ?? undefined}
           clients={clients}
           categories={categories}
+          templates={templates}
+          today={today}
           presetDate={editTask ? undefined : presetDate}
           onClose={() => { setComposer(false); setEditTask(null); }}
           onSaved={() => {
@@ -294,6 +316,17 @@ export default function TaskBoard({
             setEditTask(null);
             router.refresh();
           }}
+        />
+      )}
+
+      {presets && (
+        <PresetsDialog
+          templates={templates}
+          rules={rules}
+          clients={clients}
+          categories={categories}
+          today={today}
+          onClose={() => setPresets(false)}
         />
       )}
     </div>

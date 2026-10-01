@@ -1,9 +1,11 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { KIND_LABEL, type TaskKind } from "@/lib/domain";
+import { KIND_LABEL, addDaysKey, daysBetweenKeys, type DateKey, type TaskKind } from "@/lib/domain";
 import type { Category, Client, TaskRow } from "@/lib/tasks";
+import type { TaskTemplate } from "@/lib/templates";
 import { createTaskAction, updateTaskAction } from "./actions";
+import { createTemplateAction } from "./preset-actions";
 import styles from "./tasks.module.css";
 
 const KINDS: { key: TaskKind; hint: string }[] = [
@@ -20,6 +22,8 @@ export default function Composer({
   task,
   clients,
   categories,
+  templates,
+  today,
   presetDate,
   onClose,
   onSaved,
@@ -27,6 +31,9 @@ export default function Composer({
   task?: TaskRow;
   clients: Client[];
   categories: Category[];
+  templates: TaskTemplate[];
+  /** Dnešek podle Prahy, počítaný na serveru — termín šablony se počítá od něj. */
+  today: DateKey;
   /** Termín předvyplněný z kliku na den v kalendáři — jen pro nový úkol. */
   presetDate?: string;
   onClose: () => void;
@@ -40,10 +47,30 @@ export default function Composer({
   const [categoryId, setCategoryId] = useState<string>("");
   const [dueAt, setDueAt] = useState<string>(toDateInput(task?.due_at ?? null) || presetDate || "");
   const [size, setSize] = useState(task?.size ?? 2);
+  const [templateId, setTemplateId] = useState("");
+  const [saveTemplate, setSaveTemplate] = useState(false);
+  // Úkol už je zapsaný, jen se nepovedlo uložit šablonu — formulář se pak
+  // nesmí dát odeslat znovu, vznikl by druhý stejný úkol.
+  const [taskSavedNote, setTaskSavedNote] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
   const kindChanged = editing && kind !== task!.kind;
+
+  function applyTemplate(id: string) {
+    setTemplateId(id);
+    const t = templates.find((x) => x.id === id);
+    if (!t) return;
+    setTitle(t.title);
+    setKind(t.kind);
+    setSize(t.size);
+    // Archivovaný klient v nabídce chybí — předvyplnění by <select> nechalo
+    // ukazovat "žádný", ale uložení by ho přesto přiřadilo.
+    setClientId(t.clientId && clients.some((c) => c.id === t.clientId) ? t.clientId : "");
+    setCategoryId(t.categoryId && categories.some((c) => c.id === t.categoryId) ? t.categoryId : "");
+    if (t.dueOffsetDays !== null) setDueAt(addDaysKey(today, t.dueOffsetDays));
+    else if (!presetDate) setDueAt("");
+  }
 
   function save() {
     setError(null);
@@ -61,8 +88,30 @@ export default function Composer({
         ? await updateTaskAction({ taskId: task.id, ...common })
         : await createTaskAction(common);
 
-      if (res.ok) onSaved();
-      else setError(res.message);
+      if (!res.ok) {
+        setError(res.message);
+        return;
+      }
+
+      if (!task && saveTemplate) {
+        // Termín šablony je počet dní od založení — zvolené datum se převede
+        // na rozdíl oproti dnešku (do minulosti se nevrací).
+        const offset = dueAt ? Math.min(365, Math.max(0, daysBetweenKeys(today, dueAt))) : null;
+        const tpl = await createTemplateAction({
+          title,
+          kind,
+          size,
+          clientId: clientId || null,
+          categoryId: categoryId || null,
+          dueOffsetDays: offset,
+        });
+        if (!tpl.ok) {
+          setTaskSavedNote(`Úkol je zapsaný, ale šablona se neuložila: ${tpl.message}`);
+          return;
+        }
+      }
+
+      onSaved();
     });
   }
 
@@ -86,6 +135,23 @@ export default function Composer({
         </header>
 
         <div className={styles.dialogBody}>
+          {!editing && templates.length > 0 && (
+            <div style={{ marginBottom: "var(--s5)" }}>
+              <label className={styles.label} htmlFor="t-tpl">Ze šablony</label>
+              <select
+                id="t-tpl"
+                className="field"
+                value={templateId}
+                onChange={(e) => applyTemplate(e.target.value)}
+              >
+                <option value="">— od nuly —</option>
+                {templates.map((t) => (
+                  <option key={t.id} value={t.id}>{t.title} · {KIND_LABEL[t.kind]}</option>
+                ))}
+              </select>
+            </div>
+          )}
+
           <label className={styles.label} htmlFor="t-title">
             {editing ? "Název úkolu" : "Co jsi udělal nebo co je potřeba"}
           </label>
@@ -189,20 +255,38 @@ export default function Composer({
             necháš být, počítá se každý úkol stejně.
           </p>
 
+          {!editing && !taskSavedNote && (
+            <label className={styles.check}>
+              <input
+                type="checkbox"
+                checked={saveTemplate}
+                onChange={(e) => setSaveTemplate(e.target.checked)}
+              />
+              <span>Uložit jako šablonu</span>
+            </label>
+          )}
+
           {error && <p className={styles.error} role="alert">{error}</p>}
+          {taskSavedNote && <p className={styles.error} role="alert">{taskSavedNote}</p>}
         </div>
 
         <footer className={styles.dialogFoot}>
           <span className={styles.spacer} />
-          <button type="button" className="btn btn-ghost" onClick={onClose}>Zrušit</button>
-          <button
-            type="button"
-            className="btn btn-primary"
-            onClick={save}
-            disabled={pending || !title.trim()}
-          >
-            {pending ? "Ukládám…" : editing ? "Uložit změny" : "Uložit úkol"}
-          </button>
+          {taskSavedNote ? (
+            <button type="button" className="btn btn-primary" onClick={onSaved}>Zavřít</button>
+          ) : (
+            <>
+              <button type="button" className="btn btn-ghost" onClick={onClose}>Zrušit</button>
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={save}
+                disabled={pending || !title.trim()}
+              >
+                {pending ? "Ukládám…" : editing ? "Uložit změny" : "Uložit úkol"}
+              </button>
+            </>
+          )}
         </footer>
       </div>
     </div>

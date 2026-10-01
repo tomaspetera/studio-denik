@@ -550,10 +550,136 @@
 }
 
 /* ---------------------------------------------------------------- */
+/* Šablony a opakování                                                */
+/* ---------------------------------------------------------------- */
+
+.tabs {
+  display: flex;
+  gap: var(--s1);
+  padding: 0 var(--s5);
+  border-bottom: 1px solid var(--line);
+  background: var(--grad);
+}
+.tab {
+  padding: 10px 12px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: none;
+  font-family: var(--ui-s);
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--muted);
+  cursor: pointer;
+  margin-bottom: -1px;
+}
+.tab:hover { color: var(--ink); }
+.tabOn { color: var(--ink); border-bottom-color: var(--accent); }
+
+.presetList { list-style: none; margin: var(--s4) 0 0; padding: 0; }
+.presetRow {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  padding: var(--s3) 0;
+  border-bottom: 1px solid var(--line);
+}
+.presetRow:last-child { border-bottom: 0; }
+.presetOff .presetTitle { color: var(--muted); }
+.presetMain { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+.presetTitle {
+  font-size: 13.5px;
+  font-weight: 500;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+.presetMeta {
+  font-family: var(--ui-s);
+  font-size: 11.5px;
+  color: var(--faint);
+  line-height: 1.5;
+}
+.presetActs { display: flex; gap: var(--s1); flex: none; flex-wrap: wrap; justify-content: flex-end; }
+.presetEmpty {
+  margin: var(--s4) 0 0;
+  padding: var(--s5);
+  text-align: center;
+  color: var(--faint);
+  font-size: 13px;
+  border: 1px dashed var(--line-2);
+  border-radius: var(--r2);
+}
+
+.tagOff {
+  font-family: var(--ui-s);
+  font-style: normal;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-weight: 700;
+  color: var(--faint);
+  background: var(--sunk);
+  padding: 1px 6px;
+  border-radius: var(--r4);
+  margin-left: 8px;
+}
+
+.suggest {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  margin-top: var(--s4);
+  padding: var(--s3) var(--s4);
+  border-radius: var(--r2);
+  border: 1px solid var(--accent);
+  background: var(--accent-soft);
+}
+.suggest > div { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; }
+.suggest strong { font-size: 13px; font-weight: 600; }
+.suggest span { font-family: var(--ui-s); font-size: 12px; color: var(--muted); line-height: 1.5; }
+
+.formTitle {
+  font-family: var(--ui-d);
+  font-size: 14px;
+  font-weight: 600;
+  margin: 0 0 var(--s4);
+}
+.formActs { display: flex; align-items: center; gap: var(--s2); margin-top: var(--s5); }
+
+.weekdays { display: flex; gap: 6px; flex-wrap: wrap; margin-top: var(--s3); }
+.choice {
+  min-width: 42px;
+  height: 36px;
+  padding: 0 10px;
+  border-radius: var(--r2);
+  border: 1px solid var(--line-2);
+  background: var(--surface);
+  font-size: 12.5px;
+  color: var(--ink-2);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.choice:hover { border-color: var(--muted); }
+.choiceOn { background: var(--ink); border-color: var(--ink); color: var(--paper); font-weight: 600; }
+
+.check {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  margin-top: var(--s5);
+  font-size: 13px;
+  color: var(--ink-2);
+  cursor: pointer;
+}
+.check input { width: 16px; height: 16px; accent-color: var(--accent); }
+
+/* ---------------------------------------------------------------- */
 /* Mobil                                                             */
 /* ---------------------------------------------------------------- */
 
 @media (max-width: 900px) {
+  .presetRow { flex-direction: column; align-items: stretch; }
+  .presetActs { justify-content: flex-start; }
+  .suggest { flex-direction: column; align-items: stretch; }
   .row { grid-template-columns: 60px minmax(0, 1fr) 66px; gap: var(--s3); }
   .rowClient, .rowOwner { display: none; }
   .detail { padding-left: var(--s3); }

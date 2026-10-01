@@ -46,6 +46,16 @@ export async function GET(request: Request) {
   let cleaned = 0;
 
   for (const org of orgs ?? []) {
+    // Opakované úkoly se zakládají první, ať se promítnou i do dnešního
+    // souhrnu. Dva dny zpět dožene výpadek (ranní běh, který jednou
+    // nevyšel); záznam o výskytu v databázi hlídá, aby nic nevzniklo
+    // dvakrát. Chyba tu nesmí shodit celý běh — push se pošle i bez toho.
+    await supabase.rpc("create_due_recurring_tasks", {
+      p_org: org.id as string,
+      p_today: today,
+      p_days_back: 2,
+    });
+
     const { data: tasks } = await supabase
       .from("tasks_view")
       .select("ball, is_late, due_at")
