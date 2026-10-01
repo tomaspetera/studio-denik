@@ -44,6 +44,7 @@ type ClientForm = {
   relationship: string;
   nextStep: string;
   nextStepAt: string;
+  isPriority: boolean;
 };
 
 export async function createClientAction(form: ClientForm): Promise<ActionResult> {

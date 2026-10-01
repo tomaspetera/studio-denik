@@ -1,3 +1,4 @@
+import { Fragment } from "react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getWorkspace } from "@/lib/workspace";
@@ -6,13 +7,18 @@ import { listTasks, countByBall } from "@/lib/tasks";
 import { loadTeam } from "@/lib/team";
 import { loadCapacity } from "@/lib/capacity";
 import { listLeads } from "@/lib/leads";
+import { listPriorityClientIds } from "@/lib/clients";
+import { groupByBucket, shortDateLabel, BUCKET_LABEL, type Bucket } from "@/lib/buckets";
 import { loadAttention } from "@/lib/attention-data";
 import { supabaseServer } from "@/lib/supabase/server";
 import AttentionPanel from "./AttentionPanel";
-import { BALL_HINT, BALL_LABEL, BALL_ORDER, csDate, csDateFromKey, type Ball } from "@/lib/domain";
+import { BALL_HINT, BALL_LABEL, BALL_ORDER, csDate, csDateFromKey, dateKeyUTC, type Ball } from "@/lib/domain";
 import styles from "./home.module.css";
 
 export const dynamic = "force-dynamic";
+
+/** Kolik úkolů "Na tobě" se na Dnes ukáže — zbytek je za odkazem. */
+const MINE_ROWS = 8;
 
 export default async function DnesPage() {
   const ws = await getWorkspace();
@@ -21,12 +27,13 @@ export default async function DnesPage() {
   if (ws.state !== "ready") return <SetupNeeded ws={ws} />;
 
   const supabase = await supabaseServer();
-  const [tasks, { members }, capacity, leads, attention] = await Promise.all([
+  const [tasks, { members }, capacity, leads, attention, priorityIds] = await Promise.all([
     listTasks(ws.orgId),
     loadTeam(ws.orgId),
     loadCapacity(ws.orgId),
     listLeads(ws.orgId),
     loadAttention(supabase, ws.orgId),
+    listPriorityClientIds(ws.orgId),
   ]);
   const counts = countByBall(tasks);
 
@@ -36,6 +43,28 @@ export default async function DnesPage() {
   const capacityByUser = new Map(capacity.map((c) => [c.userId, c]));
   const maxLoad = Math.max(1, ...capacity.map((c) => c.loadSize));
   const otevrenePoptavky = leads.filter((l) => l.status === "poptavka" || l.status === "nabidka").length;
+
+  // "Na tobě" podle termínu, hlavní klient první v rámci stejného dne. Ukáže
+  // se prvních MINE_ROWS úkolů v tomhle pořadí — skupiny, na které rozpočet
+  // nezbyde, se vynechají celé.
+  const mineGroups = groupByBucket(
+    naTobe.map((t) => ({
+      task: t,
+      dueKey: t.due_at ? dateKeyUTC(t.due_at) : null,
+      isLate: t.is_late,
+      priority: t.client_id ? priorityIds.has(t.client_id) : false,
+      title: t.title,
+    })),
+    attention.today,
+  ).reduce<{ bucket: Bucket; total: number; items: { task: (typeof naTobe)[number]; dueKey: string | null; priority: boolean }[] }[]>(
+    (acc, g) => {
+      const used = acc.reduce((n, x) => n + x.items.length, 0);
+      const items = g.items.slice(0, Math.max(MINE_ROWS - used, 0));
+      return items.length > 0 ? [...acc, { bucket: g.bucket, total: g.items.length, items }] : acc;
+    },
+    [],
+  );
+  const mineHidden = naTobe.length - mineGroups.reduce((n, g) => n + g.items.length, 0);
 
   return (
     <div className={styles.wrap}>
@@ -87,19 +116,35 @@ export default async function DnesPage() {
                 <p className={styles.blank}>Nic nečeká — míč je jinde.</p>
               ) : (
                 <ul className={styles.list}>
-                  {naTobe.slice(0, 6).map((t) => (
-                    <li key={t.id}>
-                      <span className={styles.itemTitle}>{t.title}</span>
-                      <span className={styles.itemSub}>
-                        {t.step_name}
-                        {t.client_name ? ` · ${t.client_name}` : ""}
-                      </span>
-                    </li>
+                  {mineGroups.map((g) => (
+                    <Fragment key={g.bucket}>
+                      <li className={`${styles.bucketHead} ${g.bucket === "late" ? styles.bucketLate : ""}`}>
+                        <span>{BUCKET_LABEL[g.bucket]}</span>
+                        <em>{g.total}</em>
+                      </li>
+                      {g.items.map(({ task: t, dueKey, priority }) => (
+                        <li key={t.id}>
+                          <span className={styles.itemTitle}>
+                            {priority && <span className={styles.star} title="Hlavní klient" aria-label="Hlavní klient">★</span>}
+                            {t.title}
+                          </span>
+                          <span className={styles.itemSub}>
+                            {t.step_name}
+                            {t.client_name ? ` · ${t.client_name}` : ""}
+                          </span>
+                          {dueKey && (
+                            <span className={`${styles.itemRight} ${styles.itemDue}`}>{shortDateLabel(dueKey)}</span>
+                          )}
+                        </li>
+                      ))}
+                    </Fragment>
                   ))}
                 </ul>
               )}
               <footer className={styles.panelFoot}>
-                <Link href="/ukoly?filtr=me" className="btn">Zobrazit všechny</Link>
+                <Link href="/ukoly?filtr=me" className="btn">
+                  {mineHidden > 0 ? `Zobrazit všechny (ještě ${mineHidden})` : "Zobrazit všechny"}
+                </Link>
               </footer>
             </section>
 

@@ -193,6 +193,7 @@ export default function ClientBoard({
                         {c.address}
                       </span>
                     )}
+                    {c.is_priority && <span className={`tag ${styles.relTag} ${styles.priorityTag}`}>★ Hlavní klient</span>}
                     {c.relationship && <span className={`tag ${styles.relTag}`}>{c.relationship}</span>}
                   </span>
                 </header>
@@ -381,6 +382,7 @@ function Composer({
   const [relationship, setRelationship] = useState(client?.relationship ?? "");
   const [nextStep, setNextStep] = useState(client?.next_step ?? "");
   const [nextStepAt, setNextStepAt] = useState(client?.next_step_at ?? "");
+  const [isPriority, setIsPriority] = useState(client?.is_priority ?? false);
   const [error, setError] = useState<string | null>(null);
   const [aresNote, setAresNote] = useState<string | null>(null);
   const [aresErr, setAresErr] = useState<string | null>(null);
@@ -417,7 +419,7 @@ function Composer({
 
   function save() {
     setError(null);
-    const form = { name, color, contact, email, note, ico, dic, address, relationship, nextStep, nextStepAt };
+    const form = { name, color, contact, email, note, ico, dic, address, relationship, nextStep, nextStepAt, isPriority };
     startTransition(async () => {
       const res = editing
         ? await updateClientAction({ id: client!.id, ...form })
@@ -530,6 +532,18 @@ function Composer({
             onChange={(e) => setRelationship(e.target.value)}
             placeholder="Vlastní popisek…"
           />
+
+          <label className={styles.check}>
+            <input
+              type="checkbox"
+              checked={isPriority}
+              onChange={(e) => setIsPriority(e.target.checked)}
+            />
+            <span>
+              <b>Hlavní klient</b>
+              <em>Jeho úkoly se na Dnes řadí první v rámci stejného termínu.</em>
+            </span>
+          </label>
 
           <div className={styles.grid2}>
             <div>

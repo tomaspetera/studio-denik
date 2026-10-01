@@ -673,10 +673,71 @@
 .check input { width: 16px; height: 16px; accent-color: var(--accent); }
 
 /* ---------------------------------------------------------------- */
+/* Rychlý zápis                                                       */
+/* ---------------------------------------------------------------- */
+
+.capText { resize: vertical; min-height: 150px; line-height: 1.55; }
+.capMeta {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--s3);
+  margin: var(--s2) 0 0;
+  font-family: var(--ui-s);
+  font-size: 11.5px;
+  color: var(--faint);
+}
+
+.capWarn {
+  list-style: none;
+  margin: 0 0 var(--s4);
+  padding: var(--s3) var(--s4);
+  border-radius: var(--r2);
+  background: var(--sunk);
+  border: 1px solid var(--line-2);
+  font-family: var(--ui-s);
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.55;
+}
+.capWarn li + li { margin-top: 4px; }
+
+.capList { list-style: none; margin: 0; padding: 0; }
+.capRow {
+  display: flex;
+  gap: var(--s3);
+  padding: var(--s4) 0;
+  border-bottom: 1px solid var(--line);
+}
+.capRow:first-child { padding-top: 0; }
+.capRow:last-child { border-bottom: 0; padding-bottom: 0; }
+.capOff .capBody { opacity: 0.45; }
+.capCheck { width: 16px; height: 16px; margin-top: 11px; accent-color: var(--accent); flex: none; }
+.capBody { flex: 1; min-width: 0; }
+.capNote { margin: var(--s2) 0 0; font-family: var(--ui-s); font-size: 12px; color: var(--faint); line-height: 1.5; }
+
+.capGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--s2) var(--s3);
+  margin-top: var(--s3);
+}
+.capField { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.capField span {
+  font-family: var(--ui-s);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-weight: 700;
+  color: var(--faint);
+}
+.capField :global(.field) { padding: 6px 8px; font-size: 12.5px; }
+
+/* ---------------------------------------------------------------- */
 /* Mobil                                                             */
 /* ---------------------------------------------------------------- */
 
 @media (max-width: 900px) {
+  .capGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .presetRow { flex-direction: column; align-items: stretch; }
   .presetActs { justify-content: flex-start; }
   .suggest { flex-direction: column; align-items: stretch; }

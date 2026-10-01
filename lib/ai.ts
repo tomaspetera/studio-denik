@@ -95,10 +95,11 @@ async function withRetry<T>(fn: () => Promise<T>, attempts = 3): Promise<T> {
 }
 
 export class AiOverloaded extends Error {
-  constructor(provider: Provider) {
+  constructor(provider: Provider, tries = 3) {
+    const kolikrat = tries === 2 ? "dvakrát" : "třikrát";
     super(
       `${provider === "claude" ? "Claude" : "Gemini"} je právě přetížený. ` +
-        "Zkusil jsem to třikrát — dej tomu chvíli a klikni znovu.",
+        `Zkusil jsem to ${kolikrat} — dej tomu chvíli a klikni znovu.`,
     );
     this.name = "AiOverloaded";
   }
@@ -263,110 +264,139 @@ async function* streamGemini(system: string, prompt: string): AsyncGenerator<str
 }
 
 /* ------------------------------------------------------------------ */
-/* Rychlý zápis — z věty strukturovaný úkol                            */
+/* Strukturovaný výstup — JSON podle schématu                           */
 /* ------------------------------------------------------------------ */
 
-export type ParsedTask = {
-  title: string;
-  client: string | null;
-  supplier: string | null;
-  category: string | null;
-  kind: "interni" | "klient" | "tisk";
-  step: number;
-  due_at: string | null;
-  size: 1 | 2 | 3;
-  note: string | null;
-};
-
-/**
- * Schéma popisujeme jednou a posíláme oběma poskytovatelům. Claude ho dostane
- * přes structured outputs, Gemini přes responseSchema — obojí garantuje, že
- * odpověď půjde rozparsovat, takže nepotřebujeme retry smyčku kolem JSON.parse.
- */
-const TASK_SCHEMA = {
-  type: "object",
-  properties: {
-    title: { type: "string", description: "Stručný název úkolu, bez uvozovek." },
-    client: { type: ["string", "null"], description: "Jméno klienta, pokud zaznělo." },
-    supplier: { type: ["string", "null"], description: "Dodavatel nebo tiskárna, pokud zazněla." },
-    category: { type: ["string", "null"], description: "Např. Grafika, Tisk, Administrativa, Web." },
-    kind: {
-      type: "string",
-      enum: ["interni", "klient", "tisk"],
-      description:
-        "tisk = jde do tiskárny; klient = klient to schvaluje; interni = nikdo zvenčí do toho nevstupuje.",
-    },
-    step: {
-      type: "integer",
-      description:
-        "Index kroku, na kterém úkol stojí. interni 0-2, klient 0-3, tisk 0-5. 0 = zadáno.",
-    },
-    due_at: { type: ["string", "null"], description: "Termín v ISO 8601, nebo null." },
-    size: { type: "integer", enum: [1, 2, 3], description: "1 malý, 2 střední, 3 velký." },
-    note: { type: ["string", "null"], description: "Doplňující poznámka, nebo null." },
-  },
-  required: ["title", "client", "supplier", "category", "kind", "step", "due_at", "size", "note"],
-  additionalProperties: false,
-} as const;
-
-const PARSE_SYSTEM = `Převádíš české věty o odvedené práci na strukturovaný úkol pro grafické studio.
-Dnešní datum dostaneš v zadání — relativní termíny ("do pátku", "příští týden") podle něj převeď na konkrétní datum.
-Když něco nezaznělo, vrať null. Nic si nedomýšlej.`;
-
-export async function parseTask(
-  provider: Provider,
-  sentence: string,
-  today: Date,
-): Promise<ParsedTask> {
-  const prompt = `Dnešní datum: ${today.toISOString()}\n\nVěta: ${sentence}`;
-  return provider === "claude"
-    ? parseTaskClaude(prompt)
-    : parseTaskGemini(prompt);
+export class AiBadResponse extends Error {
+  constructor() {
+    super("AI vrátila nečitelnou odpověď. Zkus to znovu.");
+    this.name = "AiBadResponse";
+  }
 }
 
-async function parseTaskClaude(prompt: string): Promise<ParsedTask> {
+/**
+ * Model pro krátké jednorázové úkoly (rychlý zápis). Přednost má Gemini —
+ * stačí na to a dá se používat zdarma; Claude je záloha, když Gemini klíč
+ * chybí. `null`, když není nastavený žádný.
+ */
+export function pickProvider(): Provider | null {
+  const available = availableProviders();
+  return available.includes("gemini") ? "gemini" : (available[0] ?? null);
+}
+
+/**
+ * Jedno volání, na které se odpoví hotovým JSON podle schématu. Schéma
+ * dostane Claude přes structured outputs a Gemini přes `responseJsonSchema`,
+ * obojí drží odpověď v daném tvaru. Co se v tom tvaru vrátí, ale nikdo
+ * nezaručuje obsahově — volající výsledek ověřuje sám.
+ */
+export async function extractJson(
+  provider: Provider,
+  system: string,
+  prompt: string,
+  schema: Record<string, unknown>,
+): Promise<unknown> {
+  const text = provider === "claude"
+    ? await extractJsonClaude(system, prompt, schema)
+    : await extractJsonGemini(system, prompt, schema);
+
+  try {
+    return JSON.parse(text);
+  } catch {
+    throw new AiBadResponse();
+  }
+}
+
+async function extractJsonClaude(system: string, prompt: string, schema: Record<string, unknown>): Promise<string> {
   const key = process.env.ANTHROPIC_API_KEY;
   if (!key) throw new AiNotConfigured("claude");
 
   const client = new Anthropic({ apiKey: key });
-  const message = await client.messages.create({
-    model: CLAUDE_MODEL,
-    max_tokens: 4000,
-    output_config: { format: { type: "json_schema", schema: TASK_SCHEMA } },
-    system: PARSE_SYSTEM,
-    messages: [{ role: "user", content: prompt }],
+  const message = await withRetry(() =>
+    client.messages.create({
+      model: CLAUDE_MODEL,
+      max_tokens: 4000,
+      output_config: { format: { type: "json_schema", schema } },
+      system,
+      messages: [{ role: "user", content: prompt }],
+    }),
+  ).catch((e) => {
+    if (isOverloaded(e)) throw new AiOverloaded("claude");
+    throw e;
   });
 
   if (message.stop_reason === "refusal") {
     throw new AiRefused(message.stop_details?.category ?? null);
   }
 
-  const text = message.content
+  return message.content
     .filter((b) => b.type === "text")
     .map((b) => (b as { text: string }).text)
     .join("");
-
-  return JSON.parse(text) as ParsedTask;
 }
 
-async function parseTaskGemini(prompt: string): Promise<ParsedTask> {
+/**
+ * Na přepis textu do úkolů stačí lehký model. Má dvě výhody: odpovídá za pár
+ * vteřin (velký model za "vysoké poptávky" vrací 503 a ta sama trvá kolem
+ * 10 s) a bezplatný limit na minutu platí pro každý model zvlášť, takže zápis
+ * neubírá z kvóty shrnutí reportu. Velký model (`GEMINI_MODEL`) je záloha.
+ */
+const GEMINI_FAST_MODEL = process.env.GEMINI_FAST_MODEL || "gemini-3.1-flash-lite";
+
+/**
+ * Jeden pokus nesmí trvat déle — dva se musí vejít do limitu stránky (30 s).
+ * Gemini kratší limit než 10 s odmítá ("Minimum allowed deadline is 10s").
+ */
+const ATTEMPT_TIMEOUT_MS = 10_000;
+
+function isTimeout(e: unknown): boolean {
+  const msg = e instanceof Error ? e.message : String(e);
+  return /timeout|timed out|aborted|AbortError/i.test(msg);
+}
+
+/**
+ * Po jakém selhání má smysl zkusit jiný model: přetížení, vyčerpaná minutová
+ * kvóta, vypršení času, nebo model, který tohle zadání nebere (404/400).
+ * Chyba, která by selhala všude, tím jen zdvojí čekání — a pak se ukáže ta
+ * poslední.
+ */
+function worthTryingAnotherModel(e: unknown): boolean {
+  if (isOverloaded(e) || isQuotaError(e) || isTimeout(e)) return true;
+  const msg = e instanceof Error ? e.message : String(e);
+  return /"code":\s*(400|404)|not found|not supported/i.test(msg);
+}
+
+async function extractJsonGemini(system: string, prompt: string, schema: Record<string, unknown>): Promise<string> {
   const key = process.env.GEMINI_API_KEY;
   if (!key) throw new AiNotConfigured("gemini");
 
   const ai = new GoogleGenAI({ apiKey: key });
-  try {
-    const res = await ai.models.generateContent({
-      model: GEMINI_MODEL,
-      contents: prompt,
-      config: {
-        systemInstruction: PARSE_SYSTEM,
-        responseMimeType: "application/json",
-        responseSchema: TASK_SCHEMA as unknown as Record<string, unknown>,
-      },
-    });
-    return JSON.parse(res.text ?? "{}") as ParsedTask;
-  } catch (e) {
-    if (isQuotaError(e)) throw new AiQuotaExceeded("gemini", GEMINI_MODEL);
-    throw e;
+  const models = [...new Set([GEMINI_FAST_MODEL, GEMINI_MODEL])];
+  let last: unknown;
+
+  for (const model of models) {
+    try {
+      const res = await ai.models.generateContent({
+        model,
+        contents: prompt,
+        config: {
+          systemInstruction: system,
+          responseMimeType: "application/json",
+          responseJsonSchema: schema,
+          // Přepis textu do úkolů žádné uvažování nepotřebuje. S výchozím
+          // "přemýšlením" trvala odpověď 10–19 s, bez něj kolem 3–5 s.
+          thinkingConfig: { thinkingBudget: 0 },
+          httpOptions: { timeout: ATTEMPT_TIMEOUT_MS },
+        },
+      });
+      return res.text ?? "";
+    } catch (e) {
+      last = e;
+      if (!worthTryingAnotherModel(e)) break;
+    }
   }
+
+  if (isQuotaError(last)) throw new AiQuotaExceeded("gemini", GEMINI_FAST_MODEL);
+  if (isOverloaded(last) || isTimeout(last)) throw new AiOverloaded("gemini", models.length);
+  throw last;
 }

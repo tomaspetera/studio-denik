@@ -8,6 +8,10 @@ import TaskBoard from "./TaskBoard";
 
 export const dynamic = "force-dynamic";
 
+// Rychlý zápis volá AI a ta občas odpovídá pomalu (u přetíženého modelu
+// i s opakováním). Platí pro všechny serverové akce na téhle stránce.
+export const maxDuration = 30;
+
 export default async function UkolyPage({
   searchParams,
 }: {

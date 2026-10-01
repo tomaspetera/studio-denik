@@ -18,6 +18,8 @@ export type ClientRow = {
   relationship: string | null;
   next_step: string | null;
   next_step_at: string | null;
+  /** Hlavní klient — jen řídí pořadí (viz migrace 0017), žádné jiné chování. */
+  is_priority: boolean;
   archived: boolean;
   share_token: string;
   /** Dopočítané z úkolů — neukládá se. */
@@ -36,9 +38,10 @@ export async function listClientsWithStats(orgId: string): Promise<ClientRow[]> 
     // ukázat, jinak by nešly vrátit zpátky.
     supabase
       .from("clients")
-      .select("id, name, color, contact, email, note, ico, dic, address, relationship, next_step, next_step_at, archived, share_token")
+      .select("id, name, color, contact, email, note, ico, dic, address, relationship, next_step, next_step_at, is_priority, archived, share_token")
       .eq("org_id", orgId)
       .order("archived")
+      .order("is_priority", { ascending: false })
       .order("name"),
     supabase
       .from("tasks_view")
@@ -83,6 +86,22 @@ export async function listClientsWithStats(orgId: string): Promise<ClientRow[]> 
   });
 }
 
+/**
+ * Id hlavních klientů — pro řazení na Dnes. Chyba čtení (třeba migrace
+ * ještě neproběhla) znamená prázdnou sadu, ne spadnutou stránku: pořadí je
+ * jen pomůcka, nic na ní nestojí.
+ */
+export async function listPriorityClientIds(orgId: string): Promise<Set<string>> {
+  const supabase = await supabaseServer();
+  const { data } = await supabase
+    .from("clients")
+    .select("id")
+    .eq("org_id", orgId)
+    .eq("is_priority", true)
+    .eq("archived", false);
+  return new Set((data ?? []).map((c) => c.id as string));
+}
+
 export type ActionResult = { ok: true } | { ok: false; message: string };
 
 type ClientFields = {
@@ -97,10 +116,12 @@ type ClientFields = {
   relationship?: string | null;
   nextStep?: string | null;
   nextStepAt?: string | null;
+  isPriority?: boolean;
 };
 
 function toRow(input: ClientFields, step: { step: string | null; at: string | null }) {
   return {
+    is_priority: Boolean(input.isPriority),
     name: input.name.trim(),
     color: input.color,
     contact: input.contact?.trim() || null,

@@ -19,6 +19,7 @@ import type { RecurringRule } from "@/lib/recurring";
 import { moveTaskAction, cycleSizeAction, deleteTaskAction } from "./actions";
 import Composer from "./Composer";
 import PresetsDialog from "./PresetsDialog";
+import CaptureDialog from "./CaptureDialog";
 import styles from "./tasks.module.css";
 
 type Filter = Ball | "all" | "late";
@@ -76,6 +77,7 @@ export default function TaskBoard({
   });
   const [composer, setComposer] = useState(openComposer);
   const [presets, setPresets] = useState(false);
+  const [capture, setCapture] = useState(false);
   // Který úkol se právě upravuje. `null` znamená zakládání nového.
   const [editTask, setEditTask] = useState<TaskRow | null>(null);
   const [pending, startTransition] = useTransition();
@@ -99,11 +101,14 @@ export default function TaskBoard({
     function onKeyDown(e: KeyboardEvent) {
       const el = document.activeElement as HTMLElement | null;
       const typing = !!el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable);
-      if (typing || composer || presets) return;
+      if (typing || composer || presets || capture) return;
       if (e.key === "n" || e.key === "N") {
         e.preventDefault();
         setEditTask(null);
         setComposer(true);
+      } else if (e.key === "t" || e.key === "T") {
+        e.preventDefault();
+        setCapture(true);
       } else if (e.key === "/") {
         e.preventDefault();
         searchRef.current?.focus();
@@ -111,7 +116,7 @@ export default function TaskBoard({
     }
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
-  }, [composer, presets]);
+  }, [composer, presets, capture]);
 
   const visible = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -197,6 +202,14 @@ export default function TaskBoard({
             title="Předvyplněné úkoly a úkoly, které se zakládají samy"
           >
             <span>Šablony a opakování</span>
+          </button>
+          <button
+            type="button"
+            className="btn"
+            onClick={() => setCapture(true)}
+            title="Z textu navrhne úkoly, ty zkontroluješ. Zkratka: T"
+          >
+            <span>Zapsat textem</span>
           </button>
           <button
             type="button"
@@ -314,6 +327,19 @@ export default function TaskBoard({
           onSaved={() => {
             setComposer(false);
             setEditTask(null);
+            router.refresh();
+          }}
+        />
+      )}
+
+      {capture && (
+        <CaptureDialog
+          clients={clients}
+          categories={categories}
+          today={today}
+          onClose={() => setCapture(false)}
+          onCreated={() => {
+            setCapture(false);
             router.refresh();
           }}
         />
