@@ -3,6 +3,7 @@ import "server-only";
 import { revalidatePath } from "next/cache";
 import { supabaseServer } from "./supabase/server";
 import type { Ball } from "./domain";
+import { normalizeNextStep } from "./attention";
 
 export type ClientRow = {
   id: string;
@@ -15,6 +16,8 @@ export type ClientRow = {
   dic: string | null;
   address: string | null;
   relationship: string | null;
+  next_step: string | null;
+  next_step_at: string | null;
   archived: boolean;
   share_token: string;
   /** Dopočítané z úkolů — neukládá se. */
@@ -33,7 +36,7 @@ export async function listClientsWithStats(orgId: string): Promise<ClientRow[]> 
     // ukázat, jinak by nešly vrátit zpátky.
     supabase
       .from("clients")
-      .select("id, name, color, contact, email, note, ico, dic, address, relationship, archived, share_token")
+      .select("id, name, color, contact, email, note, ico, dic, address, relationship, next_step, next_step_at, archived, share_token")
       .eq("org_id", orgId)
       .order("archived")
       .order("name"),
@@ -92,9 +95,11 @@ type ClientFields = {
   dic?: string | null;
   address?: string | null;
   relationship?: string | null;
+  nextStep?: string | null;
+  nextStepAt?: string | null;
 };
 
-function toRow(input: ClientFields) {
+function toRow(input: ClientFields, step: { step: string | null; at: string | null }) {
   return {
     name: input.name.trim(),
     color: input.color,
@@ -105,6 +110,8 @@ function toRow(input: ClientFields) {
     dic: input.dic?.trim().toUpperCase() || null,
     address: input.address?.trim() || null,
     relationship: input.relationship?.trim() || null,
+    next_step: step.step,
+    next_step_at: step.at,
   };
 }
 
@@ -112,10 +119,13 @@ export async function createClient(input: ClientFields & { orgId: string }): Pro
   const name = input.name.trim();
   if (!name) return { ok: false, message: "Klient potřebuje jméno." };
 
+  const step = normalizeNextStep(input.nextStep, input.nextStepAt);
+  if (!step.ok) return step;
+
   const supabase = await supabaseServer();
   const { error } = await supabase.from("clients").insert({
     org_id: input.orgId,
-    ...toRow(input),
+    ...toRow(input, step),
   });
 
   if (error) {
@@ -139,8 +149,11 @@ export async function updateClient(input: ClientFields & { id: string }): Promis
   const name = input.name.trim();
   if (!name) return { ok: false, message: "Klient potřebuje jméno." };
 
+  const step = normalizeNextStep(input.nextStep, input.nextStepAt);
+  if (!step.ok) return step;
+
   const supabase = await supabaseServer();
-  const { error } = await supabase.from("clients").update(toRow(input)).eq("id", input.id);
+  const { error } = await supabase.from("clients").update(toRow(input, step)).eq("id", input.id);
 
   if (error) {
     if (error.code === "23505") {

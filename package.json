@@ -10,7 +10,7 @@
     "overit": "node --env-file=.env.local scripts/overit-nastaveni.mjs",
     "test:ukoly": "node --env-file=.env.local scripts/test-ukoly.mjs",
     "test:report": "node --env-file=.env.local scripts/test-report.mjs",
-    "test": "npm run overit && npm run test:izolace && npm run test:ukoly && npm run test:uprava && npm run test:mazani && npm run test:klienti && npm run test:karta && npm run test:historie && npm run test:poptavky && npm run test:schvaleni && npm run test:kalendar && npm run test:pripominky && npm run test:nepritomnost && npm run test:push && npm run test:verejny && npm run test:pozvanky",
+    "test": "npm run overit && npm run test:izolace && npm run test:ukoly && npm run test:uprava && npm run test:mazani && npm run test:klienti && npm run test:karta && npm run test:historie && npm run test:poptavky && npm run test:schvaleni && npm run test:kalendar && npm run test:pripominky && npm run test:nepritomnost && npm run test:push && npm run test:pozornost && npm run test:dalsikrok && npm run test:verejny && npm run test:pozvanky",
     "test:stream": "node --env-file=.env.local scripts/test-stream.mjs",
     "test:mazani": "node --env-file=.env.local scripts/test-mazani.mjs",
     "test:uprava": "node --env-file=.env.local scripts/test-uprava.mjs",
@@ -26,6 +26,8 @@
     "test:poptavky": "node --env-file=.env.local scripts/test-poptavky.mjs",
     "test:nepritomnost": "node --env-file=.env.local scripts/test-nepritomnost.mjs",
     "test:push": "node --env-file=.env.local scripts/test-push.mjs",
+    "test:pozornost": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/test-pozornost.mjs",
+    "test:dalsikrok": "node --env-file=.env.local scripts/test-dalsi-krok.mjs",
     "test:ares": "node scripts/test-ares.mjs"
   },
   "dependencies": {

@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { getWorkspace } from "@/lib/workspace";
 import { listLeads } from "@/lib/leads";
+import { todayKeyPrague } from "@/lib/domain";
 import LeadBoard from "./LeadBoard";
 
 export const dynamic = "force-dynamic";
@@ -17,5 +18,5 @@ export default async function PoptavkyPage({
 
   const [leads, { otevrit }] = await Promise.all([listLeads(ws.orgId), searchParams]);
 
-  return <LeadBoard leads={leads} highlightId={otevrit} />;
+  return <LeadBoard leads={leads} today={todayKeyPrague()} highlightId={otevrit} />;
 }

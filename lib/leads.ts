@@ -3,6 +3,7 @@ import "server-only";
 import { revalidatePath } from "next/cache";
 import { supabaseServer } from "./supabase/server";
 import { CLIENT_COLORS, type LeadStatus } from "./domain";
+import { normalizeNextStep } from "./attention";
 
 /**
  * Poptávka — krok před založeným klientem. Appka dřív začínala až
@@ -19,6 +20,8 @@ export type Lead = {
   amount: number | null;
   status: LeadStatus;
   note: string | null;
+  nextStep: string | null;
+  nextStepAt: string | null;
   clientId: string | null;
   clientName: string | null;
   createdAt: string;
@@ -31,7 +34,7 @@ export async function listLeads(orgId: string): Promise<Lead[]> {
   const [{ data: leads }, { data: clients }] = await Promise.all([
     supabase
       .from("leads")
-      .select("id, name, company, contact, email, phone, amount, status, note, client_id, created_at, decided_at")
+      .select("id, name, company, contact, email, phone, amount, status, note, next_step, next_step_at, client_id, created_at, decided_at")
       .eq("org_id", orgId)
       .order("created_at"),
     // Jen na dohledání jména u už převedené poptávky — klientů je málo,
@@ -44,7 +47,8 @@ export async function listLeads(orgId: string): Promise<Lead[]> {
   type Row = {
     id: string; name: string; company: string | null; contact: string | null;
     email: string | null; phone: string | null; amount: number | string | null;
-    status: LeadStatus; note: string | null; client_id: string | null;
+    status: LeadStatus; note: string | null; next_step: string | null;
+    next_step_at: string | null; client_id: string | null;
     created_at: string; decided_at: string | null;
   };
 
@@ -58,6 +62,8 @@ export async function listLeads(orgId: string): Promise<Lead[]> {
     amount: l.amount === null ? null : Number(l.amount),
     status: l.status,
     note: l.note,
+    nextStep: l.next_step,
+    nextStepAt: l.next_step_at,
     clientId: l.client_id,
     clientName: l.client_id ? (nameByClientId.get(l.client_id) ?? null) : null,
     createdAt: l.created_at,
@@ -75,9 +81,11 @@ export type LeadFields = {
   phone?: string | null;
   amount?: number | null;
   note?: string | null;
+  nextStep?: string | null;
+  nextStepAt?: string | null;
 };
 
-function toRow(input: LeadFields) {
+function toRow(input: LeadFields, step: { step: string | null; at: string | null }) {
   return {
     name: input.name.trim(),
     company: input.company?.trim() || null,
@@ -86,6 +94,8 @@ function toRow(input: LeadFields) {
     phone: input.phone?.trim() || null,
     amount: input.amount ?? null,
     note: input.note?.trim() || null,
+    next_step: step.step,
+    next_step_at: step.at,
   };
 }
 
@@ -93,13 +103,16 @@ export async function createLead(input: LeadFields & { orgId: string }): Promise
   const name = input.name.trim();
   if (!name) return { ok: false, message: "Poptávka potřebuje název." };
 
+  const step = normalizeNextStep(input.nextStep, input.nextStepAt);
+  if (!step.ok) return step;
+
   const supabase = await supabaseServer();
   const { data: { user } } = await supabase.auth.getUser();
 
   const { error } = await supabase.from("leads").insert({
     org_id: input.orgId,
     created_by: user?.id ?? null,
-    ...toRow(input),
+    ...toRow(input, step),
   });
 
   if (error) return { ok: false, message: error.message };
@@ -111,8 +124,11 @@ export async function updateLead(input: LeadFields & { id: string }): Promise<Ac
   const name = input.name.trim();
   if (!name) return { ok: false, message: "Poptávka potřebuje název." };
 
+  const step = normalizeNextStep(input.nextStep, input.nextStepAt);
+  if (!step.ok) return step;
+
   const supabase = await supabaseServer();
-  const { error } = await supabase.from("leads").update(toRow(input)).eq("id", input.id);
+  const { error } = await supabase.from("leads").update(toRow(input, step)).eq("id", input.id);
   if (error) return { ok: false, message: error.message };
   revalidatePath("/", "layout");
   return { ok: true };

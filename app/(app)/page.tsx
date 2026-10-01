@@ -6,6 +6,9 @@ import { listTasks, countByBall } from "@/lib/tasks";
 import { loadTeam } from "@/lib/team";
 import { loadCapacity } from "@/lib/capacity";
 import { listLeads } from "@/lib/leads";
+import { loadAttention } from "@/lib/attention-data";
+import { supabaseServer } from "@/lib/supabase/server";
+import AttentionPanel from "./AttentionPanel";
 import { BALL_HINT, BALL_LABEL, BALL_ORDER, csDate, csDateFromKey, type Ball } from "@/lib/domain";
 import styles from "./home.module.css";
 
@@ -17,11 +20,13 @@ export default async function DnesPage() {
 
   if (ws.state !== "ready") return <SetupNeeded ws={ws} />;
 
-  const [tasks, { members }, capacity, leads] = await Promise.all([
+  const supabase = await supabaseServer();
+  const [tasks, { members }, capacity, leads, attention] = await Promise.all([
     listTasks(ws.orgId),
     loadTeam(ws.orgId),
     loadCapacity(ws.orgId),
     listLeads(ws.orgId),
+    loadAttention(supabase, ws.orgId),
   ]);
   const counts = countByBall(tasks);
 
@@ -42,18 +47,26 @@ export default async function DnesPage() {
       </header>
 
       {tasks.length === 0 ? (
-        <section className={styles.hero}>
-          <span className="eyebrow">Pracovní prostor {ws.orgName}</span>
-          <h2 className={styles.heroTitle}>Zatím je tu prázdno</h2>
-          <p className={styles.heroLead}>
-            Zapiš první úkol a přehled se začne plnit sám. Každý úkol má typ,
-            typ určuje kroky štafety, a krok určuje, u koho zrovna leží míč —
-            u tebe, u klienta, nebo u dodavatele.
-          </p>
-          <Link href="/ukoly?zapsat=1" className="btn btn-primary btn-lg">
-            Zapsat první úkol
-          </Link>
-        </section>
+        <>
+          <section className={styles.hero}>
+            <span className="eyebrow">Pracovní prostor {ws.orgName}</span>
+            <h2 className={styles.heroTitle}>Zatím je tu prázdno</h2>
+            <p className={styles.heroLead}>
+              Zapiš první úkol a přehled se začne plnit sám. Každý úkol má typ,
+              typ určuje kroky štafety, a krok určuje, u koho zrovna leží míč —
+              u tebe, u klienta, nebo u dodavatele.
+            </p>
+            <Link href="/ukoly?zapsat=1" className="btn btn-primary btn-lg">
+              Zapsat první úkol
+            </Link>
+          </section>
+
+          {/* Poptávky vznikají dřív než úkoly — kdo začne od nich, hlídání
+              nesmí přijít o to, že ještě nemá co zapsat do úkolů. */}
+          {attention.items.length > 0 && (
+            <AttentionPanel items={attention.items} today={attention.today} silenceDays={attention.silenceDays} />
+          )}
+        </>
       ) : (
         <>
           <div className={styles.strip}>
@@ -141,6 +154,8 @@ export default async function DnesPage() {
               </ul>
             </section>
           )}
+
+          <AttentionPanel items={attention.items} today={attention.today} silenceDays={attention.silenceDays} />
 
           {members.length > 1 && (
             <section className="panel" style={{ marginTop: "var(--s5)" }}>

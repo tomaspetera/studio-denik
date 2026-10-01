@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { getWorkspace, siteUrl } from "@/lib/workspace";
 import { listClientsWithStats } from "@/lib/clients";
 import { listAllClientContacts } from "@/lib/client-contacts";
+import { todayKeyPrague } from "@/lib/domain";
 import ClientBoard from "./ClientBoard";
 
 export const dynamic = "force-dynamic";
@@ -27,6 +28,7 @@ export default async function KlientiPage({
       clients={clients}
       contactsByClient={contactsByClient}
       siteUrl={siteUrl()}
+      today={todayKeyPrague()}
       highlightId={otevrit}
     />
   );

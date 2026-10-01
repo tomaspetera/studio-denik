@@ -130,6 +130,21 @@
   font-variant-numeric: tabular-nums;
 }
 
+.stepLine {
+  margin: 0;
+  padding: 8px var(--s5);
+  border-top: 1px solid var(--line);
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s3);
+  font-size: 12.5px;
+}
+.stepLine span { color: var(--muted); flex: none; }
+.stepLine b { font-weight: 600; text-align: right; overflow-wrap: anywhere; }
+.stepLate { background: var(--alarm-soft); }
+.stepLate b { color: var(--alarm); }
+
 .link {
   border-top: 1px solid var(--line);
   background: var(--grad-sunk);

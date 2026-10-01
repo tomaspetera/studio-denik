@@ -2,7 +2,15 @@
 
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { LEAD_STATUSES, LEAD_STATUS_LABEL, LEAD_STATUS_HINT, czk, type LeadStatus } from "@/lib/domain";
+import {
+  LEAD_STATUSES,
+  LEAD_STATUS_LABEL,
+  LEAD_STATUS_HINT,
+  czk,
+  csDateFromKey,
+  type DateKey,
+  type LeadStatus,
+} from "@/lib/domain";
 import type { Lead } from "@/lib/leads";
 import {
   createLeadAction,
@@ -23,7 +31,16 @@ import styles from "./leads.module.css";
  * ale bez kontroly platnosti cíle: na rozdíl od typu úkolu tu není nic,
  * co by některý přechod zakazovalo.
  */
-export default function LeadBoard({ leads, highlightId }: { leads: Lead[]; highlightId?: string }) {
+export default function LeadBoard({
+  leads,
+  today,
+  highlightId,
+}: {
+  leads: Lead[];
+  /** Dnešek podle Prahy, počítaný na serveru — prohlížeč by ho mohl mít v jiném pásmu. */
+  today: DateKey;
+  highlightId?: string;
+}) {
   const router = useRouter();
   const [composer, setComposer] = useState(false);
   const [editLead, setEditLead] = useState<Lead | null>(null);
@@ -121,6 +138,7 @@ export default function LeadBoard({ leads, highlightId }: { leads: Lead[]; highl
                   <LeadCard
                     key={lead.id}
                     lead={lead}
+                    today={today}
                     dragging={draggingId === lead.id}
                     highlighted={highlighted === lead.id}
                     onDragStart={() => setDraggingId(lead.id)}
@@ -151,6 +169,7 @@ export default function LeadBoard({ leads, highlightId }: { leads: Lead[]; highl
 
 function LeadCard({
   lead,
+  today,
   dragging,
   highlighted,
   onDragStart,
@@ -160,6 +179,7 @@ function LeadCard({
   onConvert,
 }: {
   lead: Lead;
+  today: DateKey;
   dragging: boolean;
   highlighted: boolean;
   onDragStart: () => void;
@@ -192,6 +212,18 @@ function LeadCard({
           </span>
         )}
       </button>
+
+      {(lead.status === "poptavka" || lead.status === "nabidka") &&
+        (lead.nextStepAt ? (
+          <span
+            className={`${styles.cardStep} ${lead.nextStepAt < today ? styles.cardStepLate : ""}`}
+            title={lead.nextStepAt < today ? "Krok je po termínu" : "Další krok"}
+          >
+            {lead.nextStep} · {csDateFromKey(lead.nextStepAt)}
+          </span>
+        ) : (
+          <span className={styles.cardNoStep}>bez dalšího kroku</span>
+        ))}
 
       {lead.status === "vyhrano" && (
         lead.clientId ? (
@@ -238,6 +270,8 @@ function Composer({
   const [phone, setPhone] = useState(lead?.phone ?? "");
   const [amount, setAmount] = useState(lead?.amount != null ? String(lead.amount) : "");
   const [note, setNote] = useState(lead?.note ?? "");
+  const [nextStep, setNextStep] = useState(lead?.nextStep ?? "");
+  const [nextStepAt, setNextStepAt] = useState(lead?.nextStepAt ?? "");
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
@@ -248,7 +282,7 @@ function Composer({
       setError("Částka musí být číslo.");
       return;
     }
-    const form = { name, company, contact, email, phone, amount: parsedAmount, note };
+    const form = { name, company, contact, email, phone, amount: parsedAmount, note, nextStep, nextStepAt };
     startTransition(async () => {
       const res = editing ? await updateLeadAction({ id: lead!.id, ...form }) : await createLeadAction(form);
       if (res.ok) onSaved();
@@ -339,6 +373,32 @@ function Composer({
             onChange={(e) => setEmail(e.target.value)}
             placeholder="jana@novakavarna.cz"
           />
+
+          <div className={styles.grid2} style={{ marginTop: "var(--s5)" }}>
+            <div>
+              <label className={styles.label} htmlFor="l-step">
+                Další krok <span className={styles.optional}>co se má stát</span>
+              </label>
+              <input
+                id="l-step"
+                className="field"
+                value={nextStep}
+                onChange={(e) => setNextStep(e.target.value)}
+                placeholder="Poslat nabídku"
+              />
+            </div>
+            <div>
+              <label className={styles.label} htmlFor="l-step-at">Kdy</label>
+              <input
+                id="l-step-at"
+                type="date"
+                className="field"
+                value={nextStepAt}
+                onChange={(e) => setNextStepAt(e.target.value)}
+              />
+            </div>
+          </div>
+          <p className={styles.hintSmall}>Obojí, nebo nic. Po tomhle dni se poptávka ozve na Dnes.</p>
 
           <label className={styles.label} style={{ marginTop: "var(--s5)" }} htmlFor="l-note">Poznámka</label>
           <textarea

@@ -42,6 +42,8 @@ type ClientForm = {
   dic: string;
   address: string;
   relationship: string;
+  nextStep: string;
+  nextStepAt: string;
 };
 
 export async function createClientAction(form: ClientForm): Promise<ActionResult> {

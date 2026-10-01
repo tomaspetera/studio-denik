@@ -1,6 +1,8 @@
 import webpush from "web-push";
 import { supabaseAdmin } from "@/lib/supabase/server";
 import { dateKeyUTC, todayKeyPrague, addDaysKey } from "@/lib/domain";
+import { loadAttention } from "@/lib/attention-data";
+import { actionableCount } from "@/lib/attention";
 
 /**
  * Ranní souhrn — jednou denně, přes Vercel Cron (viz vercel.json).
@@ -56,7 +58,11 @@ export async function GET(request: Request) {
     const dueToday = rows.filter((t) => t.ball !== "done" && !t.is_late && t.due_at && dateKeyUTC(t.due_at) === today).length;
     const dueTomorrow = rows.filter((t) => t.ball !== "done" && t.due_at && dateKeyUTC(t.due_at) === tomorrow).length;
 
-    if (overdue === 0 && dueToday === 0 && dueTomorrow === 0) continue;
+    // Do pushe jen to, co si člověk sám slíbil nebo nechal ležet (viz
+    // `actionableCount`) — ticho u klienta se ukazuje jen na Dnes.
+    const attention = actionableCount((await loadAttention(supabase, org.id as string, today)).items);
+
+    if (overdue === 0 && dueToday === 0 && dueTomorrow === 0 && attention === 0) continue;
 
     const { data: subs } = await supabase
       .from("push_subscriptions")
@@ -68,6 +74,7 @@ export async function GET(request: Request) {
     if (dueToday > 0) parts.push(`dnes končí ${dueToday}`);
     if (dueTomorrow > 0) parts.push(`zítra ${dueTomorrow}`);
     if (overdue > 0) parts.push(`po termínu ${overdue}`);
+    if (attention > 0) parts.push(`chce pozornost ${attention}`);
 
     const payload = JSON.stringify({
       title: "Studio Deník",

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { BALL_LABEL, CLIENT_COLORS, csDate } from "@/lib/domain";
+import { BALL_LABEL, CLIENT_COLORS, csDate, csDateFromKey, type DateKey } from "@/lib/domain";
 import { isValidIco, normalizeIco } from "@/lib/ares";
 import type { ClientRow } from "@/lib/clients";
 import type { ClientContact } from "@/lib/client-contacts";
@@ -45,11 +45,14 @@ export default function ClientBoard({
   clients,
   contactsByClient,
   siteUrl,
+  today,
   highlightId,
 }: {
   clients: ClientRow[];
   contactsByClient: Record<string, ClientContact[]>;
   siteUrl: string;
+  /** Dnešek podle Prahy, počítaný na serveru — prohlížeč by ho mohl mít v jiném pásmu. */
+  today: DateKey;
   /** Přichází z globálního hledání — rovnou odskroluje na tohohle klienta. */
   highlightId?: string;
 }) {
@@ -221,6 +224,16 @@ export default function ClientBoard({
                   </div>
                 </dl>
 
+                {c.next_step_at && (
+                  <p
+                    className={`${styles.stepLine} ${c.next_step_at < today ? styles.stepLate : ""}`}
+                    title={c.next_step_at < today ? "Krok je po termínu" : "Další krok"}
+                  >
+                    <span>Další krok</span>
+                    <b>{c.next_step} · {csDateFromKey(c.next_step_at)}</b>
+                  </p>
+                )}
+
                 <footer className={styles.link}>
                   <code>/s/{c.share_token.slice(0, 10)}…</code>
                   <button type="button" className="btn btn-sm" onClick={() => copyLink(c.share_token)}>
@@ -366,6 +379,8 @@ function Composer({
   const [dic, setDic] = useState(client?.dic ?? "");
   const [address, setAddress] = useState(client?.address ?? "");
   const [relationship, setRelationship] = useState(client?.relationship ?? "");
+  const [nextStep, setNextStep] = useState(client?.next_step ?? "");
+  const [nextStepAt, setNextStepAt] = useState(client?.next_step_at ?? "");
   const [error, setError] = useState<string | null>(null);
   const [aresNote, setAresNote] = useState<string | null>(null);
   const [aresErr, setAresErr] = useState<string | null>(null);
@@ -402,7 +417,7 @@ function Composer({
 
   function save() {
     setError(null);
-    const form = { name, color, contact, email, note, ico, dic, address, relationship };
+    const form = { name, color, contact, email, note, ico, dic, address, relationship, nextStep, nextStepAt };
     startTransition(async () => {
       const res = editing
         ? await updateClientAction({ id: client!.id, ...form })
@@ -573,6 +588,35 @@ function Composer({
             onChange={(e) => setNote(e.target.value)}
             placeholder="Nepovinné"
           />
+
+          <div className={styles.grid2}>
+            <div>
+              <label className={styles.label} htmlFor="c-step">
+                Další krok <span className={styles.optional}>co se má stát</span>
+              </label>
+              <input
+                id="c-step"
+                className="field"
+                value={nextStep}
+                onChange={(e) => setNextStep(e.target.value)}
+                placeholder="Ozvat se kvůli novému projektu"
+              />
+            </div>
+            <div>
+              <label className={styles.label} htmlFor="c-step-at">Kdy</label>
+              <input
+                id="c-step-at"
+                type="date"
+                className="field"
+                value={nextStepAt}
+                onChange={(e) => setNextStepAt(e.target.value)}
+              />
+            </div>
+          </div>
+          <p className={styles.hintSmall}>
+            Obojí, nebo nic. Dokud ten den nepřijde, klient se na Dnes neozve ani
+            když je s ním dlouho ticho — takhle ho můžeš odložit.
+          </p>
 
           {error && <p className={styles.error} role="alert">{error}</p>}
         </div>
