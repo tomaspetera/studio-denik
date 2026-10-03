@@ -304,6 +304,30 @@
   .reading { animation: none; }
 }
 
+/* Poptávka z e-mailu: stejná pole a pořadí jako formulář v Poptávkách. */
+.leadForm :global(.field) { width: 100%; }
+.leadForm label { margin-top: var(--s4); }
+.leadForm label:first-child { margin-top: 0; }
+
+.leadGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 var(--s4);
+}
+
+/* Návrh odpovědi: čte se jako dopis, ne jako pole formuláře. */
+.replyText {
+  width: 100%;
+  resize: vertical;
+  min-height: 180px;
+  line-height: 1.6;
+  font-size: 13.5px;
+}
+
+@media (max-width: 520px) {
+  .leadGrid { grid-template-columns: minmax(0, 1fr); }
+}
+
 /* Tři tlačítka se na telefonu vedle sebe nevejdou a zalomila by se nahodile.
    Proto pod sebou přes celou šířku, hlavní akce nahoře. */
 @media (max-width: 520px) {

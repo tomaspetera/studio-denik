@@ -1,5 +1,6 @@
 import "server-only";
 
+import { randomBytes } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { supabaseServer } from "./supabase/server";
 import { decryptToken, encryptToken } from "./mail-crypto";
@@ -17,6 +18,17 @@ import {
 import { triage, type ClientContact, type MailStatus } from "./mail-rules";
 import { prepareBody, type PreparedBody } from "./mail-body";
 import { MAIL_MAX_TASKS, buildMailPrompt, finishMailProposals } from "./mail-capture";
+import {
+  REPLY_JSON_SCHEMA,
+  assembleReply,
+  buildReplyPrompt,
+  missingParts,
+  riskyParts,
+  riskyWarning,
+  unverifiedNumbers,
+} from "./mail-reply";
+import { LEAD_JSON_SCHEMA, buildLeadPrompt, finishLeadDraft, sanitizeLeadDraft, type LeadDraft } from "./mail-lead";
+import { createLead } from "./leads";
 import { CAPTURE_JSON_SCHEMA, normalizeProposals, type CaptureResult } from "./capture";
 import { createProposedTasks, knownAiError } from "./capture-data";
 import { availableProviders, extractJson } from "./ai";
@@ -386,19 +398,32 @@ export async function setMailAiConsent(userId: string, on: boolean): Promise<Act
   return { ok: true };
 }
 
-export type MailProposeResult =
-  | ({ ok: true } & CaptureResult)
-  // `needsConsent`: nejde o chybu, jen se nejdřív musí zeptat na souhlas.
-  | { ok: false; message: string; needsConsent?: boolean };
+/** Neúspěch u čehokoli, kde AI čte e-mail. `needsConsent`: nejde o chybu, jen se nejdřív musí zeptat na souhlas. */
+type AiFail = { ok: false; message: string; needsConsent?: boolean };
+
+/** Zpráva i s textem, připravená pro AI. Text se nikam neukládá. */
+type MailWithBody = {
+  fromName: string | null;
+  fromEmail: string;
+  subject: string | null;
+  receivedAt: string;
+  clientId: string | null;
+  telo: PreparedBody;
+};
 
 /**
- * E-mail → návrh úkolů. Nic nezakládá a nic neukládá.
+ * Společný začátek všeho, k čemu AI potřebuje číst e-mail: návrh úkolu,
+ * poptávky i odpovědi.
  *
- * Jediné místo, kde appka čte text zprávy a kde data z Gmailu opouštějí
- * appku směrem k AI. Proto se tu souhlas kontroluje na serveru a dřív, než
- * se cokoli z Gmailu načte — tlačítko v prohlížeči je jen pohodlí, ne pojistka.
+ * Jediné místo, kde appka čte text zprávy a odkud data z Gmailu míří k AI.
+ * Proto se tu souhlas kontroluje na serveru a dřív, než se cokoli z Gmailu
+ * načte — tlačítko v prohlížeči je jen pohodlí, ne pojistka.
  */
-export async function proposeFromMail(orgId: string, userId: string, mailId: string): Promise<MailProposeResult> {
+async function nactiProAi(
+  userId: string,
+  mailId: string,
+  opts: { bezUkolu?: boolean } = {},
+): Promise<({ ok: true } & MailWithBody) | AiFail> {
   const supabase = await supabaseServer();
 
   const [{ data: ucet }, { data: zprava }] = await Promise.all([
@@ -412,9 +437,9 @@ export async function proposeFromMail(orgId: string, userId: string, mailId: str
   ]);
 
   if (!ucet) return { ok: false, message: "Schránka není připojená." };
-  if (!ucet.ai_consent_at) return { ok: false, needsConsent: true, message: "Návrh úkolu pomocí AI není povolený." };
+  if (!ucet.ai_consent_at) return { ok: false, needsConsent: true, message: "Pomoc AI s e-mailem není povolená." };
   if (!zprava) return { ok: false, message: "Zpráva se nenašla." };
-  if (zprava.task_id) return { ok: false, message: "Z téhle zprávy už úkol vznikl." };
+  if (opts.bezUkolu && zprava.task_id) return { ok: false, message: "Z téhle zprávy už úkol vznikl." };
   if (!isMailAiAvailable()) return { ok: false, message: "Na serveru chybí klíč ke Gemini (GEMINI_API_KEY)." };
 
   let telo: PreparedBody;
@@ -438,6 +463,40 @@ export async function proposeFromMail(orgId: string, userId: string, mailId: str
     };
   }
 
+  return {
+    ok: true,
+    fromName: zprava.from_name as string | null,
+    fromEmail: zprava.from_email as string,
+    subject: zprava.subject as string | null,
+    receivedAt: zprava.received_at as string,
+    clientId: zprava.client_id as string | null,
+    telo,
+  };
+}
+
+/** Známou chybu AI řekne přesně, neznámou obecně. `rada` je, co zkusit místo toho. */
+function aiSelhala(e: unknown, co: string, rada: string): AiFail {
+  const known = knownAiError(e);
+  // Do záznamu jen druh chyby — nikdy nic, co by mohlo nést obsah e-mailu.
+  if (!known) console.error(`${co} selhal:`, e instanceof Error ? e.name : typeof e);
+  return { ok: false, message: known ?? `AI se nepodařilo e-mail zpracovat. ${rada}` };
+}
+
+/** Co AI neviděla — ať se podle toho člověk při kontrole zařídí. */
+function coNevidela(telo: PreparedBody): string[] {
+  const out: string[] = [];
+  if (telo.truncated) out.push("E-mail je dlouhý, AI četla jen jeho začátek.");
+  if (telo.attachments > 0) out.push("E-mail má přílohy — ty AI nečte.");
+  return out;
+}
+
+export type MailProposeResult = ({ ok: true } & CaptureResult) | AiFail;
+
+/** E-mail → návrh úkolů. Nic nezakládá a nic neukládá. */
+export async function proposeFromMail(orgId: string, userId: string, mailId: string): Promise<MailProposeResult> {
+  const z = await nactiProAi(userId, mailId, { bezUkolu: true });
+  if (!z.ok) return z;
+
   const [clients, categories] = await Promise.all([listClients(orgId), listCategories(orgId)]);
   const ctx = {
     today: todayKeyPrague(),
@@ -447,17 +506,17 @@ export async function proposeFromMail(orgId: string, userId: string, mailId: str
 
   // Klient poznaný podle adresy se použije jen tehdy, když ještě existuje
   // a není archivovaný — jinak by se úkol při zakládání odmítl.
-  const klient = ctx.clients.find((c) => c.id === (zprava.client_id as string | null)) ?? null;
+  const klient = ctx.clients.find((c) => c.id === z.clientId) ?? null;
 
   const { system, prompt } = buildMailPrompt(
     {
-      fromName: zprava.from_name as string | null,
-      fromEmail: zprava.from_email as string,
-      subject: zprava.subject as string | null,
-      sentOn: dateKeyPrague(zprava.received_at as string),
-      body: telo.text,
-      truncated: telo.truncated,
-      attachments: telo.attachments,
+      fromName: z.fromName,
+      fromEmail: z.fromEmail,
+      subject: z.subject,
+      sentOn: dateKeyPrague(z.receivedAt),
+      body: z.telo.text,
+      truncated: z.telo.truncated,
+      attachments: z.telo.attachments,
       clientName: klient?.name ?? null,
     },
     ctx,
@@ -471,17 +530,176 @@ export async function proposeFromMail(orgId: string, userId: string, mailId: str
       ...finishMailProposals(navrh, {
         today: ctx.today,
         defaultClientId: klient?.id ?? null,
-        truncated: telo.truncated,
-        attachments: telo.attachments,
-        sender: { name: zprava.from_name as string | null, email: zprava.from_email as string },
+        truncated: z.telo.truncated,
+        attachments: z.telo.attachments,
+        sender: { name: z.fromName, email: z.fromEmail },
       }),
     };
   } catch (e) {
-    const known = knownAiError(e);
-    // Do záznamu jen druh chyby — nikdy nic, co by mohlo nést obsah e-mailu.
-    if (!known) console.error("Návrh úkolu z e-mailu selhal:", e instanceof Error ? e.name : typeof e);
-    return { ok: false, message: known ?? "AI se nepodařilo e-mail zpracovat. Zkus to znovu, nebo založ úkol bez AI." };
+    return aiSelhala(e, "Návrh úkolu z e-mailu", "Zkus to znovu, nebo založ úkol bez AI.");
   }
+}
+
+export type MailReplyResult =
+  | {
+      ok: true;
+      reply: string;
+      /** Co musí člověk doplnit sám, než odpověď odešle. */
+      missing: string[];
+      /** Upozornění na platební údaj, odkaz nebo adresu, které v pokynu nebyly. */
+      risk: string | null;
+      /** Čísla v návrhu, která nejsou z pokynu — ke kontrole před odesláním. */
+      numbers: string[];
+      warnings: string[];
+    }
+  | AiFail;
+
+/**
+ * E-mail → návrh odpovědi. Appka ho neodesílá ani neukládá: je to koncept,
+ * který si člověk přečte, upraví a v Gmailu odešle sám. `hint` je to, co
+ * chce sdělit, stačí heslovitě; může být prázdný.
+ */
+export async function draftReplyFromMail(userId: string, mailId: string, hint: unknown): Promise<MailReplyResult> {
+  const z = await nactiProAi(userId, mailId);
+  if (!z.ok) return z;
+
+  const supabase = await supabaseServer();
+  const { data: profil } = await supabase.from("profiles").select("full_name").eq("id", userId).maybeSingle();
+
+  const pokyn = typeof hint === "string" ? hint : "";
+
+  const { system, prompt } = buildReplyPrompt({
+    today: todayKeyPrague(),
+    fromName: z.fromName,
+    fromEmail: z.fromEmail,
+    subject: z.subject,
+    sentOn: dateKeyPrague(z.receivedAt),
+    body: z.telo.text,
+    truncated: z.telo.truncated,
+    attachments: z.telo.attachments,
+    hint: pokyn,
+    // Pro každé volání nový kód: ohraničuje pokyn uživatele tak, aby ho
+    // odesílatel e-mailu nemohl napodobit (viz `mail-reply.ts`).
+    nonce: randomBytes(8).toString("hex"),
+  });
+
+  try {
+    // Opatrné volání: návrh půjde ven pod jménem uživatele a e-mail psal
+    // někdo cizí — lehký model se tu dá textem e-mailu přemluvit.
+    const raw = await extractJson("gemini", system, prompt, REPLY_JSON_SCHEMA as unknown as Record<string, unknown>, {
+      careful: true,
+    });
+    const slozeno = assembleReply(raw, (profil?.full_name as string | null) ?? null);
+    if (!slozeno) return { ok: false, message: "AI nevrátila žádný text. Zkus to znovu." };
+    return {
+      ok: true,
+      reply: slozeno.text,
+      missing: missingParts(slozeno.text),
+      risk: riskyWarning(riskyParts(slozeno.text, pokyn)),
+      numbers: unverifiedNumbers(slozeno.text, pokyn),
+      warnings: coNevidela(z.telo),
+    };
+  } catch (e) {
+    return aiSelhala(e, "Návrh odpovědi", "Zkus to znovu.");
+  }
+}
+
+export type MailLeadResult = { ok: true; draft: LeadDraft; warnings: string[] } | AiFail;
+
+/** E-mail → návrh poptávky. Nic nezakládá a nic neukládá. */
+export async function proposeLeadFromMail(orgId: string, userId: string, mailId: string): Promise<MailLeadResult> {
+  const z = await nactiProAi(userId, mailId, { bezUkolu: true });
+  if (!z.ok) return z;
+
+  const today = todayKeyPrague();
+  const { system, prompt } = buildLeadPrompt(
+    {
+      fromName: z.fromName,
+      fromEmail: z.fromEmail,
+      subject: z.subject,
+      sentOn: dateKeyPrague(z.receivedAt),
+      body: z.telo.text,
+      truncated: z.telo.truncated,
+      attachments: z.telo.attachments,
+    },
+    today,
+  );
+
+  try {
+    const raw = await extractJson("gemini", system, prompt, LEAD_JSON_SCHEMA as unknown as Record<string, unknown>);
+    const { draft, warnings } = finishLeadDraft(raw, {
+      today,
+      sender: { name: z.fromName, email: z.fromEmail },
+      subject: z.subject,
+      truncated: z.telo.truncated,
+      attachments: z.telo.attachments,
+    });
+
+    // Otevřená poptávka od stejné adresy už existuje — tohle je nejspíš její
+    // pokračování, ne nová. Jen upozornění, rozhodnutí je na člověku.
+    const supabase = await supabaseServer();
+    const { data: stejna } = await supabase
+      .from("leads")
+      .select("name")
+      .eq("org_id", orgId)
+      .ilike("email", draft.email.replace(/[\\%_]/g, "\\$&"))
+      .in("status", ["poptavka", "nabidka"])
+      .limit(1);
+    if (stejna?.length) warnings.unshift(`Od téhle adresy už otevřenou poptávku máš: „${stejna[0].name as string}“.`);
+
+    return { ok: true, draft, warnings };
+  } catch (e) {
+    return aiSelhala(e, "Návrh poptávky z e-mailu", "Zkus to znovu, nebo poptávku založ ručně v Poptávkách.");
+  }
+}
+
+/**
+ * Založení poptávky navržené z e-mailu. Návrh prošel přes prohlížeč, takže
+ * se před založením kontroluje znovu. Zpráva se tím označí za vyřízenou —
+ * dál ji hlídá další krok u poptávky.
+ */
+export async function createLeadFromMail(
+  orgId: string,
+  userId: string,
+  mailId: string,
+  input: unknown,
+): Promise<ActionResult> {
+  const check = sanitizeLeadDraft(input);
+  if (!check.ok) return check;
+
+  const supabase = await supabaseServer();
+  const { data: zprava } = await supabase
+    .from("mail_messages")
+    .select("handled_at")
+    .eq("id", mailId)
+    .eq("user_id", userId)
+    .maybeSingle();
+  if (!zprava) return { ok: false, message: "Zpráva se nenašla." };
+  // Dvojí kliknutí nesmí založit poptávku dvakrát.
+  if (zprava.handled_at) return { ok: false, message: "Tahle zpráva už je vyřízená." };
+
+  const f = check.fields;
+  const zalozeno = await createLead({
+    orgId,
+    name: f.name,
+    company: f.company,
+    contact: f.contact,
+    email: f.email || null,
+    phone: f.phone,
+    note: f.note,
+    nextStep: f.nextStep,
+    nextStepAt: f.nextStepAt,
+  });
+  if (!zalozeno.ok) return zalozeno;
+
+  await supabase
+    .from("mail_messages")
+    .update({ handled_at: new Date().toISOString() })
+    .eq("id", mailId)
+    .eq("user_id", userId);
+
+  revalidatePath("/", "layout");
+  return { ok: true };
 }
 
 /**

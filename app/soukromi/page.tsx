@@ -50,15 +50,15 @@ export default function SoukromiPage() {
           </li>
           <li>
             Text zprávy aplikace načte jen u jedné konkrétní zprávy, a to ve chvíli, kdy u ní sám
-            klikneš na „Udělat úkol“ a máš zapnutý návrh úkolu pomocí umělé inteligence (viz níže).
-            Přílohy nečte nikdy.
+            klikneš na „Udělat úkol“ nebo „Návrh odpovědi“ a máš zapnutou pomoc umělé inteligence
+            (viz níže). Přílohy nečte nikdy.
           </li>
           <li>
             Aplikace <strong>nikdy nic neodesílá, nemaže ani neupravuje</strong> a nevytváří koncepty.
           </li>
           <li>
             Data z Gmailu slouží jen k tomu, co v aplikaci vidíš: přehled zpráv, které čekají na
-            odpověď, přiřazení zpráv ke klientům a návrh úkolu ze zprávy.
+            odpověď, přiřazení zpráv ke klientům a návrh úkolu, poptávky nebo odpovědi ze zprávy.
           </li>
         </ul>
 
@@ -66,10 +66,12 @@ export default function SoukromiPage() {
         <p>
           U každé zprávy se ukládá odesílatel, předmět, datum přijetí, stav (čeká na odpověď,
           vyřízeno), identifikátor zprávy a vlákna (kvůli odkazu do Gmailu) a klient, ke kterému
-          zpráva patří. <strong>Text zprávy se neukládá</strong> — ani tehdy, když si z ní necháš
-          navrhnout úkol. Uloží se až úkol, který sám potvrdíš: jeho název a poznámka se
-          shrnutím a s odesílatelem zprávy. Obojí můžeš před uložením přepsat. Přihlašovací token ke Gmailu se ukládá šifrovaně a je přístupný
-          jen serveru aplikace, nikdy prohlížeči.
+          zpráva patří. <strong>Text zprávy se neukládá</strong> — ani tehdy, když ti s ní pomáhá
+          umělá inteligence. Uloží se až úkol nebo poptávka, které sám potvrdíš: název, krátké
+          shrnutí a kontaktní údaje odesílatele (jméno a adresa, u poptávky i firma a telefon,
+          pokud je uvedl). Všechno můžeš před uložením přepsat. Návrh odpovědi se neukládá vůbec.
+          Přihlašovací token ke Gmailu se ukládá šifrovaně a je přístupný jen serveru aplikace,
+          nikdy prohlížeči.
         </p>
 
         <h2>Data z Gmailu a umělá inteligence</h2>
@@ -80,12 +82,14 @@ export default function SoukromiPage() {
           odpověď.
         </p>
         <p>
-          Návrh úkolu pomocí umělé inteligence je volitelná funkce. Majitel schránky ji musí
+          Pomoc umělé inteligence s e-mailem je volitelná funkce. Majitel schránky ji musí
           výslovně povolit a může ji kdykoli vypnout v nastavení pošty. Je-li zapnutá a klikneš
-          u zprávy na „Udělat úkol“, odešle se odesílatel, předmět, datum a text <strong>této jedné
-          zprávy</strong> (bez příloh) ke zpracování službě Google Gemini API, která vrátí návrh
-          úkolu. Děje se to jen na tvoje kliknutí, nikdy automaticky ani hromadně, a úkol vznikne
-          až po tvém potvrzení.
+          u zprávy na „Udělat úkol“ nebo „Návrh odpovědi“, odešle se odesílatel, předmět, datum
+          a text <strong>této jedné zprávy</strong> (bez příloh) ke zpracování službě Google Gemini
+          API, která vrátí návrh úkolu, záznamu poptávky nebo odpovědi. U návrhu odpovědi se odešle
+          i to, co do okna sám napíšeš jako pokyn. Děje se to jen na tvoje kliknutí, nikdy
+          automaticky ani hromadně. Úkol nebo poptávka vzniknou až po tvém potvrzení; odpověď
+          aplikace neodesílá — zkopíruješ si ji do Gmailu sám.
         </p>
         <p>
           Službu Gemini API používáme v placeném režimu, ve kterém Google podle svých podmínek
@@ -107,8 +111,8 @@ export default function SoukromiPage() {
         <ul>
           <li>Supabase (databáze) a Vercel (hosting): provoz aplikace.</li>
           <li>
-            Google (Gemini API): zpracování textu při návrhu úkolu ze zprávy, shrnutí reportu
-            a převodu poznámek na úkoly — jen v rozsahu popsaném výše.
+            Google (Gemini API): zpracování textu při návrhu úkolu, poptávky nebo odpovědi ze
+            zprávy, shrnutí reportu a převodu poznámek na úkoly — jen v rozsahu popsaném výše.
           </li>
           <li>
             Data neprodáváme, nepoužíváme k reklamě a kromě uvedených poskytovatelů je nikomu
@@ -157,11 +161,13 @@ export default function SoukromiPage() {
           <strong>By default, no Gmail data is sent to any artificial intelligence service.</strong>{" "}
           Triage is done by fixed rules inside the application. An optional feature, which the
           mailbox owner must explicitly enable and can turn off at any time, lets the user click
-          “Create task” on a single message: the sender, subject, date and text of that one message
-          (never attachments) are then sent to the Google Gemini API to propose a task. The task (a title and a
-          note with a short summary and the sender, both editable beforehand) is created only
-          after the user confirms it. This happens only on the user’s click, never
-          automatically or in bulk, and the message text is not stored. The Gemini API is used as a
+          “Create task” or “Draft reply” on a single message: the sender, subject, date and text of
+          that one message (never attachments), plus any instruction the user types for the reply,
+          are then sent to the Google Gemini API to propose a task, a sales-lead record or a reply
+          draft. A task or lead (a title, a short summary and the sender’s contact details, all
+          editable beforehand) is created only after the user confirms it. A reply draft is never
+          sent or stored by the app; the user copies it into Gmail. This happens only on the user’s
+          click, never automatically or in bulk, and the message text is not stored. The Gemini API is used as a
           paid service, under whose terms Google does not use the submitted content to improve its
           products or train models.{" "}
           <strong>

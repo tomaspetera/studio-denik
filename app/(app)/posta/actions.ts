@@ -1,19 +1,25 @@
 "use server";
 
 import {
+  createLeadFromMail,
   createTasksFromMail,
   disconnectMailbox,
+  draftReplyFromMail,
   ignoreSender,
   proposeFromMail,
+  proposeLeadFromMail,
   setHandled,
   setMailAiConsent,
   syncMailbox,
   taskFromMail,
   unignore,
   type ActionResult,
+  type MailLeadResult,
   type MailProposeResult,
+  type MailReplyResult,
 } from "@/lib/mail-data";
 import type { Proposal } from "@/lib/capture";
+import type { LeadDraft } from "@/lib/mail-lead";
 import { getWorkspace } from "@/lib/workspace";
 import { supabaseServer } from "@/lib/supabase/server";
 
@@ -70,6 +76,26 @@ export async function createTasksFromMailAction(id: string, items: Proposal[]): 
   const k = await kdo();
   if (!k) return NOT_READY;
   return createTasksFromMail(k.orgId, k.userId, id, items);
+}
+
+/** AI napíše koncept odpovědi na tuhle jednu zprávu. Nic neodesílá ani neukládá. */
+export async function draftReplyAction(id: string, hint: string): Promise<MailReplyResult> {
+  const k = await kdo();
+  if (!k) return NOT_READY;
+  return draftReplyFromMail(k.userId, id, hint);
+}
+
+/** AI z téhle jedné zprávy připraví podklady pro poptávku. Nic nezakládá. */
+export async function proposeLeadFromMailAction(id: string): Promise<MailLeadResult> {
+  const k = await kdo();
+  if (!k) return NOT_READY;
+  return proposeLeadFromMail(k.orgId, k.userId, id);
+}
+
+export async function createLeadFromMailAction(id: string, fields: LeadDraft): Promise<ActionResult> {
+  const k = await kdo();
+  if (!k) return NOT_READY;
+  return createLeadFromMail(k.orgId, k.userId, id, fields);
 }
 
 export async function ignoreSenderAction(pattern: string): Promise<ActionResult> {

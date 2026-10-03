@@ -116,9 +116,23 @@ a appka to řekne česky (`AiNoCredit` v `lib/ai.ts`) — dobíjí se v AI Studi
 v části Billing.
 
 **Pošta a AI.** Přehled pošty se obejde bez AI a čte z Gmailu jen hlavičky.
-Text zprávy se načte jen na kliknutí „Udělat úkol“ a jen se souhlasem majitele
-schránky (`mail_accounts.ai_consent_at`); posílá se výhradně do Gemini a nikam
-se neukládá. Pravidla Googlu pro data z Workspace API dovolují předat je jen
+Text zprávy se načte jen na kliknutí („Udělat úkol“, „Návrh odpovědi“) a jen
+se souhlasem majitele schránky (`mail_accounts.ai_consent_at`); posílá se
+výhradně do Gemini a nikam se neukládá. Z e-mailu vzniká návrh úkolu,
+poptávky nebo odpovědi — vždycky jen návrh, který člověk potvrdí, a odpověď
+appka nikdy neodesílá.
+
+**E-mail píše někdo cizí.** Text zprávy se k AI posílá jako data, ne jako
+pokyny, a u návrhu odpovědi jde pokyn uživatele odděleným kanálem se značkou,
+kterou odesílatel nezná (`lib/mail-reply.ts`). Návrh odpovědi navíc běží na
+větším modelu (`GEMINI_MODEL`), nikdy na lehkém: ten se v měření nechal
+textem e-mailu přemluvit zhruba v každém čtvrtém pokusu, větší ani jednou.
+Živá zkouška včetně pokusů o podvrh: `npm run test:aiposta` (vymyšlené
+e-maily, volá skutečný model, není v `npm test`).
+
+**Zkouška pošty bez schránky.** Při vývoji jde Gmail nahradit místní atrapou
+přes `GMAIL_TEST_API` a `GMAIL_TEST_TOKEN_URL` (`lib/gmail.ts`). V ostrém
+provozu se obě proměnné ignorují. Pravidla Googlu pro data z Workspace API dovolují předat je jen
 službě, která je nepoužívá k vylepšování modelů — proto má klíč patřit
 projektu na placené úrovni. Co appka z Gmailu čte a komu to předává, popisuje
 veřejná stránka `/soukromi`; kdykoli se to změní, musí se upravit zároveň.

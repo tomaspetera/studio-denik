@@ -292,6 +292,17 @@ export function pickProvider(): Provider | null {
 }
 
 /**
+ * `careful`: text ke zpracování napsal někdo cizí a výsledek půjde ven pod
+ * jménem uživatele (návrh odpovědi na e-mail). Lehký model se v takové
+ * situaci nechal textem e-mailu přemluvit zhruba v každém čtvrtém pokusu —
+ * do odpovědi připsal cizí číslo účtu nebo slevu, o které nikdo nemluvil.
+ * Větší model v témže měření ani jednou (3. 10. 2026, 0 ze 48). Proto se
+ * u opatrného volání lehký model nepoužije vůbec, ani jako záloha: lepší
+ * hláška „zkus to znovu“ než tichý návrat k modelu, který se dá zmást.
+ */
+export type ExtractOptions = { careful?: boolean };
+
+/**
  * Jedno volání, na které se odpoví hotovým JSON podle schématu. Schéma
  * dostane Claude přes structured outputs a Gemini přes `responseJsonSchema`,
  * obojí drží odpověď v daném tvaru. Co se v tom tvaru vrátí, ale nikdo
@@ -302,10 +313,11 @@ export async function extractJson(
   system: string,
   prompt: string,
   schema: Record<string, unknown>,
+  opts: ExtractOptions = {},
 ): Promise<unknown> {
   const text = provider === "claude"
     ? await extractJsonClaude(system, prompt, schema)
-    : await extractJsonGemini(system, prompt, schema);
+    : await extractJsonGemini(system, prompt, schema, opts);
 
   try {
     return JSON.parse(text);
@@ -356,6 +368,9 @@ const GEMINI_FAST_MODEL = process.env.GEMINI_FAST_MODEL || "gemini-3.1-flash-lit
  */
 const ATTEMPT_TIMEOUT_MS = 10_000;
 
+/** Kolik „přemýšlení“ má model u opatrného volání (viz `ExtractOptions`). */
+const CAREFUL_THINKING = 512;
+
 /**
  * Po jakém selhání má smysl zkusit jiný model: přetížení, vyčerpaná minutová
  * kvóta, vypršení času, nebo model, který tohle zadání nebere (404/400).
@@ -368,12 +383,18 @@ function worthTryingAnotherModel(e: unknown): boolean {
   return /"code":\s*(400|404)|not found|not supported/i.test(msg);
 }
 
-async function extractJsonGemini(system: string, prompt: string, schema: Record<string, unknown>): Promise<string> {
+async function extractJsonGemini(
+  system: string,
+  prompt: string,
+  schema: Record<string, unknown>,
+  opts: ExtractOptions = {},
+): Promise<string> {
   const key = process.env.GEMINI_API_KEY;
   if (!key) throw new AiNotConfigured("gemini");
 
   const ai = new GoogleGenAI({ apiKey: key });
-  const models = [...new Set([GEMINI_FAST_MODEL, GEMINI_MODEL])];
+  // Opatrné volání: dvakrát větší model, nikdy lehký (viz `ExtractOptions`).
+  const models = opts.careful ? [GEMINI_MODEL, GEMINI_MODEL] : [...new Set([GEMINI_FAST_MODEL, GEMINI_MODEL])];
   let last: unknown;
 
   for (const model of models) {
@@ -387,7 +408,9 @@ async function extractJsonGemini(system: string, prompt: string, schema: Record<
           responseJsonSchema: schema,
           // Přepis textu do úkolů žádné uvažování nepotřebuje. S výchozím
           // "přemýšlením" trvala odpověď 10–19 s, bez něj kolem 3–5 s.
-          thinkingConfig: { thinkingBudget: 0 },
+          // U opatrného volání má model krátký prostor na rozmyšlenou — pomáhá
+          // mu rozeznat podvržený pokyn a stojí to zlomek vteřiny.
+          thinkingConfig: { thinkingBudget: opts.careful ? CAREFUL_THINKING : 0 },
           httpOptions: { timeout: ATTEMPT_TIMEOUT_MS },
         },
       });
@@ -399,7 +422,7 @@ async function extractJsonGemini(system: string, prompt: string, schema: Record<
   }
 
   if (isNoCredit(last)) throw new AiNoCredit();
-  if (isQuotaError(last)) throw new AiQuotaExceeded("gemini", GEMINI_FAST_MODEL);
+  if (isQuotaError(last)) throw new AiQuotaExceeded("gemini", models[0]);
   if (isOverloaded(last) || isTimeout(last)) throw new AiOverloaded("gemini", models.length);
   throw last;
 }

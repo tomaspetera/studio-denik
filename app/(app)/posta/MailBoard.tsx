@@ -15,6 +15,7 @@ import {
   unignoreAction,
 } from "./actions";
 import MailTaskDialog, { useMailTask } from "./MailTaskDialog";
+import MailReplyDialog, { gmailThreadUrl, useMailReply } from "./MailReplyDialog";
 import styles from "./posta.module.css";
 
 type Filtr = "waiting" | "all" | "handled";
@@ -57,9 +58,9 @@ export default function MailBoard({
   ignored: { id: string; pattern: string }[];
   justConnected: boolean;
   error: string | null;
-  /** Na serveru je klíč ke Gemini, takže úkol jde navrhnout z obsahu e-mailu. */
+  /** Na serveru je klíč ke Gemini, takže AI může s e-mailem pomoct (úkol, poptávka, odpověď). */
   aiAvailable: boolean;
-  /** Od kdy je návrh pomocí AI povolený — hotový text, počítaný na serveru podle Prahy. */
+  /** Od kdy je pomoc AI povolená — hotový text, počítaný na serveru podle Prahy. */
   aiSince: string | null;
   clients: Client[];
   categories: Category[];
@@ -79,6 +80,7 @@ export default function MailBoard({
     setUspech(zprava);
     router.refresh();
   });
+  const odpoved = useMailReply();
 
   function run(fn: () => Promise<{ ok: boolean; message?: string; count?: number }>, poUspechu?: (r: { count?: number }) => string | null) {
     setHlaska(null);
@@ -119,8 +121,8 @@ export default function MailBoard({
           </p>
           <p>
             Podle adresy odesílatele pozná klienta a podle toho, kdo psal ve vlákně poslední,
-            pozná, že se čeká na tebe. Když budeš chtít, umí z e-mailu navrhnout úkol pomocí AI —
-            jen u zprávy, na kterou klikneš, a až to sám povolíš.
+            pozná, že se čeká na tebe. Když budeš chtít, umí z e-mailu pomocí AI navrhnout úkol,
+            poptávku nebo odpověď — jen u zprávy, na kterou klikneš, a až to sám povolíš.
           </p>
 
           {configured ? (
@@ -149,7 +151,7 @@ export default function MailBoard({
   /* ---------------- Připojeno ---------------- */
 
   const aiPovolena = Boolean(account.aiConsentAt);
-  const zaneprazdnen = pending || ukol.pending;
+  const zaneprazdnen = pending || ukol.pending || odpoved.pending;
 
   return (
     <div className={styles.wrap}>
@@ -189,18 +191,19 @@ export default function MailBoard({
 
           {aiAvailable && (
             <>
-              <h3 className={styles.sub3}>Návrh úkolu pomocí AI</h3>
+              <h3 className={styles.sub3}>Pomoc AI s e-mailem</h3>
               {aiPovolena ? (
                 <>
                   <p className={styles.note}>
-                    Zapnuto{aiSince ? ` od ${aiSince}` : ""}. Když u zprávy klikneš na „Udělat úkol“, její text
-                    se pošle do služby Google Gemini a ta z něj navrhne úkol. Text zprávy se neukládá.
+                    Zapnuto{aiSince ? ` od ${aiSince}` : ""}. Když u zprávy klikneš na „Udělat úkol“ nebo
+                    „Návrh odpovědi“, její text se pošle do služby Google Gemini a ta z něj navrhne úkol,
+                    poptávku nebo odpověď. Text zprávy se neukládá.
                   </p>
                   <button
                     type="button"
                     className="btn btn-sm"
                     disabled={zaneprazdnen}
-                    onClick={() => run(() => setMailAiConsentAction(false), () => "Návrh úkolu pomocí AI je vypnutý.")}
+                    onClick={() => run(() => setMailAiConsentAction(false), () => "Pomoc AI s e-mailem je vypnutá.")}
                   >
                     Vypnout
                   </button>
@@ -208,15 +211,16 @@ export default function MailBoard({
               ) : (
                 <>
                   <p className={styles.note}>
-                    Vypnuto — „Udělat úkol“ se nejdřív zeptá. Zapnutím dovolíš, aby se text zprávy,
-                    u které na tlačítko klikneš, poslal do služby Google Gemini a ta z něj navrhla úkol.
-                    Text zprávy se neukládá a nic se neděje samo ani hromadně.
+                    Vypnuto — „Udělat úkol“ i „Návrh odpovědi“ se nejdřív zeptají. Zapnutím dovolíš, aby
+                    se text zprávy, u které na tlačítko klikneš, poslal do služby Google Gemini a ta
+                    z něj navrhla úkol, poptávku nebo odpověď. Text zprávy se neukládá a nic se neděje
+                    samo ani hromadně.
                   </p>
                   <button
                     type="button"
                     className="btn btn-sm"
                     disabled={zaneprazdnen}
-                    onClick={() => run(() => setMailAiConsentAction(true), () => "Návrh úkolu pomocí AI je zapnutý.")}
+                    onClick={() => run(() => setMailAiConsentAction(true), () => "Pomoc AI s e-mailem je zapnutá.")}
                   >
                     Zapnout
                   </button>
@@ -305,7 +309,7 @@ export default function MailBoard({
               <div className={styles.actions}>
                 <a
                   className="btn btn-sm"
-                  href={`https://mail.google.com/mail/u/0/#inbox/${m.threadId}`}
+                  href={gmailThreadUrl(m.threadId)}
                   target="_blank"
                   rel="noopener noreferrer"
                 >
@@ -324,6 +328,17 @@ export default function MailBoard({
                   </button>
                 )}
                 {m.taskId && <span className={styles.tagTask}>úkol založen</span>}
+                {aiAvailable && !m.handledAt && (
+                  <button
+                    type="button"
+                    className="btn btn-sm"
+                    disabled={zaneprazdnen}
+                    title="AI napíše koncept odpovědi, odešleš ho sám v Gmailu"
+                    onClick={() => odpoved.open(m, aiPovolena)}
+                  >
+                    Návrh odpovědi
+                  </button>
+                )}
                 <button
                   type="button"
                   className="btn btn-sm"
@@ -350,6 +365,7 @@ export default function MailBoard({
       )}
 
       <MailTaskDialog task={ukol} clients={clients} categories={categories} today={today} />
+      <MailReplyDialog reply={odpoved} />
     </div>
   );
 }

@@ -18,6 +18,18 @@ import type { RawMessage } from "./mail-rules";
 
 export const GMAIL_SCOPE = "https://www.googleapis.com/auth/gmail.readonly";
 
+/**
+ * Adresy Googlu. Při vývoji je jde přesměrovat na místní atrapu Gmailu
+ * (`GMAIL_TEST_API`, `GMAIL_TEST_TOKEN_URL`), aby šel celý průchod poštou
+ * vyzkoušet v prohlížeči bez skutečné schránky.
+ *
+ * V ostrém provozu se přesměrování ignoruje, ať je v nastavení cokoli:
+ * přihlášení ke schránce nesmí odejít nikam jinam než ke Googlu.
+ */
+const VYVOJ = process.env.NODE_ENV !== "production";
+const GMAIL_API = (VYVOJ && process.env.GMAIL_TEST_API) || "https://gmail.googleapis.com/gmail/v1/users/me";
+const TOKEN_URL = (VYVOJ && process.env.GMAIL_TEST_TOKEN_URL) || "https://oauth2.googleapis.com/token";
+
 /** Doručená pošta bez reklamních a sociálních záložek. */
 const DOTAZ = "in:inbox -category:promotions -category:social";
 
@@ -88,7 +100,7 @@ type TokenOdpoved = {
 };
 
 async function tokenPozadavek(body: Record<string, string>): Promise<TokenOdpoved> {
-  const res = await fetch("https://oauth2.googleapis.com/token", {
+  const res = await fetch(TOKEN_URL, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams(body),
@@ -147,7 +159,7 @@ export async function revokeToken(refreshToken: string): Promise<void> {
 }
 
 async function gmailGet<T>(cesta: string, accessToken: string): Promise<T> {
-  const res = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/${cesta}`, {
+  const res = await fetch(`${GMAIL_API}/${cesta}`, {
     headers: { Authorization: `Bearer ${accessToken}` },
   });
 
