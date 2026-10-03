@@ -10,6 +10,7 @@ import {
   proposeLeadFromMail,
   setHandled,
   setMailAiConsent,
+  setMailAutoTriage,
   syncMailbox,
   taskFromMail,
   unignore,
@@ -34,7 +35,7 @@ async function kdo(): Promise<{ orgId: string; userId: string } | null> {
   return user ? { orgId: ws.orgId, userId: user.id } : null;
 }
 
-export async function syncMailAction(): Promise<ActionResult & { count?: number }> {
+export async function syncMailAction(): Promise<ActionResult & { count?: number; sorted?: number; note?: string }> {
   const k = await kdo();
   if (!k) return NOT_READY;
   return syncMailbox(k.orgId, k.userId);
@@ -63,6 +64,13 @@ export async function setMailAiConsentAction(on: boolean): Promise<ActionResult>
   const k = await kdo();
   if (!k) return NOT_READY;
   return setMailAiConsent(k.userId, on === true);
+}
+
+/** Zapnutí nebo vypnutí automatického třídění pošty podle priority — zvláštní souhlas. */
+export async function setMailAutoTriageAction(on: boolean): Promise<ActionResult> {
+  const k = await kdo();
+  if (!k) return NOT_READY;
+  return setMailAutoTriage(k.userId, on === true);
 }
 
 /** AI přečte tuhle jednu zprávu a navrhne úkoly. Nic nezakládá. */

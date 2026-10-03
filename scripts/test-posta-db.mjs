@@ -99,12 +99,69 @@ try {
   const { data: poPokusu } = await admin.from("mail_accounts").select("ai_consent_at").eq("user_id", A.userId).single();
   zkouska("AI: cizí souhlas", (ciziSouhlas ?? []).length === 0 && poPokusu?.ai_consent_at === null, "kolega nemůže dát souhlas za někoho jiného");
 
+  // --- Automatické třídění (migrace 0021) ------------------------------------------
+  // Širší souhlas: text nových zpráv jde do AI sám. Nesmí existovat bez toho
+  // základního — hlídá to databáze, ne jen appka.
+  const ted = () => new Date().toISOString();
+  const { error: autoBez } = await A.klient.from("mail_accounts").update({ ai_auto_at: ted() }).eq("user_id", A.userId);
+  zkouska("třídění: bez souhlasu", !!autoBez, "automatické třídění nejde zapnout bez pomoci AI");
+
+  const { data: oboji } = await A.klient
+    .from("mail_accounts")
+    .update({ ai_consent_at: ted(), ai_auto_at: ted() })
+    .eq("user_id", A.userId)
+    .select("ai_auto_at");
+  zkouska("třídění: s oběma souhlasy", !!oboji?.[0]?.ai_auto_at, "se základním souhlasem jde zapnout");
+
+  const { error: jenAuto } = await A.klient.from("mail_accounts").update({ ai_consent_at: null }).eq("user_id", A.userId);
+  zkouska("třídění: jen základní", !!jenAuto, "základní souhlas nejde odebrat, dokud třídění běží");
+
+  const { data: obojiPryc } = await A.klient
+    .from("mail_accounts")
+    .update({ ai_consent_at: null, ai_auto_at: null })
+    .eq("user_id", A.userId)
+    .select("ai_consent_at, ai_auto_at");
+  zkouska("třídění: vypnutí obojího", obojiPryc?.[0]?.ai_consent_at === null && obojiPryc?.[0]?.ai_auto_at === null, "oba souhlasy jdou odebrat najednou");
+
+  const { data: ciziAuto } = await B.klient
+    .from("mail_accounts")
+    .update({ ai_consent_at: ted(), ai_auto_at: ted() })
+    .eq("user_id", A.userId)
+    .select("id");
+  const { data: poCizim } = await admin.from("mail_accounts").select("ai_auto_at").eq("user_id", A.userId).single();
+  zkouska("třídění: cizí souhlas", (ciziAuto ?? []).length === 0 && poCizim?.ai_auto_at === null, "kolega nezapne třídění cizí pošty");
+
   // --- Zprávy -----------------------------------------------------------------
   const { error: zErr } = await A.klient.from("mail_messages").insert(zprava());
   zkouska("uložení zprávy", !zErr, zErr ? zErr.message : "vlastní zpráva se uloží");
 
   const { error: duplicita } = await A.klient.from("mail_messages").insert(zprava({ subject: "Jiný předmět" }));
   zkouska("stejná zpráva dvakrát", !!duplicita, "tatáž zpráva ze stejné schránky se neuloží podruhé");
+
+  // --- Zařazení a shrnutí od AI (migrace 0021) --------------------------------------
+  const { data: netridena } = await A.klient.from("mail_messages").select("priority, summary, ai_checked_at").eq("user_id", A.userId).eq("gmail_id", "g1").single();
+  zkouska("zařazení: výchozí", netridena?.priority === null && netridena?.summary === null && netridena?.ai_checked_at === null, "nová zpráva není zařazená ani shrnutá");
+
+  const { data: zarazena, error: zarErr } = await A.klient
+    .from("mail_messages")
+    .update({ priority: "urgent", summary: "Chtějí letáky do pátku.", ai_checked_at: new Date().toISOString() })
+    .eq("user_id", A.userId)
+    .eq("gmail_id", "g1")
+    .select("priority, summary");
+  zkouska("zařazení: uložení", !zarErr && zarazena?.[0]?.priority === "urgent" && zarazena?.[0]?.summary === "Chtějí letáky do pátku.", zarErr ? zarErr.message : "vlastní zprávu jde zařadit a shrnout");
+
+  const { error: spatnaPriorita } = await A.klient.from("mail_messages").update({ priority: "nejvyssi" }).eq("user_id", A.userId).eq("gmail_id", "g1");
+  zkouska("zařazení: neznámé", !!spatnaPriorita, "jiné zařazení než urgent/reply/info databáze nepřijme");
+
+  const { error: dlouheShrnuti } = await A.klient.from("mail_messages").update({ summary: "x".repeat(301) }).eq("user_id", A.userId).eq("gmail_id", "g1");
+  zkouska("zařazení: dlouhé shrnutí", !!dlouheShrnuti, "do shrnutí se nevejde celý e-mail — nejvýš 300 znaků");
+
+  const { data: smazano } = await A.klient
+    .from("mail_messages")
+    .update({ priority: null, summary: null, ai_checked_at: null })
+    .eq("user_id", A.userId)
+    .select("priority, summary");
+  zkouska("zařazení: smazání", smazano?.length === 1 && smazano[0].priority === null && smazano[0].summary === null, "vypnutím třídění jde zařazení i shrnutí smazat");
 
   const { data: ciziUcet } = await B.klient.from("mail_accounts").select("email").eq("user_id", A.userId);
   zkouska("kolega: schránka", (ciziUcet ?? []).length === 0, "kolega ze stejného studia schránku nevidí");

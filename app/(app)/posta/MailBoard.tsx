@@ -4,12 +4,14 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { csDate, plural, type DateKey } from "@/lib/domain";
 import type { MailRow } from "@/lib/mail-data";
+import { mailBucket, sortWaiting } from "@/lib/mail-buckets";
 import type { Category, Client } from "@/lib/tasks";
 import {
   disconnectMailAction,
   ignoreSenderAction,
   setHandledAction,
   setMailAiConsentAction,
+  setMailAutoTriageAction,
   syncMailAction,
   taskFromMailAction,
   unignoreAction,
@@ -18,7 +20,7 @@ import MailTaskDialog, { useMailTask } from "./MailTaskDialog";
 import MailReplyDialog, { gmailThreadUrl, useMailReply } from "./MailReplyDialog";
 import styles from "./posta.module.css";
 
-type Filtr = "waiting" | "all" | "handled";
+type Filtr = "waiting" | "fyi" | "all" | "handled";
 
 const CHYBY: Record<string, string> = {
   nenastaveno: "Na serveru chybí klíče ke Gmailu. Doplň je v nastavení a zkus to znovu.",
@@ -53,7 +55,7 @@ export default function MailBoard({
   today,
 }: {
   configured: boolean;
-  account: { email: string; lastSyncAt: string | null; aiConsentAt: string | null } | null;
+  account: { email: string; lastSyncAt: string | null; aiConsentAt: string | null; aiAutoAt: string | null } | null;
   messages: MailRow[];
   ignored: { id: string; pattern: string }[];
   justConnected: boolean;
@@ -82,7 +84,9 @@ export default function MailBoard({
   });
   const odpoved = useMailReply();
 
-  function run(fn: () => Promise<{ ok: boolean; message?: string; count?: number }>, poUspechu?: (r: { count?: number }) => string | null) {
+  type Vysledek = { ok: boolean; message?: string; count?: number; sorted?: number; note?: string };
+
+  function run(fn: () => Promise<Vysledek>, poUspechu?: (r: Vysledek) => string | null) {
     setHlaska(null);
     setUspech(null);
     startTransition(async () => {
@@ -93,10 +97,19 @@ export default function MailBoard({
     });
   }
 
-  const ceka = messages.filter((m) => m.status === "waiting" && !m.handledAt);
+  // Čeká na odpověď: co spěchá, je nahoře. Zprávy, které po mně nic nechtějí,
+  // mají vlastní záložku — nic se neschovává, jen se to nepočítá mezi resty.
+  const ceka = sortWaiting(messages.filter((m) => mailBucket(m) === "urgent" || mailBucket(m) === "reply"));
+  const proInformaci = messages.filter((m) => mailBucket(m) === "fyi");
   const vyrizene = messages.filter((m) => m.handledAt);
   const videt =
-    filtr === "waiting" ? ceka : filtr === "handled" ? vyrizene : messages.filter((m) => !m.handledAt);
+    filtr === "waiting"
+      ? ceka
+      : filtr === "fyi"
+        ? proInformaci
+        : filtr === "handled"
+          ? vyrizene
+          : messages.filter((m) => !m.handledAt);
 
   /* ---------------- Nepřipojeno ---------------- */
 
@@ -151,6 +164,7 @@ export default function MailBoard({
   /* ---------------- Připojeno ---------------- */
 
   const aiPovolena = Boolean(account.aiConsentAt);
+  const tridiSe = aiPovolena && Boolean(account.aiAutoAt);
   const zaneprazdnen = pending || ukol.pending || odpoved.pending;
 
   return (
@@ -171,7 +185,15 @@ export default function MailBoard({
             type="button"
             className="btn btn-primary"
             disabled={pending}
-            onClick={() => run(syncMailAction, (r) => `Načteno ${r.count ?? 0} ${plural(r.count ?? 0, "zpráva", "zprávy", "zpráv")}.`)}
+            onClick={() =>
+              run(syncMailAction, (r) => {
+                const nacteno = `Načteno ${r.count ?? 0} ${plural(r.count ?? 0, "zpráva", "zprávy", "zpráv")}`;
+                const trideno = r.sorted
+                  ? `, ${r.sorted} ${plural(r.sorted, "nová roztříděná", "nové roztříděné", "nových roztříděných")}`
+                  : "";
+                return `${nacteno}${trideno}.${r.note ? ` ${r.note}` : ""}`;
+              })
+            }
           >
             {pending ? "Načítám…" : "Obnovit"}
           </button>
@@ -207,6 +229,47 @@ export default function MailBoard({
                   >
                     Vypnout
                   </button>
+
+                  <h3 className={styles.sub3}>Automatické třídění podle priority</h3>
+                  {tridiSe ? (
+                    <>
+                      <p className={styles.note}>
+                        Zapnuto. Při každém načtení pošty se text nových zpráv, které čekají na tvou
+                        odpověď, pošle do služby Google Gemini. Ta určí, jestli zpráva spěchá, a jednou
+                        větou ji shrne. Ukládá se jen zařazení a shrnutí, text zprávy ne.
+                      </p>
+                      <button
+                        type="button"
+                        className="btn btn-sm"
+                        disabled={zaneprazdnen}
+                        onClick={() =>
+                          run(() => setMailAutoTriageAction(false), () => "Automatické třídění je vypnuté, zařazení i shrnutí jsou smazaná.")
+                        }
+                      >
+                        Vypnout třídění
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <p className={styles.note}>
+                        Vypnuto. Zapnutím dovolíš, aby se text nových zpráv, které čekají na tvou odpověď,
+                        posílal do služby Google Gemini <b>sám při každém načtení pošty</b> — bez kliknutí
+                        u jednotlivých zpráv. AI u každé určí, jestli spěchá, čeká na odpověď, nebo je jen
+                        pro informaci, a jednou větou ji shrne. Ukládá se jen zařazení a shrnutí; vypnutím
+                        se zase smažou.
+                      </p>
+                      <button
+                        type="button"
+                        className="btn btn-sm"
+                        disabled={zaneprazdnen}
+                        onClick={() =>
+                          run(() => setMailAutoTriageAction(true), () => "Automatické třídění je zapnuté. Klikni na Obnovit a pošta se roztřídí.")
+                        }
+                      >
+                        Zapnout třídění
+                      </button>
+                    </>
+                  )}
                 </>
               ) : (
                 <>
@@ -269,6 +332,8 @@ export default function MailBoard({
       <div className={styles.filters}>
         {([
           ["waiting", "Čeká na odpověď", ceka.length],
+          // Záložka dává smysl jen s tříděním — bez něj do ní nic nepadá.
+          ...(tridiSe || proInformaci.length > 0 ? ([["fyi", "Jen pro informaci", proInformaci.length]] as const) : []),
           ["all", "Vše", messages.filter((m) => !m.handledAt).length],
           ["handled", "Vyřízené", vyrizene.length],
         ] as const).map(([key, label, count]) => (
@@ -290,7 +355,9 @@ export default function MailBoard({
             ? "Zatím tu nic není. Klikni na Obnovit."
             : filtr === "waiting"
               ? "Nic nečeká na odpověď."
-              : "Tady nic není."}
+              : filtr === "fyi"
+                ? "Nic, co by bylo jen pro informaci."
+                : "Tady nic není."}
         </p>
       ) : (
         <ul className={styles.list}>
@@ -299,10 +366,13 @@ export default function MailBoard({
               <div className={styles.itemMain}>
                 <span className={styles.from}>
                   {m.fromName ?? m.fromEmail}
-                  {m.status === "waiting" && !m.handledAt && <em className={styles.tagWaiting}>čeká na odpověď</em>}
+                  {mailBucket(m) === "urgent" && <em className={styles.tagUrgent}>spěchá</em>}
+                  {mailBucket(m) === "reply" && <em className={styles.tagWaiting}>čeká na odpověď</em>}
+                  {mailBucket(m) === "fyi" && <em className={styles.tagFyi}>jen pro informaci</em>}
                   {m.clientName && <em className={styles.tagClient}>{m.clientName}</em>}
                 </span>
                 <span className={styles.subject}>{m.subject ?? "(bez předmětu)"}</span>
+                {m.summary && <span className={styles.summary}>{m.summary}</span>}
                 <span className={styles.meta}>{m.fromEmail} · {kdy(m.receivedAt)}</span>
               </div>
 

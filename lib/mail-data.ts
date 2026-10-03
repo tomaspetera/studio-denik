@@ -31,7 +31,9 @@ import { LEAD_JSON_SCHEMA, buildLeadPrompt, finishLeadDraft, sanitizeLeadDraft, 
 import { createLead } from "./leads";
 import { CAPTURE_JSON_SCHEMA, normalizeProposals, type CaptureResult } from "./capture";
 import { createProposedTasks, knownAiError } from "./capture-data";
-import { availableProviders, extractJson } from "./ai";
+import { AiNoCredit, AiNotConfigured, AiQuotaExceeded, availableProviders, extractJson } from "./ai";
+import { TRIAGE_BODY_MAX, TRIAGE_JSON_SCHEMA, buildTriagePrompt, finishTriage } from "./mail-triage";
+import type { MailPriority } from "./mail-buckets";
 import { listCategories, listClients } from "./tasks";
 import { dateKeyPrague, todayKeyPrague } from "./domain";
 
@@ -49,6 +51,8 @@ export type MailAccount = {
   lastSyncAt: string | null;
   /** Kdy majitel povolil, aby AI četla text zprávy při návrhu úkolu. */
   aiConsentAt: string | null;
+  /** Kdy majitel povolil automatické třídění pošty podle priority. */
+  aiAutoAt: string | null;
 };
 
 export type MailRow = {
@@ -64,12 +68,26 @@ export type MailRow = {
   clientName: string | null;
   handledAt: string | null;
   taskId: string | null;
+  /** Zařazení od AI. `null` = zpráva tříděním neprošla (nebo je vypnuté). */
+  priority: MailPriority | null;
+  /** Jedna věta od AI, o co ve zprávě jde. */
+  summary: string | null;
 };
 
 export type ActionResult = { ok: true } | { ok: false; message: string };
 
 /** Kolik dní zpětně se pošta stahuje. */
 const OKNO_DNI = 7;
+
+/** Kolik zpráv se nejvýš roztřídí při jednom načtení. Zbytek počká na příští. */
+const TRIDIT_NAJEDNOU = 24;
+/** Kolik zpráv se třídí souběžně — zrychlí to čekání a Gmail ani AI to nezatíží. */
+const TRIDIT_SOUBEZNE = 4;
+/**
+ * Kolik času od začátku načítání smí třídění nejvýš zabrat. Stránka má na
+ * celé načtení 60 vteřin a poslední rozběhnuté volání AI může trvat až 20.
+ */
+const TRIDIT_NEJDELE_MS = 25_000;
 
 function klicProSifrovani(): string {
   const k = process.env.MAIL_TOKEN_KEY;
@@ -99,7 +117,7 @@ export async function loadMailAccount(userId: string): Promise<MailAccount | nul
   const supabase = await supabaseServer();
   const { data } = await supabase
     .from("mail_accounts")
-    .select("email, last_sync_at, ai_consent_at")
+    .select("email, last_sync_at, ai_consent_at, ai_auto_at")
     .eq("user_id", userId)
     .maybeSingle();
 
@@ -108,6 +126,7 @@ export async function loadMailAccount(userId: string): Promise<MailAccount | nul
         email: data.email as string,
         lastSyncAt: (data.last_sync_at as string | null) ?? null,
         aiConsentAt: (data.ai_consent_at as string | null) ?? null,
+        aiAutoAt: (data.ai_auto_at as string | null) ?? null,
       }
     : null;
 }
@@ -137,7 +156,7 @@ export async function connectMailbox(orgId: string, userId: string, code: string
         email,
         token_enc: encryptToken(refreshToken, klicProSifrovani()),
         last_sync_at: null,
-        ...(jinaSchranka ? { ai_consent_at: null } : {}),
+        ...(jinaSchranka ? { ai_consent_at: null, ai_auto_at: null } : {}),
       },
       { onConflict: "user_id" },
     );
@@ -196,12 +215,16 @@ async function nactiKontakty(orgId: string): Promise<ClientContact[]> {
  * Stažení pošty. Vlákna, která už v doručených nejsou, se z appky smažou —
  * přehled má zrcadlit schránku, ne si držet vlastní historii.
  */
-export async function syncMailbox(orgId: string, userId: string): Promise<ActionResult & { count?: number }> {
+export async function syncMailbox(
+  orgId: string,
+  userId: string,
+): Promise<ActionResult & { count?: number; /** Kolik zpráv AI nově zařadila. */ sorted?: number; note?: string }> {
+  const zacatek = Date.now();
   const supabase = await supabaseServer();
 
   const { data: ucet } = await supabase
     .from("mail_accounts")
-    .select("email, token_enc")
+    .select("email, token_enc, ai_consent_at, ai_auto_at")
     .eq("user_id", userId)
     .maybeSingle();
   if (!ucet) return { ok: false, message: "Schránka není připojená." };
@@ -256,25 +279,143 @@ export async function syncMailbox(orgId: string, userId: string): Promise<Action
 
     await supabase.from("mail_accounts").update({ last_sync_at: new Date().toISOString() }).eq("user_id", userId);
 
+    // Třídění jen s oběma souhlasy. Pošta je v tu chvíli už načtená a uložená,
+    // takže když se třídění nepovede, přehled to nerozbije — jen zůstane po starém.
+    const trideni =
+      ucet.ai_consent_at && ucet.ai_auto_at
+        ? await sortNewMail(userId, accessToken, zacatek + TRIDIT_NEJDELE_MS)
+        : null;
+
     revalidatePath("/", "layout");
-    return { ok: true, count: zpravy.length };
+    return { ok: true, count: zpravy.length, sorted: trideni?.sorted ?? 0, note: trideni?.note ?? undefined };
   } catch (e) {
     return { ok: false, message: chybaText(e) };
   }
+}
+
+/**
+ * Zařazení nových zpráv podle priority. Jediné místo, kde text zprávy jde
+ * do AI bez kliknutí u konkrétní zprávy — volá se jen se souhlasem
+ * `ai_auto_at` a jen pro zprávy, které čekají na odpověď a tříděním ještě
+ * neprošly. Každá zpráva jde do AI zvlášť, aby text jedné nemohl ovlivnit
+ * zařazení druhé.
+ *
+ * Ukládá se zařazení a jedna věta shrnutí. Text zprávy ne.
+ */
+async function sortNewMail(
+  userId: string,
+  accessToken: string,
+  deadline: number,
+): Promise<{ sorted: number; note: string | null }> {
+  const supabase = await supabaseServer();
+
+  const { data: cekajici } = await supabase
+    .from("mail_messages")
+    .select("id, gmail_id, from_name, from_email, subject, received_at")
+    .eq("user_id", userId)
+    .eq("status", "waiting")
+    .is("handled_at", null)
+    .is("ai_checked_at", null)
+    .order("received_at", { ascending: false })
+    .limit(TRIDIT_NAJEDNOU + 1);
+
+  const fronta = (cekajici ?? []).slice(0, TRIDIT_NAJEDNOU);
+  if (fronta.length === 0) return { sorted: 0, note: null };
+  if (!isMailAiAvailable()) return { sorted: 0, note: "Třídění je zapnuté, ale na serveru chybí klíč ke Gemini." };
+
+  const today = todayKeyPrague();
+  let sorted = 0;
+  let hotovo = 0;
+  let dalsi = 0;
+  /** Proč se přestalo dřív — chyba, kterou další pokus hned nevyřeší. */
+  let stop: string | null = null;
+
+  const oznac = (id: string, zmena: Record<string, unknown>) =>
+    supabase
+      .from("mail_messages")
+      .update({ ...zmena, ai_checked_at: new Date().toISOString() })
+      .eq("id", id)
+      .eq("user_id", userId);
+
+  const pracuj = async () => {
+    while (dalsi < fronta.length && !stop && Date.now() < deadline) {
+      const m = fronta[dalsi++];
+      try {
+        const telo = prepareBody(
+          await fetchMessage(accessToken, m.gmail_id as string),
+          m.subject as string | null,
+          TRIAGE_BODY_MAX,
+        );
+        // Zpráva bez textu (jen obrázek nebo příloha): není co číst, zůstane
+        // mezi těmi, které čekají na odpověď, a příště se už nezkouší.
+        if (!telo.text) {
+          await oznac(m.id as string, {});
+          hotovo++;
+          continue;
+        }
+
+        const { system, prompt } = buildTriagePrompt(
+          {
+            fromName: m.from_name as string | null,
+            fromEmail: m.from_email as string,
+            subject: m.subject as string | null,
+            sentOn: dateKeyPrague(m.received_at as string),
+            body: telo.text,
+            truncated: telo.truncated,
+            attachments: telo.attachments,
+          },
+          today,
+        );
+        // Větší model: e-mail píše někdo cizí a lehký se dá textem přemluvit.
+        // Bez přemýšlení — vybírá se ze tří možností a běží to u každé zprávy.
+        const raw = await extractJson("gemini", system, prompt, TRIAGE_JSON_SCHEMA as unknown as Record<string, unknown>, {
+          careful: true,
+          thinkingBudget: 0,
+        });
+        const v = finishTriage(raw);
+        await oznac(m.id as string, { priority: v.priority, summary: v.summary });
+        sorted++;
+        hotovo++;
+      } catch (e) {
+        if (e instanceof GmailAuthExpired) {
+          stop = e.message;
+        } else if (e instanceof GmailError && e.status === 404) {
+          // Zpráva mezitím z Gmailu zmizela — příští načtení ji z přehledu odstraní.
+          await oznac(m.id as string, {});
+          hotovo++;
+        } else if (e instanceof AiNoCredit || e instanceof AiNotConfigured || e instanceof AiQuotaExceeded) {
+          stop = e.message;
+        }
+        // Cokoli jiného (přetížení, vypršení času, nečitelná odpověď) je
+        // přechodné: zpráva zůstane netříděná a zkusí se při dalším načtení.
+      }
+    }
+  };
+
+  await Promise.all(Array.from({ length: Math.min(TRIDIT_SOUBEZNE, fronta.length) }, pracuj));
+
+  const zbylo = (cekajici ?? []).length - hotovo;
+  const note = stop
+    ? `Třídění se zastavilo: ${stop}`
+    : zbylo > 0
+      ? "Zbylé zprávy roztřídím při dalším načtení."
+      : null;
+  return { sorted, note };
 }
 
 export async function listMail(userId: string): Promise<MailRow[]> {
   const supabase = await supabaseServer();
   const { data } = await supabase
     .from("mail_messages")
-    .select("id, gmail_id, thread_id, from_email, from_name, subject, received_at, status, client_id, handled_at, task_id, clients(name)")
+    .select("id, gmail_id, thread_id, from_email, from_name, subject, received_at, status, client_id, handled_at, task_id, priority, summary, clients(name)")
     .eq("user_id", userId)
     .order("received_at", { ascending: false });
 
   type Row = {
     id: string; gmail_id: string; thread_id: string; from_email: string; from_name: string | null;
     subject: string | null; received_at: string; status: MailStatus; client_id: string | null;
-    handled_at: string | null; task_id: string | null; clients: { name: string } | { name: string }[] | null;
+    handled_at: string | null; task_id: string | null; priority: MailPriority | null; summary: string | null;
+    clients: { name: string } | { name: string }[] | null;
   };
 
   return ((data ?? []) as unknown as Row[]).map((r) => ({
@@ -290,6 +431,8 @@ export async function listMail(userId: string): Promise<MailRow[]> {
     clientName: Array.isArray(r.clients) ? (r.clients[0]?.name ?? null) : (r.clients?.name ?? null),
     handledAt: r.handled_at,
     taskId: r.task_id,
+    priority: r.priority,
+    summary: r.summary,
   }));
 }
 
@@ -388,12 +531,51 @@ export async function setMailAiConsent(userId: string, on: boolean): Promise<Act
   const supabase = await supabaseServer();
   const { data, error } = await supabase
     .from("mail_accounts")
-    .update({ ai_consent_at: on ? new Date().toISOString() : null })
+    // Vypnutím padá i automatické třídění — bez základního souhlasu nesmí běžet.
+    .update(on ? { ai_consent_at: new Date().toISOString() } : { ai_consent_at: null, ai_auto_at: null })
     .eq("user_id", userId)
     .select("id");
 
   if (error) return { ok: false, message: error.message };
   if (!data?.length) return { ok: false, message: "Schránka není připojená." };
+  if (!on) await vymazTrideni(userId);
+  revalidatePath("/", "layout");
+  return { ok: true };
+}
+
+/** Smaže, co AI o zprávách uložila: zařazení, shrnutí i značku, že tříděním prošly. */
+async function vymazTrideni(userId: string): Promise<void> {
+  const supabase = await supabaseServer();
+  await supabase
+    .from("mail_messages")
+    .update({ priority: null, summary: null, ai_checked_at: null })
+    .eq("user_id", userId);
+}
+
+/**
+ * Zapnutí nebo vypnutí automatického třídění podle priority. Je to širší
+ * souhlas než pomoc na kliknutí: text nových zpráv jde do AI sám při každém
+ * načtení pošty. Proto se zapíná zvlášť a jen tehdy, když už je povolená
+ * pomoc AI. Vypnutím se uložená zařazení a shrnutí smažou.
+ */
+export async function setMailAutoTriage(userId: string, on: boolean): Promise<ActionResult> {
+  const supabase = await supabaseServer();
+  const { data: ucet } = await supabase
+    .from("mail_accounts")
+    .select("ai_consent_at")
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (!ucet) return { ok: false, message: "Schránka není připojená." };
+  if (on && !ucet.ai_consent_at) return { ok: false, message: "Nejdřív zapni pomoc AI s e-mailem." };
+
+  const { error } = await supabase
+    .from("mail_accounts")
+    .update({ ai_auto_at: on ? new Date().toISOString() : null })
+    .eq("user_id", userId);
+  if (error) return { ok: false, message: error.message };
+
+  if (!on) await vymazTrideni(userId);
   revalidatePath("/", "layout");
   return { ok: true };
 }

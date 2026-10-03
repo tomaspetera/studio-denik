@@ -300,7 +300,16 @@ export function pickProvider(): Provider | null {
  * u opatrného volání lehký model nepoužije vůbec, ani jako záloha: lepší
  * hláška „zkus to znovu“ než tichý návrat k modelu, který se dá zmást.
  */
-export type ExtractOptions = { careful?: boolean };
+export type ExtractOptions = {
+  careful?: boolean;
+  /**
+   * Kolik „přemýšlení“ model dostane. Výchozí je krátké u opatrného volání
+   * a žádné jinde. Třídění pošty si ho vypíná: běží u každé nové zprávy,
+   * vybírá jen ze tří možností a větší model se v měření nenechal zmást ani
+   * bez přemýšlení.
+   */
+  thinkingBudget?: number;
+};
 
 /**
  * Jedno volání, na které se odpoví hotovým JSON podle schématu. Schéma
@@ -410,7 +419,7 @@ async function extractJsonGemini(
           // "přemýšlením" trvala odpověď 10–19 s, bez něj kolem 3–5 s.
           // U opatrného volání má model krátký prostor na rozmyšlenou — pomáhá
           // mu rozeznat podvržený pokyn a stojí to zlomek vteřiny.
-          thinkingConfig: { thinkingBudget: opts.careful ? CAREFUL_THINKING : 0 },
+          thinkingConfig: { thinkingBudget: opts.thinkingBudget ?? (opts.careful ? CAREFUL_THINKING : 0) },
           httpOptions: { timeout: ATTEMPT_TIMEOUT_MS },
         },
       });

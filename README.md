@@ -130,6 +130,15 @@ textem e-mailu přemluvit zhruba v každém čtvrtém pokusu, větší ani jedno
 Živá zkouška včetně pokusů o podvrh: `npm run test:aiposta` (vymyšlené
 e-maily, volá skutečný model, není v `npm test`).
 
+**Třídění pošty podle priority.** Volitelné a zapíná se zvlášť
+(`mail_accounts.ai_auto_at`, jen se základním souhlasem). Při načtení pošty se
+text nových zpráv, které čekají na odpověď, pošle do Gemini — každá zvlášť
+a větším modelem — a uloží se zařazení (`urgent`, `reply`, `info`) a shrnutí
+jednou větou; text zprávy ne. Je to jediné místo, kde e-mail jde do AI bez
+kliknutí. Čemu appka nerozumí, nechá mezi zprávami čekajícími na odpověď
+(`lib/mail-buckets.ts`) — omyl nesmí zprávu schovat. Vypnutím se zařazení
+i shrnutí mažou.
+
 **Report pro jednoho klienta.** Vedle reportu za celé studio může mít každý
 klient za týden vlastní report (`reports.client_id`, adresa `/report?klient=…`):
 vlastní shrnutí, stav i sdílený odkaz. Zúžení se dělá v dotazu i v čistém

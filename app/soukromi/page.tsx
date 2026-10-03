@@ -51,14 +51,16 @@ export default function SoukromiPage() {
           <li>
             Text zprávy aplikace načte jen u jedné konkrétní zprávy, a to ve chvíli, kdy u ní sám
             klikneš na „Udělat úkol“ nebo „Návrh odpovědi“ a máš zapnutou pomoc umělé inteligence
-            (viz níže). Přílohy nečte nikdy.
+            (viz níže). Pokud si navíc zapneš automatické třídění, načte při načtení pošty i text
+            nových zpráv, které čekají na tvou odpověď. Přílohy nečte nikdy.
           </li>
           <li>
             Aplikace <strong>nikdy nic neodesílá, nemaže ani neupravuje</strong> a nevytváří koncepty.
           </li>
           <li>
             Data z Gmailu slouží jen k tomu, co v aplikaci vidíš: přehled zpráv, které čekají na
-            odpověď, přiřazení zpráv ke klientům a návrh úkolu, poptávky nebo odpovědi ze zprávy.
+            odpověď, jejich seřazení podle naléhavosti, přiřazení zpráv ke klientům a návrh úkolu,
+            poptávky nebo odpovědi ze zprávy.
           </li>
         </ul>
 
@@ -70,6 +72,8 @@ export default function SoukromiPage() {
           umělá inteligence. Uloží se až úkol nebo poptávka, které sám potvrdíš: název, krátké
           shrnutí a kontaktní údaje odesílatele (jméno a adresa, u poptávky i firma a telefon,
           pokud je uvedl). Všechno můžeš před uložením přepsat. Návrh odpovědi se neukládá vůbec.
+          Je-li zapnuté automatické třídění, ukládá se u zprávy i její zařazení (spěchá, čeká na
+          odpověď, jen pro informaci) a shrnutí jednou větou; vypnutím třídění se obojí smaže.
           Přihlašovací token ke Gmailu se ukládá šifrovaně a je přístupný jen serveru aplikace,
           nikdy prohlížeči.
         </p>
@@ -87,9 +91,17 @@ export default function SoukromiPage() {
           u zprávy na „Udělat úkol“ nebo „Návrh odpovědi“, odešle se odesílatel, předmět, datum
           a text <strong>této jedné zprávy</strong> (bez příloh) ke zpracování službě Google Gemini
           API, která vrátí návrh úkolu, záznamu poptávky nebo odpovědi. U návrhu odpovědi se odešle
-          i to, co do okna sám napíšeš jako pokyn. Děje se to jen na tvoje kliknutí, nikdy
-          automaticky ani hromadně. Úkol nebo poptávka vzniknou až po tvém potvrzení; odpověď
-          aplikace neodesílá — zkopíruješ si ji do Gmailu sám.
+          i to, co do okna sám napíšeš jako pokyn. Děje se to jen na tvoje kliknutí. Úkol nebo
+          poptávka vzniknou až po tvém potvrzení; odpověď aplikace neodesílá — zkopíruješ si ji
+          do Gmailu sám.
+        </p>
+        <p>
+          Automatické třídění podle priority je další volitelná funkce a zapíná se zvlášť. Je-li
+          zapnutá, odešle se při každém načtení pošty odesílatel, předmět, datum a text každé
+          nové zprávy, která čeká na tvou odpověď (bez příloh), službě Google Gemini API. Ta vrátí
+          zařazení a shrnutí jednou větou, které se uloží a ukážou v přehledu pošty. Každá zpráva
+          se takhle zpracuje jednou. Vypnutím se uložená zařazení i shrnutí smažou. Bez zapnutého
+          třídění se samo neposílá nic.
         </p>
         <p>
           Službu Gemini API používáme v placeném režimu, ve kterém Google podle svých podmínek
@@ -112,7 +124,8 @@ export default function SoukromiPage() {
           <li>Supabase (databáze) a Vercel (hosting): provoz aplikace.</li>
           <li>
             Google (Gemini API): zpracování textu při návrhu úkolu, poptávky nebo odpovědi ze
-            zprávy, shrnutí reportu a převodu poznámek na úkoly — jen v rozsahu popsaném výše.
+            zprávy, při třídění pošty, shrnutí reportu a převodu poznámek na úkoly — jen v rozsahu
+            popsaném výše.
           </li>
           <li>
             Data neprodáváme, nepoužíváme k reklamě a kromě uvedených poskytovatelů je nikomu
@@ -166,8 +179,13 @@ export default function SoukromiPage() {
           are then sent to the Google Gemini API to propose a task, a sales-lead record or a reply
           draft. A task or lead (a title, a short summary and the sender’s contact details, all
           editable beforehand) is created only after the user confirms it. A reply draft is never
-          sent or stored by the app; the user copies it into Gmail. This happens only on the user’s
-          click, never automatically or in bulk, and the message text is not stored. The Gemini API is used as a
+          sent or stored by the app; the user copies it into Gmail. These features run only on the
+          user’s click, and the message text is not stored. A second optional feature, enabled
+          separately, sorts mail by priority: on each mail refresh, the sender, subject, date and
+          text of each new message awaiting the user’s reply (never attachments) are sent to the
+          Google Gemini API, which returns a priority label and a one-sentence summary. Only the
+          label and the summary are stored, never the message text, and turning the feature off
+          deletes them. Unless this feature is enabled, nothing is sent automatically. The Gemini API is used as a
           paid service, under whose terms Google does not use the submitted content to improve its
           products or train models.{" "}
           <strong>

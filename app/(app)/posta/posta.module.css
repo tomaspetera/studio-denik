@@ -238,6 +238,41 @@
   white-space: nowrap;
 }
 .tagWaiting { background: var(--alarm-soft); color: var(--alarm); }
+/* Spěchá: plná barva, ať je mezi čekajícími vidět na první pohled. */
+.tagUrgent {
+  font-family: var(--ui-s);
+  font-style: normal;
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  font-weight: 700;
+  padding: 1px 7px;
+  border-radius: var(--r4);
+  white-space: nowrap;
+  background: var(--alarm);
+  color: #fff;
+}
+.tagFyi {
+  font-family: var(--ui-s);
+  font-style: normal;
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  font-weight: 700;
+  padding: 1px 7px;
+  border-radius: var(--r4);
+  white-space: nowrap;
+  background: var(--sunk);
+  color: var(--faint);
+}
+
+/* Shrnutí od AI: jedna věta pod předmětem, tišší než předmět. */
+.summary {
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
 .tagClient { background: var(--sunk); color: var(--muted); }
 .tagTask { background: var(--done-soft); color: var(--done); align-self: center; }
 

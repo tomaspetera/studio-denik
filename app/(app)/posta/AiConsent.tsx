@@ -17,7 +17,10 @@ export default function AiConsent({ lead }: { lead: string }) {
         odesílatel, předmět, datum a text bez příloh.
       </p>
       <ul className={styles.consentList}>
-        <li>Děje se to jen na tvoje kliknutí u konkrétní zprávy, nikdy samo ani hromadně.</li>
+        <li>
+          Děje se to jen na tvoje kliknutí u konkrétní zprávy. Samo se nic neposílá — ledaže si
+          v Nastavení pošty zvlášť zapneš automatické třídění.
+        </li>
         <li>
           Text zprávy se nikam neukládá. Uloží se až úkol nebo poptávka, které potvrdíš;
           návrh odpovědi se neukládá vůbec.
