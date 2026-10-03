@@ -1,11 +1,14 @@
 import { redirect } from "next/navigation";
 import { getWorkspace } from "@/lib/workspace";
 import { supabaseServer } from "@/lib/supabase/server";
-import { isGmailConfigured, listIgnored, listMail, loadMailAccount } from "@/lib/mail-data";
+import { isGmailConfigured, isMailAiAvailable, listIgnored, listMail, loadMailAccount } from "@/lib/mail-data";
+import { listCategories, listClients } from "@/lib/tasks";
+import { csDateFromKey, dateKeyPrague, todayKeyPrague } from "@/lib/domain";
 import MailBoard from "./MailBoard";
 
 export const dynamic = "force-dynamic";
-// Obnovení tahá vlákna z Gmailu jedno po druhém, což chvíli trvá.
+// Obnovení tahá vlákna z Gmailu jedno po druhém, což chvíli trvá. Platí i pro
+// návrh úkolu z e-mailu: načtení zprávy a až dva pokusy u AI po deseti vteřinách.
 export const maxDuration = 60;
 
 export default async function PostaPage({
@@ -23,9 +26,10 @@ export default async function PostaPage({
   if (!user) redirect("/prihlaseni");
 
   const [ucet, { pripojeno, chyba }] = await Promise.all([loadMailAccount(user.id), searchParams]);
-  const [zpravy, ignorovani] = ucet
-    ? await Promise.all([listMail(user.id), listIgnored(user.id)])
-    : [[], []];
+  // Klienti a kategorie jsou potřeba v okně s návrhem úkolu z e-mailu.
+  const [zpravy, ignorovani, klienti, kategorie] = ucet
+    ? await Promise.all([listMail(user.id), listIgnored(user.id), listClients(ws.orgId), listCategories(ws.orgId)])
+    : [[], [], [], []];
 
   return (
     <MailBoard
@@ -35,6 +39,13 @@ export default async function PostaPage({
       ignored={ignorovani}
       justConnected={pripojeno === "1"}
       error={chyba ?? null}
+      aiAvailable={isMailAiAvailable()}
+      // Datum se skládá tady, podle Prahy — v prohlížeči by se kolem půlnoci
+      // mohlo lišit od toho, co vykreslil server.
+      aiSince={ucet?.aiConsentAt ? csDateFromKey(dateKeyPrague(ucet.aiConsentAt)) : null}
+      clients={klienti}
+      categories={kategorie}
+      today={todayKeyPrague()}
     />
   );
 }

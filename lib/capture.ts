@@ -2,9 +2,9 @@ import { z } from "zod";
 import { firstStepForBall, stepCount, type TaskKind } from "./domain.ts";
 import { isValidDateKey } from "./attention.ts";
 import { isoWeekday } from "./presets.ts";
-import { CAPTURE_MAX_TASKS, CREATE_MAX_TASKS } from "./capture-limits.ts";
+import { CAPTURE_MAX_TASKS, CREATE_MAX_TASKS, NOTE_MAX } from "./capture-limits.ts";
 
-export { CAPTURE_MAX_CHARS, CAPTURE_MAX_TASKS, CREATE_MAX_TASKS } from "./capture-limits.ts";
+export { CAPTURE_MAX_CHARS, CAPTURE_MAX_TASKS, CREATE_MAX_TASKS, NOTE_MAX } from "./capture-limits.ts";
 
 /**
  * Rychlý zápis — z textu navržené úkoly.
@@ -107,7 +107,7 @@ Pravidla:
 - note: jen když text obsahuje doplňující informaci, kterou název nevyjadřuje; jinak prázdný řetězec.
 - Když text žádné úkoly neobsahuje, vrať prázdné pole.`;
 
-const WEEKDAY_NAME = ["pondělí", "úterý", "středa", "čtvrtek", "pátek", "sobota", "neděle"];
+export const WEEKDAY_NAME = ["pondělí", "úterý", "středa", "čtvrtek", "pátek", "sobota", "neděle"];
 
 export function buildCapturePrompt(text: string, ctx: CaptureContext): { system: string; prompt: string } {
   const list = (items: { name: string }[]) => (items.length ? items.map((i) => i.name).join("; ") : "žádní");
@@ -216,7 +216,16 @@ const RawTask = z.object({
 
 const clean = (s: string, max: number) => s.replace(/\s+/g, " ").trim().slice(0, max);
 
-export function normalizeProposals(raw: unknown, ctx: CaptureContext): CaptureResult {
+/**
+ * `quietUnknownClient`: u úkolu z e-mailu se klient, kterého AI neurčila,
+ * doplní podle adresy odesílatele — hláška „nechal jsem ho prázdný“ by tam
+ * neplatila, a tak se vynechá.
+ */
+export function normalizeProposals(
+  raw: unknown,
+  ctx: CaptureContext,
+  opts: { quietUnknownClient?: boolean } = {},
+): CaptureResult {
   const warnings: string[] = [];
   const list = raw && typeof raw === "object" ? (raw as { tasks?: unknown }).tasks : undefined;
   if (!Array.isArray(list)) {
@@ -245,7 +254,7 @@ export function normalizeProposals(raw: unknown, ctx: CaptureContext): CaptureRe
       const m = matchByName(clientName, ctx.clients);
       if (m.item) clientId = m.item.id;
       else if (m.ambiguous) warnings.push(`U „${title}“ odpovídá názvu „${clientName}“ víc klientů — vyber ho ručně.`);
-      else warnings.push(`U „${title}“ jsem nenašel klienta „${clientName}“ — nechal jsem ho prázdný.`);
+      else if (!opts.quietUnknownClient) warnings.push(`U „${title}“ jsem nenašel klienta „${clientName}“ — nechal jsem ho prázdný.`);
     }
 
     const categoryName = clean(r.category, 200);
@@ -271,7 +280,7 @@ export function normalizeProposals(raw: unknown, ctx: CaptureContext): CaptureRe
       dueKey: isValidDateKey(r.due) ? r.due : null,
       doneOn,
       size: Math.min(3, Math.max(1, Math.round(r.size ?? 2))),
-      note: clean(r.note, 500) || null,
+      note: clean(r.note, NOTE_MAX) || null,
     });
   }
 
@@ -327,7 +336,7 @@ export function sanitizeProposals(
     }
 
     const size = typeof p.size === "number" ? Math.round(p.size) : 2;
-    const note = typeof p.note === "string" ? clean(p.note, 500) || null : null;
+    const note = typeof p.note === "string" ? clean(p.note, NOTE_MAX) || null : null;
 
     items.push({ title, kind, step, clientId, categoryId, dueKey, doneOn, size: Math.min(3, Math.max(1, size)), note });
   }

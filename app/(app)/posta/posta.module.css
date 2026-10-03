@@ -254,6 +254,65 @@
 }
 
 /* ---------------------------------------------------------------- */
+/* Okno „z e-mailu úkol“                                             */
+/* ---------------------------------------------------------------- */
+
+/* O kterou zprávu jde — ať je to vidět v každém kroku okna. */
+.dialogMail {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0 0 var(--s4);
+  padding: 9px 12px;
+  border-radius: var(--r2);
+  background: var(--sunk);
+  font-size: 12.5px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+.dialogMail b { font-weight: 600; }
+.dialogMail span { color: var(--muted); }
+
+.consentLead {
+  font-size: 13.5px;
+  line-height: 1.65;
+  margin: 0 0 var(--s3);
+}
+
+.consentList {
+  margin: 0 0 var(--s3);
+  padding-left: 18px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--ink-2);
+}
+.consentList li + li { margin-top: 4px; }
+
+.reading {
+  margin: 0;
+  padding: var(--s5) 0;
+  text-align: center;
+  font-size: 13.5px;
+  color: var(--muted);
+  animation: pulse 1.4s ease-in-out infinite;
+}
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.45; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .reading { animation: none; }
+}
+
+/* Tři tlačítka se na telefonu vedle sebe nevejdou a zalomila by se nahodile.
+   Proto pod sebou přes celou šířku, hlavní akce nahoře. */
+@media (max-width: 520px) {
+  footer.foot { flex-direction: column-reverse; }
+  footer.foot > :global(.btn) { width: 100%; justify-content: center; }
+  footer.foot > span { display: none; }
+}
+
+/* ---------------------------------------------------------------- */
 /* Mobil                                                             */
 /* ---------------------------------------------------------------- */
 

@@ -5,6 +5,7 @@ import { supabaseServer } from "./supabase/server";
 import { stepCount, todayKeyPrague } from "./domain";
 import {
   AiBadResponse,
+  AiNoCredit,
   AiNotConfigured,
   AiOverloaded,
   AiQuotaExceeded,
@@ -23,12 +24,16 @@ import {
 import { listCategories, listClients } from "./tasks";
 
 export type ProposeResult = ({ ok: true } & CaptureResult) | { ok: false; message: string };
-export type CreateResult = { ok: true; created: number } | { ok: false; message: string };
+export type CreateResult = { ok: true; created: number; ids: string[] } | { ok: false; message: string };
 
-/** Česká hláška pro člověka — vnitřní detaily chyby do prohlížeče nepatří. */
-function aiErrorMessage(e: unknown): string {
+/**
+ * Česká hláška pro člověka — vnitřní detaily chyby do prohlížeče nepatří.
+ * `null`, když chybu neznáme; co se má říct pak, ví jen ten, kdo volal.
+ */
+export function knownAiError(e: unknown): string | null {
   if (
     e instanceof AiNotConfigured ||
+    e instanceof AiNoCredit ||
     e instanceof AiQuotaExceeded ||
     e instanceof AiOverloaded ||
     e instanceof AiBadResponse
@@ -36,6 +41,12 @@ function aiErrorMessage(e: unknown): string {
     return e.message;
   }
   if (e instanceof AiRefused) return "Model odmítl tenhle text zpracovat.";
+  return null;
+}
+
+function aiErrorMessage(e: unknown): string {
+  const known = knownAiError(e);
+  if (known) return known;
   console.error("Rychlý zápis selhal:", e);
   return "Nepodařilo se to zpracovat. Zkus to znovu, text ti zůstal v poli.";
 }
@@ -109,9 +120,11 @@ export async function createProposedTasks(orgId: string, input: unknown): Promis
     closed_at: p.step === stepCount(p.kind) - 1 ? `${p.doneOn ?? today}T12:00:00.000Z` : null,
   }));
 
-  const { error } = await supabase.from("tasks").insert(rows);
+  // Čísla založených úkolů se vracejí, aby na ně šlo navázat — z e-mailu
+  // se na první z nich odkáže zpráva, ze které vznikly.
+  const { data, error } = await supabase.from("tasks").insert(rows).select("id");
   if (error) return { ok: false, message: error.message };
 
   revalidatePath("/", "layout");
-  return { ok: true, created: rows.length };
+  return { ok: true, created: rows.length, ids: (data ?? []).map((r) => r.id as string) };
 }

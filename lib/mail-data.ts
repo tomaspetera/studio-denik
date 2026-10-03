@@ -10,19 +10,34 @@ import {
   exchangeCode,
   fetchEmailAddress,
   fetchInbox,
+  fetchMessage,
   isGmailConfigured,
   revokeToken,
 } from "./gmail";
 import { triage, type ClientContact, type MailStatus } from "./mail-rules";
+import { prepareBody, type PreparedBody } from "./mail-body";
+import { MAIL_MAX_TASKS, buildMailPrompt, finishMailProposals } from "./mail-capture";
+import { CAPTURE_JSON_SCHEMA, normalizeProposals, type CaptureResult } from "./capture";
+import { createProposedTasks, knownAiError } from "./capture-data";
+import { availableProviders, extractJson } from "./ai";
+import { listCategories, listClients } from "./tasks";
+import { dateKeyPrague, todayKeyPrague } from "./domain";
 
 /**
  * Pošta — ukládání a čtení.
  *
  * Z Gmailu se ukládají jen hlavičky (odesílatel, předmět, datum) a stav.
- * Těla zpráv ani úryvky nikam nejdou a do žádné AI se neposílá nic.
+ * Text zprávy se neukládá nikdy. Do AI jde jediná věc: text jedné zprávy,
+ * u které majitel schránky klikl na „Udělat úkol“, a jen když návrh úkolu
+ * pomocí AI sám povolil (`ai_consent_at`). Viz `proposeFromMail`.
  */
 
-export type MailAccount = { email: string; lastSyncAt: string | null };
+export type MailAccount = {
+  email: string;
+  lastSyncAt: string | null;
+  /** Kdy majitel povolil, aby AI četla text zprávy při návrhu úkolu. */
+  aiConsentAt: string | null;
+};
 
 export type MailRow = {
   id: string;
@@ -59,15 +74,30 @@ function chybaText(e: unknown): string {
 
 export { isGmailConfigured };
 
+/**
+ * Úkol z e-mailu čte výhradně Gemini — je to jediná služba, o které zásady
+ * soukromí u pošty mluví. I kdyby byl nastavený i jiný poskytovatel, obsah
+ * z Gmailu se mu nepošle.
+ */
+export function isMailAiAvailable(): boolean {
+  return availableProviders().includes("gemini");
+}
+
 export async function loadMailAccount(userId: string): Promise<MailAccount | null> {
   const supabase = await supabaseServer();
   const { data } = await supabase
     .from("mail_accounts")
-    .select("email, last_sync_at")
+    .select("email, last_sync_at, ai_consent_at")
     .eq("user_id", userId)
     .maybeSingle();
 
-  return data ? { email: data.email as string, lastSyncAt: (data.last_sync_at as string | null) ?? null } : null;
+  return data
+    ? {
+        email: data.email as string,
+        lastSyncAt: (data.last_sync_at as string | null) ?? null,
+        aiConsentAt: (data.ai_consent_at as string | null) ?? null,
+      }
+    : null;
 }
 
 /**
@@ -80,6 +110,14 @@ export async function connectMailbox(orgId: string, userId: string, code: string
     const email = await fetchEmailAddress(accessToken);
 
     const supabase = await supabaseServer();
+
+    // Souhlas s AI i stažená pošta patří ke konkrétní schránce. Když se
+    // člověk připojí jinou adresou, začíná od nuly — souhlas dá znovu
+    // a zprávy z té staré zmizí.
+    const { data: drive } = await supabase.from("mail_accounts").select("email").eq("user_id", userId).maybeSingle();
+    const jinaSchranka = Boolean(drive) && (drive?.email as string) !== email;
+    if (jinaSchranka) await supabase.from("mail_messages").delete().eq("user_id", userId);
+
     const { error } = await supabase.from("mail_accounts").upsert(
       {
         org_id: orgId,
@@ -87,6 +125,7 @@ export async function connectMailbox(orgId: string, userId: string, code: string
         email,
         token_enc: encryptToken(refreshToken, klicProSifrovani()),
         last_sync_at: null,
+        ...(jinaSchranka ? { ai_consent_at: null } : {}),
       },
       { onConflict: "user_id" },
     );
@@ -276,17 +315,19 @@ export async function ignoreSender(orgId: string, userId: string, pattern: strin
 }
 
 /**
- * Ze zprávy úkol. Příznak „vyřízeno“ se nastaví rovnou — zpráva je tím
- * vyřešená, dál ji hlídá úkol.
+ * Ze zprávy úkol bez AI: jen z předmětu a odesílatele. Příznak „vyřízeno“
+ * se nastaví rovnou — zpráva je tím vyřešená, dál ji hlídá úkol.
  */
 export async function taskFromMail(orgId: string, userId: string, mailId: string): Promise<ActionResult> {
   const supabase = await supabaseServer();
   const { data: zprava } = await supabase
     .from("mail_messages")
-    .select("subject, from_name, from_email, client_id")
+    .select("subject, from_name, from_email, client_id, task_id")
     .eq("id", mailId)
     .maybeSingle();
   if (!zprava) return { ok: false, message: "Zpráva se nenašla." };
+  // Dvojí kliknutí nesmí založit úkol dvakrát.
+  if (zprava.task_id) return { ok: false, message: "Z téhle zprávy už úkol vznikl." };
 
   const kdo = (zprava.from_name as string | null)?.trim() || (zprava.from_email as string);
   const predmet = (zprava.subject as string | null)?.trim();
@@ -321,6 +362,165 @@ export async function taskFromMail(orgId: string, userId: string, mailId: string
 
   revalidatePath("/", "layout");
   return { ok: true };
+}
+
+/* ------------------------------------------------------------------ */
+/* Úkol z e-mailu pomocí AI                                             */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Zapnutí nebo vypnutí návrhu úkolu pomocí AI. Souhlas dává majitel schránky
+ * a jen za sebe — řádek `mail_accounts` nikdo jiný změnit nemůže.
+ */
+export async function setMailAiConsent(userId: string, on: boolean): Promise<ActionResult> {
+  const supabase = await supabaseServer();
+  const { data, error } = await supabase
+    .from("mail_accounts")
+    .update({ ai_consent_at: on ? new Date().toISOString() : null })
+    .eq("user_id", userId)
+    .select("id");
+
+  if (error) return { ok: false, message: error.message };
+  if (!data?.length) return { ok: false, message: "Schránka není připojená." };
+  revalidatePath("/", "layout");
+  return { ok: true };
+}
+
+export type MailProposeResult =
+  | ({ ok: true } & CaptureResult)
+  // `needsConsent`: nejde o chybu, jen se nejdřív musí zeptat na souhlas.
+  | { ok: false; message: string; needsConsent?: boolean };
+
+/**
+ * E-mail → návrh úkolů. Nic nezakládá a nic neukládá.
+ *
+ * Jediné místo, kde appka čte text zprávy a kde data z Gmailu opouštějí
+ * appku směrem k AI. Proto se tu souhlas kontroluje na serveru a dřív, než
+ * se cokoli z Gmailu načte — tlačítko v prohlížeči je jen pohodlí, ne pojistka.
+ */
+export async function proposeFromMail(orgId: string, userId: string, mailId: string): Promise<MailProposeResult> {
+  const supabase = await supabaseServer();
+
+  const [{ data: ucet }, { data: zprava }] = await Promise.all([
+    supabase.from("mail_accounts").select("token_enc, ai_consent_at").eq("user_id", userId).maybeSingle(),
+    supabase
+      .from("mail_messages")
+      .select("gmail_id, from_name, from_email, subject, received_at, client_id, task_id")
+      .eq("id", mailId)
+      .eq("user_id", userId)
+      .maybeSingle(),
+  ]);
+
+  if (!ucet) return { ok: false, message: "Schránka není připojená." };
+  if (!ucet.ai_consent_at) return { ok: false, needsConsent: true, message: "Návrh úkolu pomocí AI není povolený." };
+  if (!zprava) return { ok: false, message: "Zpráva se nenašla." };
+  if (zprava.task_id) return { ok: false, message: "Z téhle zprávy už úkol vznikl." };
+  if (!isMailAiAvailable()) return { ok: false, message: "Na serveru chybí klíč ke Gemini (GEMINI_API_KEY)." };
+
+  let telo: PreparedBody;
+  try {
+    const accessToken = await accessTokenFrom(decryptToken(ucet.token_enc as string, klicProSifrovani()));
+    telo = prepareBody(await fetchMessage(accessToken, zprava.gmail_id as string), zprava.subject as string | null);
+  } catch (e) {
+    if (e instanceof GmailError && e.status === 404) {
+      return { ok: false, message: "Zpráva už v Gmailu není. Klikni na Obnovit." };
+    }
+    return { ok: false, message: chybaText(e) };
+  }
+
+  if (!telo.text) {
+    return {
+      ok: false,
+      message:
+        telo.attachments > 0
+          ? "E-mail nemá žádný text, jen přílohy — a ty AI nečte."
+          : "E-mail nemá žádný text, který by šel přečíst.",
+    };
+  }
+
+  const [clients, categories] = await Promise.all([listClients(orgId), listCategories(orgId)]);
+  const ctx = {
+    today: todayKeyPrague(),
+    clients: clients.map((c) => ({ id: c.id, name: c.name })),
+    categories: categories.map((c) => ({ id: c.id, name: c.name })),
+  };
+
+  // Klient poznaný podle adresy se použije jen tehdy, když ještě existuje
+  // a není archivovaný — jinak by se úkol při zakládání odmítl.
+  const klient = ctx.clients.find((c) => c.id === (zprava.client_id as string | null)) ?? null;
+
+  const { system, prompt } = buildMailPrompt(
+    {
+      fromName: zprava.from_name as string | null,
+      fromEmail: zprava.from_email as string,
+      subject: zprava.subject as string | null,
+      sentOn: dateKeyPrague(zprava.received_at as string),
+      body: telo.text,
+      truncated: telo.truncated,
+      attachments: telo.attachments,
+      clientName: klient?.name ?? null,
+    },
+    ctx,
+  );
+
+  try {
+    const raw = await extractJson("gemini", system, prompt, CAPTURE_JSON_SCHEMA as unknown as Record<string, unknown>);
+    const navrh = normalizeProposals(raw, ctx, { quietUnknownClient: Boolean(klient) });
+    return {
+      ok: true,
+      ...finishMailProposals(navrh, {
+        today: ctx.today,
+        defaultClientId: klient?.id ?? null,
+        truncated: telo.truncated,
+        attachments: telo.attachments,
+        sender: { name: zprava.from_name as string | null, email: zprava.from_email as string },
+      }),
+    };
+  } catch (e) {
+    const known = knownAiError(e);
+    // Do záznamu jen druh chyby — nikdy nic, co by mohlo nést obsah e-mailu.
+    if (!known) console.error("Návrh úkolu z e-mailu selhal:", e instanceof Error ? e.name : typeof e);
+    return { ok: false, message: known ?? "AI se nepodařilo e-mail zpracovat. Zkus to znovu, nebo založ úkol bez AI." };
+  }
+}
+
+/**
+ * Založení úkolů navržených z e-mailu. Návrh prošel přes prohlížeč, takže
+ * se před založením kontroluje znovu, stejně jako u rychlého zápisu. Zpráva
+ * se označí za vyřízenou a odkáže na první z úkolů.
+ */
+export async function createTasksFromMail(
+  orgId: string,
+  userId: string,
+  mailId: string,
+  input: unknown,
+): Promise<ActionResult & { created?: number }> {
+  if (Array.isArray(input) && input.length > MAIL_MAX_TASKS) {
+    return { ok: false, message: `Z jednoho e-mailu jde založit nejvýš ${MAIL_MAX_TASKS} úkolů.` };
+  }
+
+  const supabase = await supabaseServer();
+  const { data: zprava } = await supabase
+    .from("mail_messages")
+    .select("task_id")
+    .eq("id", mailId)
+    .eq("user_id", userId)
+    .maybeSingle();
+  if (!zprava) return { ok: false, message: "Zpráva se nenašla." };
+  // Dvojí kliknutí nesmí založit úkoly dvakrát.
+  if (zprava.task_id) return { ok: false, message: "Z téhle zprávy už úkol vznikl." };
+
+  const zalozeno = await createProposedTasks(orgId, input);
+  if (!zalozeno.ok) return zalozeno;
+
+  await supabase
+    .from("mail_messages")
+    .update({ task_id: zalozeno.ids[0] ?? null, handled_at: new Date().toISOString() })
+    .eq("id", mailId)
+    .eq("user_id", userId);
+
+  revalidatePath("/", "layout");
+  return { ok: true, created: zalozeno.created };
 }
 
 export async function listIgnored(userId: string): Promise<{ id: string; pattern: string }[]> {

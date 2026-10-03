@@ -67,6 +67,38 @@ try {
   });
   zkouska("podvržení schránky", !!podvrh, "kolega nemůže založit schránku na cizí jméno");
 
+  // --- Souhlas s AI (migrace 0019) ----------------------------------------------
+  // Bez souhlasu se text zprávy z Gmailu vůbec nenačte, takže na tomhle sloupci
+  // stojí, co smí opustit appku. Dát ho může jen majitel schránky.
+  const { data: vychozi, error: sloupecErr } = await A.klient
+    .from("mail_accounts")
+    .select("ai_consent_at")
+    .eq("user_id", A.userId)
+    .single();
+  zkouska("AI: výchozí stav", !sloupecErr && vychozi?.ai_consent_at === null, sloupecErr ? sloupecErr.message : "bez výslovného souhlasu je vypnuto");
+
+  const { data: zapnuto } = await A.klient
+    .from("mail_accounts")
+    .update({ ai_consent_at: new Date().toISOString() })
+    .eq("user_id", A.userId)
+    .select("ai_consent_at");
+  zkouska("AI: vlastní souhlas", !!zapnuto?.[0]?.ai_consent_at, "majitel schránky si návrh pomocí AI zapne");
+
+  const { data: vypnuto } = await A.klient
+    .from("mail_accounts")
+    .update({ ai_consent_at: null })
+    .eq("user_id", A.userId)
+    .select("ai_consent_at");
+  zkouska("AI: vypnutí", vypnuto?.length === 1 && vypnuto[0].ai_consent_at === null, "a zase vypne");
+
+  const { data: ciziSouhlas } = await B.klient
+    .from("mail_accounts")
+    .update({ ai_consent_at: new Date().toISOString() })
+    .eq("user_id", A.userId)
+    .select("id");
+  const { data: poPokusu } = await admin.from("mail_accounts").select("ai_consent_at").eq("user_id", A.userId).single();
+  zkouska("AI: cizí souhlas", (ciziSouhlas ?? []).length === 0 && poPokusu?.ai_consent_at === null, "kolega nemůže dát souhlas za někoho jiného");
+
   // --- Zprávy -----------------------------------------------------------------
   const { error: zErr } = await A.klient.from("mail_messages").insert(zprava());
   zkouska("uložení zprávy", !zErr, zErr ? zErr.message : "vlastní zpráva se uloží");
@@ -93,6 +125,30 @@ try {
 
   const { data: cizi2 } = await C.klient.from("mail_messages").select("subject").eq("org_id", orgA);
   zkouska("cizí studio", (cizi2 ?? []).length === 0, "člověk z jiného studia nevidí nic");
+
+  // --- Úkol ze zprávy -----------------------------------------------------------
+  // Založení vrací číslo úkolu, aby na něj zpráva mohla odkázat.
+  const { data: ukoly, error: ukolErr } = await A.klient
+    .from("tasks")
+    .insert([{
+      org_id: orgA, title: "Poslat letáky do tisku", kind: "tisk", step: 0, size: 2,
+      created_by: A.userId, assignee_id: A.userId, due_at: "2026-10-05T00:00:00.000Z", note: "500 kusů",
+    }])
+    .select("id");
+  zkouska("úkol: číslo při založení", !ukolErr && ukoly?.length === 1, ukolErr ? ukolErr.message : "založený úkol vrátí své číslo");
+
+  const { data: spojeno } = await A.klient
+    .from("mail_messages")
+    .update({ task_id: ukoly?.[0]?.id ?? null, handled_at: new Date().toISOString() })
+    .eq("user_id", A.userId)
+    .eq("gmail_id", "g1")
+    .select("task_id, handled_at");
+  zkouska("úkol: odkaz ze zprávy", !!ukoly?.[0]?.id && spojeno?.[0]?.task_id === ukoly[0].id && !!spojeno?.[0]?.handled_at, "zpráva odkazuje na úkol a je vyřízená");
+
+  await A.klient.from("tasks").delete().eq("id", ukoly?.[0]?.id);
+  const { data: poSmazaniUkolu } = await A.klient.from("mail_messages").select("task_id, handled_at").eq("user_id", A.userId).eq("gmail_id", "g1").single();
+  zkouska("úkol: smazání", poSmazaniUkolu?.task_id === null, "po smazání úkolu zpráva zůstane, jen odkaz zmizí");
+  await A.klient.from("mail_messages").update({ handled_at: null }).eq("user_id", A.userId).eq("gmail_id", "g1");
 
   // --- Vlastní úpravy ---------------------------------------------------------
   const { data: vyrizeno } = await A.klient

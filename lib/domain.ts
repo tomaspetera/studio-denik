@@ -294,16 +294,27 @@ export function dateKeyUTC(value: string | Date): DateKey {
   return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`;
 }
 
-/** Dnešní datum v Praze — nezávisle na tom, v jakém pásmu běží prohlížeč nebo server. */
-export function todayKeyPrague(): DateKey {
+/**
+ * Den podle Prahy pro daný okamžik — třeba den, kdy přišel e-mail. Zpráva
+ * odeslaná ve 23:30 UTC patří v Praze už k dalšímu dni. Neplatné datum se
+ * bere jako „teď“, aby se s výsledkem dalo vždycky počítat.
+ */
+export function dateKeyPrague(value: string | Date): DateKey {
+  const given = typeof value === "string" ? new Date(value) : value;
+  const d = Number.isNaN(given.getTime()) ? new Date() : given;
   const parts = new Intl.DateTimeFormat("en-CA", {
     timeZone: "Europe/Prague",
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
-  }).formatToParts(new Date());
+  }).formatToParts(d);
   const get = (t: string) => parts.find((p) => p.type === t)?.value ?? "";
   return `${get("year")}-${get("month")}-${get("day")}`;
+}
+
+/** Dnešní datum v Praze — nezávisle na tom, v jakém pásmu běží prohlížeč nebo server. */
+export function todayKeyPrague(): DateKey {
+  return dateKeyPrague(new Date());
 }
 
 /** Klíč dne zpátky na `Date` (UTC půlnoc) — pro vstup `<input type="date">` a podobně. */

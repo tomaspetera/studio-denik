@@ -1,9 +1,10 @@
 /**
  * Třídění pošty — čistá pravidla bez Gmailu, bez databáze a bez AI.
  *
- * Data z Gmailu se záměrně nikdy neposílají do žádné služby umělé
- * inteligence (viz migrace 0018 a stránka se zásadami soukromí), takže
- * všechno, co appka o zprávě „ví“, vzniká tady z hlaviček.
+ * Třídění se obejde bez umělé inteligence: všechno, co appka o zprávě
+ * „ví“, vzniká tady z hlaviček. AI přijde ke slovu jen u návrhu úkolu
+ * z jedné zprávy, na výslovné kliknutí a se souhlasem majitele schránky
+ * (viz `mail-data.ts`, migrace 0019 a stránka se zásadami soukromí).
  *
  * Dvě otázky, na které pravidla odpovídají:
  *  1) Čeká zpráva na mou odpověď? → poslední zpráva ve vlákně je od nich.

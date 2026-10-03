@@ -5,5 +5,7 @@
  */
 export const CAPTURE_MAX_CHARS = 4000;
 export const CAPTURE_MAX_TASKS = 15;
+/** Nejdelší poznámka u navrženého úkolu. Delší se uřízne. */
+export const NOTE_MAX = 500;
 /** Strop při zakládání — víc než návrh ukáže, kdyby někdo posílal žádost mimo formulář. */
 export const CREATE_MAX_TASKS = 50;

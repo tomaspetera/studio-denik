@@ -30,9 +30,18 @@ zkouska("pokaždé jinak", druhe !== sifra && decryptToken(druhe, KLIC) === TOKE
 zkouska("jiný klíč", hodi(() => decryptToken(sifra, JINY)), "cizím klíčem to nejde přečíst");
 
 const casti = sifra.split(".");
-const prehozeny = [casti[0], casti[1], casti[2].slice(0, -2) + (casti[2].slice(-2) === "AA" ? "BB" : "AA"), casti[3]].join(".");
-zkouska("změněná data", hodi(() => decryptToken(prehozeny, KLIC)), "podvržený obsah se pozná, nevrátí nesmysl");
-zkouska("změněná značka", hodi(() => decryptToken([casti[0], casti[1], casti[2], casti[3].slice(0, -2) + "AA"].join("."), KLIC)), "poškozená kontrolní značka se pozná");
+// Změna se dělá na bajtech, ne na znacích. Poslední znaky base64 nesou i bity,
+// které se při čtení zahazují, a přepsání na pevnou hodnotu se navíc jednou za
+// čas trefí do té původní — test by pak občas spadl, i když šifrování drží.
+const sJinymBitem = (cast) => {
+  const bajty = Buffer.from(cast, "base64url");
+  bajty[bajty.length - 1] ^= 0x01;
+  return bajty.toString("base64url");
+};
+const podvrh = (i) => casti.map((c, n) => (n === i ? sJinymBitem(c) : c)).join(".");
+zkouska("změněná data", hodi(() => decryptToken(podvrh(2), KLIC)), "podvržený obsah se pozná, nevrátí nesmysl");
+zkouska("změněná značka", hodi(() => decryptToken(podvrh(3), KLIC)), "poškozená kontrolní značka se pozná");
+zkouska("změněné IV", hodi(() => decryptToken(podvrh(1), KLIC)), "ani jiný počáteční vektor neprojde");
 zkouska("useknuté", hodi(() => decryptToken("v1.abc", KLIC)), "neúplný záznam se odmítne");
 zkouska("cizí verze", hodi(() => decryptToken("v9." + casti.slice(1).join("."), KLIC)), "neznámá verze se odmítne");
 

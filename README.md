@@ -110,6 +110,19 @@ protože odpověď začne odcházet okamžitě.
 při prvním požadavku. Výchozí je proto `gemini-3.6-flash`. Modely bývají
 i přetížené (503), takže se pokus třikrát opakuje.
 
+**U Gemini se platí předem.** Projekt, kterému patří `GEMINI_API_KEY`, má
+v AI Studiu předplacený kredit. Když dojde, každé volání skončí chybou 402
+a appka to řekne česky (`AiNoCredit` v `lib/ai.ts`) — dobíjí se v AI Studiu
+v části Billing.
+
+**Pošta a AI.** Přehled pošty se obejde bez AI a čte z Gmailu jen hlavičky.
+Text zprávy se načte jen na kliknutí „Udělat úkol“ a jen se souhlasem majitele
+schránky (`mail_accounts.ai_consent_at`); posílá se výhradně do Gemini a nikam
+se neukládá. Pravidla Googlu pro data z Workspace API dovolují předat je jen
+službě, která je nepoužívá k vylepšování modelů — proto má klíč patřit
+projektu na placené úrovni. Co appka z Gmailu čte a komu to předává, popisuje
+veřejná stránka `/soukromi`; kdykoli se to změní, musí se upravit zároveň.
+
 **PDF vzniká tiskem stránky, ne knihovnou.** Report je navržený jako papírový
 arch a tiskový styl schová rozhraní — výsledek je tedy shodný s obrazovkou
 a dokument neexistuje ve dvou verzích, které by se rozcházely.

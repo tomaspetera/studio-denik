@@ -1,33 +1,12 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { FLOWS, plural, stepCount, type DateKey, type TaskKind } from "@/lib/domain";
+import { plural, type DateKey } from "@/lib/domain";
 import { CAPTURE_MAX_CHARS } from "@/lib/capture-limits";
-import type { Proposal } from "@/lib/capture";
 import type { Category, Client } from "@/lib/tasks";
 import { createProposedTasksAction, proposeTasksAction } from "./capture-actions";
+import ProposalList, { chosenProposals, toRows, type ProposalRow } from "./ProposalList";
 import styles from "./tasks.module.css";
-
-type Row = Proposal & { key: number; include: boolean };
-
-const KIND_OPTIONS: { key: TaskKind; label: string }[] = [
-  { key: "interni", label: "Interní" },
-  { key: "klient", label: "S klientem" },
-  { key: "tisk", label: "Tiskový" },
-];
-
-/** Změna typu mění počet kroků — hotový zůstane hotový, otevřený se nikdy sám nedokončí. */
-function withKind(row: Row, kind: TaskKind, today: DateKey): Row {
-  const wasDone = row.step === stepCount(row.kind) - 1;
-  const last = stepCount(kind) - 1;
-  const step = wasDone ? last : Math.min(row.step, last - 1);
-  return { ...row, kind, step, doneOn: step === last ? (row.doneOn ?? today) : null };
-}
-
-function withStep(row: Row, step: number, today: DateKey): Row {
-  const done = step === stepCount(row.kind) - 1;
-  return { ...row, step, doneOn: done ? (row.doneOn ?? today) : null };
-}
 
 /**
  * Rychlý zápis: text → návrh úkolů → kontrola → založení. AI jen navrhuje,
@@ -48,7 +27,7 @@ export default function CaptureDialog({
   onCreated: () => void;
 }) {
   const [text, setText] = useState("");
-  const [rows, setRows] = useState<Row[] | null>(null);
+  const [rows, setRows] = useState<ProposalRow[] | null>(null);
   const [warnings, setWarnings] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
@@ -68,32 +47,17 @@ export default function CaptureDialog({
         return;
       }
       setWarnings(res.warnings);
-      setRows(res.proposals.map((p, i) => ({ ...p, key: i, include: true })));
+      setRows(toRows(res.proposals));
     });
   }
 
-  function patch(key: number, change: (r: Row) => Row) {
-    setRows((prev) => prev && prev.map((r) => (r.key === key ? change(r) : r)));
-  }
-
-  const chosen = rows?.filter((r) => r.include) ?? [];
+  const chosen = rows ? chosenProposals(rows) : [];
 
   function create() {
     if (chosen.length === 0 || pending) return;
     setError(null);
-    const items: Proposal[] = chosen.map((r) => ({
-      title: r.title,
-      kind: r.kind,
-      step: r.step,
-      clientId: r.clientId,
-      categoryId: r.categoryId,
-      dueKey: r.dueKey,
-      doneOn: r.doneOn,
-      size: r.size,
-      note: r.note,
-    }));
     startTransition(async () => {
-      const res = await createProposedTasksAction(items);
+      const res = await createProposedTasksAction(chosen);
       if (res.ok) onCreated();
       else setError(res.message);
     });
@@ -157,97 +121,7 @@ export default function CaptureDialog({
                 </ul>
               )}
 
-              <ul className={styles.capList}>
-                {rows.map((r) => {
-                  const done = r.step === stepCount(r.kind) - 1;
-                  return (
-                    <li key={r.key} className={`${styles.capRow} ${r.include ? "" : styles.capOff}`}>
-                      <input
-                        type="checkbox"
-                        className={styles.capCheck}
-                        checked={r.include}
-                        onChange={(e) => patch(r.key, (x) => ({ ...x, include: e.target.checked }))}
-                        aria-label={`Založit: ${r.title}`}
-                      />
-                      <div className={styles.capBody}>
-                        <input
-                          className="field"
-                          value={r.title}
-                          onChange={(e) => patch(r.key, (x) => ({ ...x, title: e.target.value }))}
-                          aria-label="Název úkolu"
-                        />
-                        {r.note && <p className={styles.capNote}>{r.note}</p>}
-
-                        <div className={styles.capGrid}>
-                          <div className={styles.capField}>
-                            <span>Typ</span>
-                            <select
-                              className="field"
-                              value={r.kind}
-                              onChange={(e) => patch(r.key, (x) => withKind(x, e.target.value as TaskKind, today))}
-                            >
-                              {KIND_OPTIONS.map((k) => <option key={k.key} value={k.key}>{k.label}</option>)}
-                            </select>
-                          </div>
-                          <div className={styles.capField}>
-                            <span>Stav</span>
-                            <select
-                              className="field"
-                              value={r.step}
-                              onChange={(e) => patch(r.key, (x) => withStep(x, Number(e.target.value), today))}
-                            >
-                              {FLOWS[r.kind].map((s, i) => <option key={i} value={i}>{s.label}</option>)}
-                            </select>
-                          </div>
-                          <div className={styles.capField}>
-                            <span>Klient</span>
-                            <select
-                              className="field"
-                              value={r.clientId ?? ""}
-                              onChange={(e) => patch(r.key, (x) => ({ ...x, clientId: e.target.value || null }))}
-                            >
-                              <option value="">— žádný —</option>
-                              {clients.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                            </select>
-                          </div>
-                          <div className={styles.capField}>
-                            <span>Kategorie</span>
-                            <select
-                              className="field"
-                              value={r.categoryId ?? ""}
-                              onChange={(e) => patch(r.key, (x) => ({ ...x, categoryId: e.target.value || null }))}
-                            >
-                              <option value="">— žádná —</option>
-                              {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                            </select>
-                          </div>
-                          <div className={styles.capField}>
-                            <span>Termín</span>
-                            <input
-                              type="date"
-                              className="field"
-                              value={r.dueKey ?? ""}
-                              onChange={(e) => patch(r.key, (x) => ({ ...x, dueKey: e.target.value || null }))}
-                            />
-                          </div>
-                          {done && (
-                            <div className={styles.capField}>
-                              <span>Hotovo dne</span>
-                              <input
-                                type="date"
-                                className="field"
-                                max={today}
-                                value={r.doneOn ?? today}
-                                onChange={(e) => patch(r.key, (x) => ({ ...x, doneOn: e.target.value || today }))}
-                              />
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </li>
-                  );
-                })}
-              </ul>
+              <ProposalList rows={rows} onChange={setRows} clients={clients} categories={categories} today={today} />
             </>
           )}
 

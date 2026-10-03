@@ -2,6 +2,7 @@ import "server-only";
 
 import Anthropic from "@anthropic-ai/sdk";
 import { GoogleGenAI } from "@google/genai";
+import { isNoCredit, isOverloaded, isQuotaError, isTimeout } from "./ai-errors.ts";
 
 /**
  * Napojení na AI. Běží výhradně na serveru — `server-only` zajistí, že se
@@ -13,8 +14,9 @@ export type Provider = "claude" | "gemini";
 
 const CLAUDE_MODEL = process.env.ANTHROPIC_MODEL || "claude-opus-5";
 
-// Bezplatná úroveň Gemini nemá kvótu na `pro` modely — ty vracejí 429 hned
-// při prvním požadavku. `flash` funguje a na psaní reportu bohatě stačí.
+// Na psaní reportu `flash` bohatě stačí a je několikrát levnější než `pro`.
+// (Na bezplatné úrovni `pro` modely nejdou vůbec — vracejí 429 hned při
+// prvním požadavku.)
 const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-3.6-flash";
 
 export class AiNotConfigured extends Error {
@@ -46,6 +48,20 @@ export class AiQuotaExceeded extends Error {
 }
 
 /**
+ * U Gemini se platí předem. Když kredit dojde, selže každé volání (HTTP 402),
+ * dokud se nedobije — opakování ani jiný model nepomůže, takže se to člověku
+ * řekne rovnou a srozumitelně.
+ */
+export class AiNoCredit extends Error {
+  constructor() {
+    super(
+      "U Gemini došel předplacený kredit. Dobij ho v Google AI Studiu (Billing → Buy credits) a zkus to znovu.",
+    );
+    this.name = "AiNoCredit";
+  }
+}
+
+/**
  * Které modely má aplikace reálně k dispozici.
  *
  * Nestačí, že proměnná existuje — zástupný text jako `sk-ant-` je pravdivá
@@ -61,17 +77,6 @@ export function availableProviders(): Provider[] {
 
 function looksLikeKey(value: string | undefined): boolean {
   return typeof value === "string" && value.trim().length >= 30;
-}
-
-function isQuotaError(e: unknown): boolean {
-  const msg = e instanceof Error ? e.message : String(e);
-  return /RESOURCE_EXHAUSTED|quota|rate.?limit|"code":\s*429/i.test(msg);
-}
-
-/** Model je momentálně přetížený. Na rozdíl od vyčerpané kvóty to přejde. */
-function isOverloaded(e: unknown): boolean {
-  const msg = e instanceof Error ? e.message : String(e);
-  return /UNAVAILABLE|overloaded|high demand|"code":\s*(503|529)/i.test(msg);
 }
 
 /**
@@ -172,6 +177,7 @@ async function writeProseGemini(system: string, prompt: string): Promise<string>
     );
     return (res.text ?? "").trim();
   } catch (e) {
+    if (isNoCredit(e)) throw new AiNoCredit();
     if (isQuotaError(e)) throw new AiQuotaExceeded("gemini", GEMINI_MODEL);
     if (isOverloaded(e)) throw new AiOverloaded("gemini");
     throw e;
@@ -252,6 +258,7 @@ async function* streamGemini(system: string, prompt: string): AsyncGenerator<str
       config: { systemInstruction: system },
     }),
   ).catch((e) => {
+    if (isNoCredit(e)) throw new AiNoCredit();
     if (isQuotaError(e)) throw new AiQuotaExceeded("gemini", GEMINI_MODEL);
     if (isOverloaded(e)) throw new AiOverloaded("gemini");
     throw e;
@@ -349,11 +356,6 @@ const GEMINI_FAST_MODEL = process.env.GEMINI_FAST_MODEL || "gemini-3.1-flash-lit
  */
 const ATTEMPT_TIMEOUT_MS = 10_000;
 
-function isTimeout(e: unknown): boolean {
-  const msg = e instanceof Error ? e.message : String(e);
-  return /timeout|timed out|aborted|AbortError/i.test(msg);
-}
-
 /**
  * Po jakém selhání má smysl zkusit jiný model: přetížení, vyčerpaná minutová
  * kvóta, vypršení času, nebo model, který tohle zadání nebere (404/400).
@@ -396,6 +398,7 @@ async function extractJsonGemini(system: string, prompt: string, schema: Record<
     }
   }
 
+  if (isNoCredit(last)) throw new AiNoCredit();
   if (isQuotaError(last)) throw new AiQuotaExceeded("gemini", GEMINI_FAST_MODEL);
   if (isOverloaded(last) || isTimeout(last)) throw new AiOverloaded("gemini", models.length);
   throw last;

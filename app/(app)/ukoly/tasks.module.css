@@ -713,7 +713,17 @@
 .capOff .capBody { opacity: 0.45; }
 .capCheck { width: 16px; height: 16px; margin-top: 11px; accent-color: var(--accent); flex: none; }
 .capBody { flex: 1; min-width: 0; }
-.capNote { margin: var(--s2) 0 0; font-family: var(--ui-s); font-size: 12px; color: var(--faint); line-height: 1.5; }
+/* Poznámka psaná AI: pole k úpravě, ale tlumené, ať nepřebíjí název. */
+.capBody .capNoteEdit {
+  margin-top: var(--s2);
+  padding: 6px 8px;
+  font-family: var(--ui-s);
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--muted);
+  resize: vertical;
+  min-height: 52px;
+}
 
 .capGrid {
   display: grid;

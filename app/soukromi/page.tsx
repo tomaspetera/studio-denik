@@ -11,6 +11,10 @@ export const metadata: Metadata = {
  * Veřejná stránka — musí být dostupná bez přihlášení (viz `proxy.ts`).
  * Google ji vyžaduje u každé aplikace, která žádá o přístup ke Gmailu,
  * a text musí odpovídat tomu, co appka doopravdy dělá.
+ *
+ * Kdykoli se změní, co appka z Gmailu čte, ukládá nebo komu to předává
+ * (`lib/gmail.ts`, `lib/mail-data.ts`), musí se změnit i tahle stránka —
+ * a nasadit nejpozději zároveň s tou změnou.
  */
 export default function SoukromiPage() {
   return (
@@ -19,7 +23,7 @@ export default function SoukromiPage() {
         <Link href="/prihlaseni" className={styles.back}>← Studio Deník</Link>
 
         <h1 className={styles.h1}>Zásady ochrany soukromí</h1>
-        <p className={styles.meta}>Studio Deník · poslední změna 2. října 2026</p>
+        <p className={styles.meta}>Studio Deník · poslední změna 3. října 2026</p>
 
         <h2>Co je Studio Deník</h2>
         <p>
@@ -41,50 +45,88 @@ export default function SoukromiPage() {
             Žádáme jediné oprávnění, <code>gmail.readonly</code>, tedy <strong>jen čtení</strong>.
           </li>
           <li>
-            Aplikace čte hlavičky zpráv (odesílatel, předmět, datum), štítky a krátký úryvek.
-            Celé zprávy ani přílohy nečte.
+            Pro přehled pošty aplikace čte jen hlavičky zpráv: odesílatele, předmět a datum.
+            Odpověď Gmailu obsahuje i krátký úryvek zprávy; aplikace ho nepoužívá a neukládá.
+          </li>
+          <li>
+            Text zprávy aplikace načte jen u jedné konkrétní zprávy, a to ve chvíli, kdy u ní sám
+            klikneš na „Udělat úkol“ a máš zapnutý návrh úkolu pomocí umělé inteligence (viz níže).
+            Přílohy nečte nikdy.
           </li>
           <li>
             Aplikace <strong>nikdy nic neodesílá, nemaže ani neupravuje</strong> a nevytváří koncepty.
           </li>
           <li>
-            Zprávy se čtou jen proto, aby aplikace ukázala přehled pošty: roztřídění podle
-            naléhavosti a přiřazení ke klientům.
+            Data z Gmailu slouží jen k tomu, co v aplikaci vidíš: přehled zpráv, které čekají na
+            odpověď, přiřazení zpráv ke klientům a návrh úkolu ze zprávy.
           </li>
         </ul>
 
         <h2>Co se ukládá</h2>
         <p>
-          U každé zprávy se ukládá odesílatel, předmět, datum přijetí, štítek stavu, identifikátor
-          zprávy a vlákna (kvůli odkazu do Gmailu) a klient, ke kterému zpráva patří.{" "}
-          <strong>Text zprávy ani úryvek se neukládají.</strong> Přihlašovací token ke Gmailu se
-          ukládá šifrovaně a je přístupný jen serveru aplikace, nikdy prohlížeči.
+          U každé zprávy se ukládá odesílatel, předmět, datum přijetí, stav (čeká na odpověď,
+          vyřízeno), identifikátor zprávy a vlákna (kvůli odkazu do Gmailu) a klient, ke kterému
+          zpráva patří. <strong>Text zprávy se neukládá</strong> — ani tehdy, když si z ní necháš
+          navrhnout úkol. Uloží se až úkol, který sám potvrdíš: jeho název a poznámka se
+          shrnutím a s odesílatelem zprávy. Obojí můžeš před uložením přepsat. Přihlašovací token ke Gmailu se ukládá šifrovaně a je přístupný
+          jen serveru aplikace, nikdy prohlížeči.
         </p>
 
         <h2>Data z Gmailu a umělá inteligence</h2>
         <p>
-          <strong>
-            Data z Gmailu se neodesílají do žádné služby umělé inteligence a nepoužívají se
-            k trénování ani vylepšování žádných modelů.
-          </strong>{" "}
+          <strong>Ve výchozím stavu se z Gmailu do žádné služby umělé inteligence neposílá nic.</strong>{" "}
           Pošta se třídí pevnými pravidly přímo v aplikaci: podle adresy odesílatele se přiřadí
           klient a podle toho, kdo poslal poslední zprávu ve vlákně, se pozná, že se čeká na tvou
           odpověď.
         </p>
         <p>
-          Aplikace umí využít službu Google Gemini API, ale výhradně pro texty, které do ní sám
-          napíšeš (shrnutí týdenního reportu a převod vlastních poznámek na úkoly). Obsah
-          z Gmailu do ní nevstupuje.
+          Návrh úkolu pomocí umělé inteligence je volitelná funkce. Majitel schránky ji musí
+          výslovně povolit a může ji kdykoli vypnout v nastavení pošty. Je-li zapnutá a klikneš
+          u zprávy na „Udělat úkol“, odešle se odesílatel, předmět, datum a text <strong>této jedné
+          zprávy</strong> (bez příloh) ke zpracování službě Google Gemini API, která vrátí návrh
+          úkolu. Děje se to jen na tvoje kliknutí, nikdy automaticky ani hromadně, a úkol vznikne
+          až po tvém potvrzení.
+        </p>
+        <p>
+          Službu Gemini API používáme v placeném režimu, ve kterém Google podle svých podmínek
+          zaslaný obsah nepoužívá k vylepšování svých produktů ani k trénování modelů; krátkodobě
+          ho uchovává jen kvůli odhalování zneužití a plnění zákonných povinností.{" "}
+          <strong>
+            Data z Gmailu nepoužíváme k vývoji, trénování ani vylepšování žádných modelů umělé
+            inteligence.
+          </strong>{" "}
+          Provozovatel aplikace zprávy nečte; uložené údaje o zprávách vidí v aplikaci jen majitel
+          schránky.
+        </p>
+        <p>
+          Stejnou službu aplikace využívá i pro texty, které do ní sám napíšeš: shrnutí týdenního
+          reportu a převod vlastních poznámek na úkoly.
         </p>
 
         <h2>Komu se data předávají</h2>
         <ul>
           <li>Supabase (databáze) a Vercel (hosting): provoz aplikace.</li>
           <li>
+            Google (Gemini API): zpracování textu při návrhu úkolu ze zprávy, shrnutí reportu
+            a převodu poznámek na úkoly — jen v rozsahu popsaném výše.
+          </li>
+          <li>
             Data neprodáváme, nepoužíváme k reklamě a kromě uvedených poskytovatelů je nikomu
             nepředáváme.
           </li>
         </ul>
+
+        <h2>Pravidla Googlu pro data uživatelů</h2>
+        <p>
+          Použití informací získaných z rozhraní Google Workspace se řídí zásadami{" "}
+          <a
+            href="https://developers.google.com/workspace/workspace-api-user-data-developer-policy"
+            rel="noopener noreferrer"
+          >
+            Google User Data Policy
+          </a>
+          , včetně požadavků na omezené použití (Limited Use).
+        </p>
 
         <h2>Odpojení a smazání</h2>
         <p>
@@ -105,20 +147,40 @@ export default function SoukromiPage() {
         <h2 lang="en">Summary in English</h2>
         <p lang="en">
           Studio Deník is a private work tool for a small graphic design studio. If you connect
-          Gmail, it requests the read-only scope <code>gmail.readonly</code> and reads only message
-          headers (sender, subject, date), labels and a short snippet. It never sends, deletes or
-          modifies mail. It stores sender, subject, date, a status label, message/thread IDs and the
-          matching client, but not message text or snippets. The Gmail access token is stored
-          encrypted and is only available to the server.{" "}
+          Gmail, it requests the read-only scope <code>gmail.readonly</code>. For the mail overview
+          it reads only message headers (sender, subject, date). It never sends, deletes or modifies
+          mail. It stores sender, subject, date, a status label, message/thread IDs and the matching
+          client, but never the message text. The Gmail access token is stored encrypted and is only
+          available to the server.
+        </p>
+        <p lang="en">
+          <strong>By default, no Gmail data is sent to any artificial intelligence service.</strong>{" "}
+          Triage is done by fixed rules inside the application. An optional feature, which the
+          mailbox owner must explicitly enable and can turn off at any time, lets the user click
+          “Create task” on a single message: the sender, subject, date and text of that one message
+          (never attachments) are then sent to the Google Gemini API to propose a task. The task (a title and a
+          note with a short summary and the sender, both editable beforehand) is created only
+          after the user confirms it. This happens only on the user’s click, never
+          automatically or in bulk, and the message text is not stored. The Gemini API is used as a
+          paid service, under whose terms Google does not use the submitted content to improve its
+          products or train models.{" "}
           <strong>
-            Gmail data is never sent to any artificial intelligence service and is never used to
-            develop, train or improve any AI/ML model.
+            Gmail data is never used to develop, train or improve any AI/ML model.
           </strong>{" "}
-          Triage is done by fixed rules inside the application. The app can use the Google Gemini
-          API, but only for text the user writes themselves (weekly report summaries and turning
-          personal notes into tasks); no Gmail content is included. Data is not sold or used for
-          advertising. Disconnecting Gmail in the app deletes the token and all stored messages and
-          revokes access at Google.
+          No human reads the messages other than the mailbox owner. The same service is used for
+          text the user writes themselves (weekly report summaries and turning personal notes into
+          tasks). Data is not sold or used for advertising. Disconnecting Gmail in the app deletes
+          the token and all stored messages and revokes access at Google.
+        </p>
+        <p lang="en">
+          The use of information received from Google Workspace scopes will adhere to the{" "}
+          <a
+            href="https://developers.google.com/workspace/workspace-api-user-data-developer-policy"
+            rel="noopener noreferrer"
+          >
+            Google User Data Policy
+          </a>
+          , including the Limited Use requirements.
         </p>
       </article>
     </main>

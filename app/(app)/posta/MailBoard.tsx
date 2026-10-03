@@ -2,16 +2,19 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { csDate, plural } from "@/lib/domain";
+import { csDate, plural, type DateKey } from "@/lib/domain";
 import type { MailRow } from "@/lib/mail-data";
+import type { Category, Client } from "@/lib/tasks";
 import {
   disconnectMailAction,
   ignoreSenderAction,
   setHandledAction,
+  setMailAiConsentAction,
   syncMailAction,
   taskFromMailAction,
   unignoreAction,
 } from "./actions";
+import MailTaskDialog, { useMailTask } from "./MailTaskDialog";
 import styles from "./posta.module.css";
 
 type Filtr = "waiting" | "all" | "handled";
@@ -42,13 +45,26 @@ export default function MailBoard({
   ignored,
   justConnected,
   error,
+  aiAvailable,
+  aiSince,
+  clients,
+  categories,
+  today,
 }: {
   configured: boolean;
-  account: { email: string; lastSyncAt: string | null } | null;
+  account: { email: string; lastSyncAt: string | null; aiConsentAt: string | null } | null;
   messages: MailRow[];
   ignored: { id: string; pattern: string }[];
   justConnected: boolean;
   error: string | null;
+  /** Na serveru je klíč ke Gemini, takže úkol jde navrhnout z obsahu e-mailu. */
+  aiAvailable: boolean;
+  /** Od kdy je návrh pomocí AI povolený — hotový text, počítaný na serveru podle Prahy. */
+  aiSince: string | null;
+  clients: Client[];
+  categories: Category[];
+  /** Dnešek podle Prahy, počítaný na serveru. */
+  today: DateKey;
 }) {
   const router = useRouter();
   const [filtr, setFiltr] = useState<Filtr>("waiting");
@@ -57,6 +73,12 @@ export default function MailBoard({
   const [odpojit, setOdpojit] = useState(false);
   const [nastaveni, setNastaveni] = useState(false);
   const [pending, startTransition] = useTransition();
+
+  const ukol = useMailTask((zprava) => {
+    setHlaska(null);
+    setUspech(zprava);
+    router.refresh();
+  });
 
   function run(fn: () => Promise<{ ok: boolean; message?: string; count?: number }>, poUspechu?: (r: { count?: number }) => string | null) {
     setHlaska(null);
@@ -92,12 +114,13 @@ export default function MailBoard({
           <strong>Připoj Gmail a uvidíš, co čeká na odpověď</strong>
           <p>
             Appka si vezme <b>jen právo číst</b>. Nikdy nic neodešle, nesmaže ani neupraví.
-            Čte jen hlavičky zpráv, tedy od koho, s jakým předmětem a kdy přišly. Těla zpráv
-            se nikam neukládají a nic z pošty se neposílá do umělé inteligence.
+            Pro přehled čte jen hlavičky zpráv, tedy od koho, s jakým předmětem a kdy přišly.
+            Text zprávy se nikam neukládá.
           </p>
           <p>
             Podle adresy odesílatele pozná klienta a podle toho, kdo psal ve vlákně poslední,
-            pozná, že se čeká na tebe.
+            pozná, že se čeká na tebe. Když budeš chtít, umí z e-mailu navrhnout úkol pomocí AI —
+            jen u zprávy, na kterou klikneš, a až to sám povolíš.
           </p>
 
           {configured ? (
@@ -124,6 +147,9 @@ export default function MailBoard({
   }
 
   /* ---------------- Připojeno ---------------- */
+
+  const aiPovolena = Boolean(account.aiConsentAt);
+  const zaneprazdnen = pending || ukol.pending;
 
   return (
     <div className={styles.wrap}>
@@ -160,6 +186,44 @@ export default function MailBoard({
             Pošta se načítá za posledních 7 dní z doručené pošty, bez záložek Reklamy a Sociální sítě.
             Odpovídá se vždycky v Gmailu — appka umí jen číst.
           </p>
+
+          {aiAvailable && (
+            <>
+              <h3 className={styles.sub3}>Návrh úkolu pomocí AI</h3>
+              {aiPovolena ? (
+                <>
+                  <p className={styles.note}>
+                    Zapnuto{aiSince ? ` od ${aiSince}` : ""}. Když u zprávy klikneš na „Udělat úkol“, její text
+                    se pošle do služby Google Gemini a ta z něj navrhne úkol. Text zprávy se neukládá.
+                  </p>
+                  <button
+                    type="button"
+                    className="btn btn-sm"
+                    disabled={zaneprazdnen}
+                    onClick={() => run(() => setMailAiConsentAction(false), () => "Návrh úkolu pomocí AI je vypnutý.")}
+                  >
+                    Vypnout
+                  </button>
+                </>
+              ) : (
+                <>
+                  <p className={styles.note}>
+                    Vypnuto — „Udělat úkol“ se nejdřív zeptá. Zapnutím dovolíš, aby se text zprávy,
+                    u které na tlačítko klikneš, poslal do služby Google Gemini a ta z něj navrhla úkol.
+                    Text zprávy se neukládá a nic se neděje samo ani hromadně.
+                  </p>
+                  <button
+                    type="button"
+                    className="btn btn-sm"
+                    disabled={zaneprazdnen}
+                    onClick={() => run(() => setMailAiConsentAction(true), () => "Návrh úkolu pomocí AI je zapnutý.")}
+                  >
+                    Zapnout
+                  </button>
+                </>
+              )}
+            </>
+          )}
 
           {ignored.length > 0 && (
             <>
@@ -248,7 +312,14 @@ export default function MailBoard({
                   Otevřít
                 </a>
                 {!m.handledAt && !m.taskId && (
-                  <button type="button" className="btn btn-sm" disabled={pending} onClick={() => run(() => taskFromMailAction(m.id))}>
+                  <button
+                    type="button"
+                    className="btn btn-sm"
+                    disabled={zaneprazdnen}
+                    title={aiAvailable ? "Navrhne úkol z obsahu e-mailu" : undefined}
+                    // S AI se otevře okno s návrhem; bez ní se úkol založí rovnou z předmětu.
+                    onClick={() => (aiAvailable ? ukol.open(m, aiPovolena) : run(() => taskFromMailAction(m.id)))}
+                  >
                     Udělat úkol
                   </button>
                 )}
@@ -256,7 +327,7 @@ export default function MailBoard({
                 <button
                   type="button"
                   className="btn btn-sm"
-                  disabled={pending}
+                  disabled={zaneprazdnen}
                   onClick={() => run(() => setHandledAction(m.id, !m.handledAt))}
                 >
                   {m.handledAt ? "Vrátit" : "Vyřízeno"}
@@ -265,7 +336,7 @@ export default function MailBoard({
                   <button
                     type="button"
                     className="btn btn-sm btn-ghost"
-                    disabled={pending}
+                    disabled={zaneprazdnen}
                     title={`Zprávy od ${m.fromEmail} se už nebudou ukazovat`}
                     onClick={() => run(() => ignoreSenderAction(m.fromEmail))}
                   >
@@ -277,6 +348,8 @@ export default function MailBoard({
           ))}
         </ul>
       )}
+
+      <MailTaskDialog task={ukol} clients={clients} categories={categories} today={today} />
     </div>
   );
 }

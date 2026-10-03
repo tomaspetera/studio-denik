@@ -1,17 +1,19 @@
 import "server-only";
 
+import type { GmailPart } from "./mail-body";
 import type { RawMessage } from "./mail-rules";
 
 /**
  * Napojení na Gmail — jen čtení.
  *
- * Appka žádá jediné oprávnění `gmail.readonly` a volá jen dvě čtecí adresy
- * (seznam vláken a jedno vlákno). Žádné odesílání, mazání ani úpravy tu
- * záměrně nejsou a být nemají: kdyby je někdo doplnil, musel by zároveň
- * rozšířit oprávnění, což je vidět na souhlasné obrazovce Googlu.
+ * Appka žádá jediné oprávnění `gmail.readonly` a volá jen čtecí adresy
+ * (seznam vláken, jedno vlákno, jedna zpráva). Žádné odesílání, mazání ani
+ * úpravy tu záměrně nejsou a být nemají: kdyby je někdo doplnil, musel by
+ * zároveň rozšířit oprávnění, což je vidět na souhlasné obrazovce Googlu.
  *
- * Z vlákna se čtou jen hlavičky (`format=metadata`), takže Google ani
- * neposílá těla zpráv. Úryvek, který k vláknu vrací, se nikam neukládá.
+ * Přehled pošty čte z vláken jen hlavičky (`format=metadata`), takže Google
+ * těla zpráv ani neposílá. Text jedné zprávy se načítá až na výslovné
+ * kliknutí (`fetchMessage`) a nikam se neukládá.
  */
 
 export const GMAIL_SCOPE = "https://www.googleapis.com/auth/gmail.readonly";
@@ -232,4 +234,18 @@ export async function fetchInbox(
   }
 
   return out;
+}
+
+/**
+ * Jedna zpráva celá, včetně textu. Na rozdíl od přehledu pošty tohle Gmail
+ * žádá o obsah — volá se proto jen na výslovné kliknutí („Udělat úkol“)
+ * a jen když majitel schránky povolil návrh úkolu pomocí AI. Výsledek se
+ * nikam neukládá.
+ */
+export async function fetchMessage(accessToken: string, gmailId: string): Promise<GmailPart | null> {
+  const zprava = await gmailGet<{ payload?: GmailPart }>(
+    `messages/${encodeURIComponent(gmailId)}?format=full`,
+    accessToken,
+  );
+  return zprava.payload ?? null;
 }
