@@ -4,232 +4,94 @@ import { cache } from "react";
 import { revalidatePath } from "next/cache";
 import { supabaseServer } from "./supabase/server";
 import { writeProse, streamProse, availableProviders, type Provider } from "./ai";
+import { weekRange, type Ball } from "./domain";
 import {
-  BALL_LABEL,
-  csRange,
-  isoWeek,
-  shareByCategory,
-  weekRange,
-  type Ball,
-} from "./domain";
+  REPORT_SYSTEM,
+  aggregateReport,
+  buildReportPrompt,
+  type ReportClient,
+  type ReportData,
+  type ReportRow,
+} from "./report-core";
+
+export type { ReportClient, ReportData, ReportItem } from "./report-core";
 
 /* ================================================================== */
 /* Podklady                                                            */
 /* ================================================================== */
 
-export type ReportItem = {
-  title: string;
-  clientName: string | null;
-  categoryName: string | null;
-  supplierName: string | null;
-  ball: Ball;
-  stepName: string;
-  size: number;
-  isLate: boolean;
-  dueAt: string | null;
-};
-
-export type ReportData = {
-  starts: Date;
-  ends: Date;
-  label: string;
-  rangeText: string;
-  /** Uzavřené v období — to, co jde do „co se udělalo“. */
-  done: ReportItem[];
-  /** Otevřené — to, co jde do „čeká se na“. */
-  open: ReportItem[];
-  counts: { done: number; me: number; client: number; supplier: number; late: number };
-  byCategory: { category: string; percent: number; count: number }[];
-  byClient: { client: string; items: ReportItem[]; percent: number }[];
-};
-
-type ViewRow = {
-  title: string;
-  client_name: string | null;
-  supplier_name: string | null;
-  ball: Ball;
-  step_name: string;
-  size: number;
-  is_late: boolean;
-  due_at: string | null;
-  closed_at: string | null;
-  category_id: string | null;
-};
-
-export async function collectReport(orgId: string, anchor = new Date()): Promise<ReportData> {
+/**
+ * Podklady reportu za týden. S `client` jen úkoly toho jednoho klienta —
+ * filtruje se už v dotazu (ať se zbytečně nenačítá cizí práce) a pro jistotu
+ * ještě jednou v `aggregateReport`.
+ */
+export async function collectReport(
+  orgId: string,
+  anchor = new Date(),
+  client: ReportClient | null = null,
+): Promise<ReportData> {
   const supabase = await supabaseServer();
-  const { start, end } = weekRange(anchor);
+  const range = weekRange(anchor);
+
+  let dotaz = supabase
+    .from("tasks_view")
+    .select("title,client_id,client_name,supplier_name,ball,step_name,size,is_late,due_at,closed_at,category_id")
+    .eq("org_id", orgId);
+  if (client) dotaz = dotaz.eq("client_id", client.id);
 
   const [{ data: rows }, { data: cats }] = await Promise.all([
-    supabase
-      .from("tasks_view")
-      .select(
-        "title,client_name,supplier_name,ball,step_name,size,is_late,due_at,closed_at,category_id",
-      )
-      .eq("org_id", orgId),
+    dotaz,
     supabase.from("categories").select("id, name").eq("org_id", orgId),
   ]);
 
   const catName = new Map((cats ?? []).map((c) => [c.id as string, c.name as string]));
+  return aggregateReport((rows ?? []) as unknown as ReportRow[], catName, range, client);
+}
 
-  const all = ((rows ?? []) as unknown as ViewRow[]).map((r): ReportItem => ({
-    title: r.title,
-    clientName: r.client_name,
-    categoryName: r.category_id ? catName.get(r.category_id) ?? null : null,
-    supplierName: r.supplier_name,
-    ball: r.ball,
-    stepName: r.step_name,
-    size: r.size,
-    isLate: r.is_late,
-    dueAt: r.due_at,
-  }));
-
-  // Uzavřené počítáme podle razítka `closed_at`, ne podle stavu — úkol
-  // uzavřený minulý měsíc nepatří do tohohle týdne.
-  const closedInRange = ((rows ?? []) as unknown as ViewRow[])
-    .map((r, i) => ({ r, item: all[i] }))
-    .filter(({ r }) => {
-      if (!r.closed_at) return false;
-      const t = new Date(r.closed_at).getTime();
-      return t >= start.getTime() && t <= end.getTime();
-    })
-    .map(({ item }) => item);
-
-  const open = all.filter((t) => t.ball !== "done");
-
-  const byCategory = shareByCategory(
-    closedInRange.map((t) => ({ category: t.categoryName ?? "Nezařazeno", size: t.size })),
-  );
-
-  // Rozpad po klientech — příjemce reportu čte právě tohle.
-  const clientGroups = new Map<string, ReportItem[]>();
-  for (const t of [...closedInRange, ...open]) {
-    const key = t.clientName ?? "Interní a provozní";
-    clientGroups.set(key, [...(clientGroups.get(key) ?? []), t]);
-  }
-  const clientShares = shareByCategory(
-    [...clientGroups.entries()].flatMap(([client, items]) =>
-      items.map((t) => ({ category: client, size: t.size })),
-    ),
-  );
-  const byClient = [...clientGroups.entries()]
-    .map(([client, items]) => ({
-      client,
-      items,
-      percent: clientShares.find((s) => s.category === client)?.percent ?? 0,
-    }))
-    .sort((a, b) => b.percent - a.percent);
-
-  return {
-    starts: start,
-    ends: end,
-    label: isoWeek(start).label,
-    rangeText: csRange(start, end),
-    done: closedInRange,
-    open,
-    counts: {
-      done: closedInRange.length,
-      me: open.filter((t) => t.ball === "me").length,
-      client: open.filter((t) => t.ball === "client").length,
-      supplier: open.filter((t) => t.ball === "supplier").length,
-      late: open.filter((t) => t.isLate).length,
-    },
-    byCategory,
-    byClient,
-  };
+/**
+ * Klient pro zúžený report — jen když do organizace opravdu patří. Cizí nebo
+ * vymyšlené `id` dá `null` a report se pak nezúží na nic, co uživatel nesmí vidět.
+ */
+export async function findReportClient(orgId: string, clientId: string | null | undefined): Promise<ReportClient | null> {
+  if (!clientId || !/^[0-9a-f-]{36}$/i.test(clientId)) return null;
+  const supabase = await supabaseServer();
+  const { data } = await supabase.from("clients").select("id, name").eq("org_id", orgId).eq("id", clientId).maybeSingle();
+  return data ? { id: data.id as string, name: data.name as string } : null;
 }
 
 /* ================================================================== */
 /* Generování textu                                                    */
 /* ================================================================== */
 
-const SYSTEM = `Píšeš týdenní report grafického studia pro nadřízeného nebo klienta.
-
-Píšeš česky, věcně a bez vaty. Žádné oslovení, žádný závěrečný pozdrav — text
-se vkládá do hotového dokumentu, který hlavičku i patičku už má.
-
-Dva až tři odstavce. První shrne, čím byl týden tažený a kde leželo těžiště
-práce. Druhý pokryje zbytek, typicky administrativu a komunikaci. Pokud něco
-uvázlo na cizí straně, patří to do posledního odstavce a musí být zřejmé, že
-to není zdržení na naší straně.
-
-Vycházej jen z dodaných dat. Nic si nedomýšlej, nepřidávej čísla, která
-v podkladech nejsou, a nepiš marketingové fráze o skvělé spolupráci.`;
-
-function buildPrompt(data: ReportData): string {
-  const lines: string[] = [];
-
-  lines.push(`Období: ${data.rangeText}`);
-  lines.push(
-    `Čísla: ${data.counts.done} uzavřeno, ${data.counts.me} rozpracováno, ` +
-      `${data.counts.client} čeká na klienta, ${data.counts.supplier} u dodavatele, ` +
-      `${data.counts.late} po termínu.`,
-  );
-
-  if (data.byCategory.length) {
-    lines.push(
-      "\nRozdělení práce: " +
-        data.byCategory.map((c) => `${c.category} ${c.percent} %`).join(", "),
-    );
-  }
-
-  lines.push("\nUzavřeno v období:");
-  if (data.done.length === 0) {
-    lines.push("  (nic)");
-  } else {
-    for (const t of data.done) {
-      lines.push(`  - ${t.title}${t.clientName ? ` [${t.clientName}]` : ""}`);
-    }
-  }
-
-  const waiting = data.open.filter((t) => t.ball === "client" || t.ball === "supplier");
-  if (waiting.length) {
-    lines.push("\nČeká se na cizí straně:");
-    for (const t of waiting) {
-      lines.push(
-        `  - ${t.title}${t.clientName ? ` [${t.clientName}]` : ""} — ${BALL_LABEL[t.ball]}` +
-          `${t.supplierName ? `, ${t.supplierName}` : ""}${t.isLate ? ", PO TERMÍNU" : ""}`,
-      );
-    }
-  }
-
-  const mine = data.open.filter((t) => t.ball === "me");
-  if (mine.length) {
-    lines.push("\nRozpracováno u nás:");
-    for (const t of mine) {
-      lines.push(`  - ${t.title}${t.clientName ? ` [${t.clientName}]` : ""} (${t.stepName})`);
-    }
-  }
-
-  return lines.join("\n");
-}
-
 export type GenerateResult =
   | { ok: true; summary: string; provider: Provider }
   | { ok: false; message: string };
 
+const NO_KEY = "Není nastavený žádný AI klíč. Doplň ANTHROPIC_API_KEY nebo GEMINI_API_KEY do .env.local.";
+
+function nothingToWrite(client: ReportClient | null): string {
+  return client
+    ? `Pro klienta ${client.name} tenhle týden nejsou žádné úkoly, není z čeho psát.`
+    : "Za tohle období nejsou žádné úkoly, není z čeho psát.";
+}
+
 export async function generateSummary(
   orgId: string,
   provider?: Provider,
+  client: ReportClient | null = null,
 ): Promise<GenerateResult> {
   const available = availableProviders();
-  if (available.length === 0) {
-    return {
-      ok: false,
-      message:
-        "Není nastavený žádný AI klíč. Doplň ANTHROPIC_API_KEY nebo GEMINI_API_KEY do .env.local.",
-    };
-  }
+  if (available.length === 0) return { ok: false, message: NO_KEY };
 
   const chosen = provider && available.includes(provider) ? provider : available[0];
-  const data = await collectReport(orgId);
+  const data = await collectReport(orgId, new Date(), client);
 
   if (data.done.length === 0 && data.open.length === 0) {
-    return { ok: false, message: "Za tohle období nejsou žádné úkoly, není z čeho psát." };
+    return { ok: false, message: nothingToWrite(client) };
   }
 
   try {
-    const summary = await writeProse(chosen, SYSTEM, buildPrompt(data));
+    const summary = await writeProse(chosen, REPORT_SYSTEM, buildReportPrompt(data));
     await saveSummary(orgId, data, summary, chosen);
     revalidatePath("/report");
     return { ok: true, summary, provider: chosen };
@@ -245,23 +107,20 @@ export async function generateSummary(
 export async function* streamSummary(
   orgId: string,
   provider?: Provider,
+  client: ReportClient | null = null,
 ): AsyncGenerator<string> {
   const available = availableProviders();
-  if (available.length === 0) {
-    throw new Error(
-      "Není nastavený žádný AI klíč. Doplň ANTHROPIC_API_KEY nebo GEMINI_API_KEY do .env.local.",
-    );
-  }
+  if (available.length === 0) throw new Error(NO_KEY);
 
   const chosen = provider && available.includes(provider) ? provider : available[0];
-  const data = await collectReport(orgId);
+  const data = await collectReport(orgId, new Date(), client);
 
   if (data.done.length === 0 && data.open.length === 0) {
-    throw new Error("Za tohle období nejsou žádné úkoly, není z čeho psát.");
+    throw new Error(nothingToWrite(client));
   }
 
   let full = "";
-  for await (const piece of streamProse(chosen, SYSTEM, buildPrompt(data))) {
+  for await (const piece of streamProse(chosen, REPORT_SYSTEM, buildReportPrompt(data))) {
     full += piece;
     yield piece;
   }
@@ -287,22 +146,34 @@ export type StoredReport = {
   share_until: string;
   model: string | null;
   recipient: string | null;
+  /** Klient, na kterého je report zúžený. `null` = celé studio. */
+  client_id: string | null;
 };
 
-export async function loadReport(orgId: string, anchor = new Date()): Promise<StoredReport | null> {
+const STORED_COLUMNS =
+  "id,label,starts_on,ends_on,ai_summary,edited_summary,status,share_token,share_until,model,recipient,client_id";
+
+/**
+ * Uložený report za týden. Za jeden týden jich může být víc: jeden za celé
+ * studio (`clientId` = `null`) a k němu nejvýš jeden na každého klienta.
+ * Každý má vlastní text, vlastní stav a vlastní sdílený odkaz.
+ */
+export async function loadReport(
+  orgId: string,
+  anchor = new Date(),
+  clientId: string | null = null,
+): Promise<StoredReport | null> {
   const supabase = await supabaseServer();
   const { start } = weekRange(anchor);
 
-  const { data } = await supabase
+  const dotaz = supabase
     .from("reports")
-    .select(
-      "id,label,starts_on,ends_on,ai_summary,edited_summary,status,share_token,share_until,model,recipient",
-    )
+    .select(STORED_COLUMNS)
     .eq("org_id", orgId)
     .eq("period", "week")
-    .eq("starts_on", isoDate(start))
-    .maybeSingle();
+    .eq("starts_on", isoDate(start));
 
+  const { data } = await (clientId ? dotaz.eq("client_id", clientId) : dotaz.is("client_id", null)).maybeSingle();
   return (data as StoredReport | null) ?? null;
 }
 
@@ -314,22 +185,41 @@ async function saveSummary(
 ): Promise<void> {
   const supabase = await supabaseServer();
   const { data: { user } } = await supabase.auth.getUser();
+  const clientId = data.client?.id ?? null;
 
   // Původní text od AI nikdy nepřepisujeme přes ruční úpravy — díky tomu
   // jde přegenerovat, aniž by se ztratilo, co uživatel dopsal.
-  await supabase.from("reports").upsert(
-    {
-      org_id: orgId,
-      period: "week",
-      starts_on: isoDate(data.starts),
-      ends_on: isoDate(data.ends),
-      label: data.label,
-      ai_summary: summary,
-      model: provider,
-      created_by: user?.id ?? null,
-    },
-    { onConflict: "org_id,period,starts_on" },
-  );
+  const obsah = {
+    ends_on: isoDate(data.ends),
+    label: data.label,
+    ai_summary: summary,
+    model: provider,
+  };
+
+  // Najít a upravit, jinak založit. Jedinečnost hlídají v databázi dva
+  // částečné indexy (za studio / za klienta) a ty se v jednom příkazu
+  // „vlož, nebo uprav“ použít nedají.
+  const existing = await loadReport(orgId, data.starts, clientId);
+  if (existing) {
+    await supabase.from("reports").update(obsah).eq("id", existing.id);
+    return;
+  }
+
+  const { error } = await supabase.from("reports").insert({
+    org_id: orgId,
+    period: "week",
+    starts_on: isoDate(data.starts),
+    client_id: clientId,
+    created_by: user?.id ?? null,
+    ...obsah,
+  });
+
+  // Dvě generování naráz: druhé narazí na jedinečnost — report už mezitím
+  // vznikl, takže stačí ho upravit.
+  if (error?.code === "23505") {
+    const now = await loadReport(orgId, data.starts, clientId);
+    if (now) await supabase.from("reports").update(obsah).eq("id", now.id);
+  }
 }
 
 export async function saveEdit(reportId: string, text: string): Promise<void> {
@@ -344,6 +234,8 @@ export async function saveEdit(reportId: string, text: string): Promise<void> {
 /** Zmrazená podoba reportu — to, co uvidí příjemce na sdíleném odkazu. */
 export type ReportSnapshot = {
   rangeText: string;
+  /** Jméno klienta, pro kterého report je. Chybí u reportu za celé studio. */
+  scopeClient?: string | null;
   counts: ReportData["counts"];
   byCategory: ReportData["byCategory"];
   byClient: {
@@ -366,6 +258,9 @@ export type ReportSnapshot = {
  * Kromě přepnutí stavu uloží i snímek čísel a rozpadů. Bez něj by se
  * dokument, který příjemce dostal, měnil pokaždé, když se v aplikaci
  * posune nebo smaže úkol — a to u vystaveného reportu nesmí.
+ *
+ * Snímek se skládá podle toho, na koho je report zúžený: report pro klienta
+ * nesmí při publikaci „prosáknout“ práci pro ostatní.
  */
 export async function publishReport(
   orgId: string,
@@ -373,10 +268,26 @@ export async function publishReport(
   recipient: string,
 ): Promise<void> {
   const supabase = await supabaseServer();
-  const data = await collectReport(orgId);
+
+  const { data: report } = await supabase
+    .from("reports")
+    .select("client_id")
+    .eq("id", reportId)
+    .eq("org_id", orgId)
+    .maybeSingle();
+  if (!report) return;
+
+  const clientId = report.client_id as string | null;
+  const client = await findReportClient(orgId, clientId);
+  // Report je zúžený na klienta, který už neexistuje — raději nepublikovat
+  // nic než omylem report za celé studio.
+  if (clientId && !client) return;
+
+  const data = await collectReport(orgId, new Date(), client);
 
   const snapshot: ReportSnapshot = {
     rangeText: data.rangeText,
+    scopeClient: client?.name ?? null,
     counts: data.counts,
     byCategory: data.byCategory,
     byClient: data.byClient.map((g) => ({

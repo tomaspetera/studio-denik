@@ -1,5 +1,5 @@
 import { getWorkspace } from "@/lib/workspace";
-import { streamSummary } from "@/lib/report";
+import { findReportClient, streamSummary } from "@/lib/report";
 import { ERROR_MARK } from "@/lib/stream-marks";
 import type { Provider } from "@/lib/ai";
 
@@ -28,11 +28,20 @@ export async function POST(request: Request) {
   }
 
   let provider: Provider | undefined;
+  let clientId: string | null = null;
   try {
-    const body = (await request.json()) as { provider?: Provider };
+    const body = (await request.json()) as { provider?: Provider; clientId?: unknown };
     provider = body.provider;
+    clientId = typeof body.clientId === "string" && body.clientId ? body.clientId : null;
   } catch {
-    // Tělo je nepovinné — bez něj se vezme první dostupný model.
+    // Tělo je nepovinné — bez něj se vezme první dostupný model a report za celé studio.
+  }
+
+  // Zúžení na klienta: musí do organizace patřit. Neznámý klient nesmí tiše
+  // skončit reportem za celé studio — to by pak šlo omylem poslat klientovi.
+  const client = await findReportClient(ws.orgId, clientId);
+  if (clientId && !client) {
+    return new Response("Klient se nenašel.", { status: 404 });
   }
 
   const encoder = new TextEncoder();
@@ -40,7 +49,7 @@ export async function POST(request: Request) {
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
       try {
-        for await (const piece of streamSummary(ws.orgId, provider)) {
+        for await (const piece of streamSummary(ws.orgId, provider, client)) {
           controller.enqueue(encoder.encode(piece));
         }
       } catch (e) {

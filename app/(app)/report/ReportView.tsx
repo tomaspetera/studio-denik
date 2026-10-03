@@ -35,12 +35,18 @@ type Data = {
 const TONES = ["var(--accent)", "var(--supplier)", "var(--client)", "var(--done)", "var(--muted)"];
 
 export default function ReportView({
+  client,
+  clients,
   data,
   stored,
   providers,
   org,
   siteUrl,
 }: {
+  /** Klient, na kterého je report zúžený. `null` = celé studio. */
+  client: { id: string; name: string } | null;
+  /** Klienti k výběru, hlavní první. */
+  clients: { id: string; name: string }[];
   data: Data;
   stored: StoredReport | null;
   providers: Provider[];
@@ -76,7 +82,7 @@ export default function ReportView({
       const res = await fetch("/api/report", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ provider }),
+        body: JSON.stringify({ provider, clientId: client?.id ?? null }),
       });
 
       if (!res.ok || !res.body) {
@@ -150,7 +156,7 @@ export default function ReportView({
    */
   function toPdf() {
     const original = document.title;
-    document.title = `Report ${data.label} — ${org.name}`.replace(/[\\/:*?"<>|]/g, "-");
+    document.title = `Report ${data.label} — ${client?.name ?? org.name}`.replace(/[\\/:*?"<>|]/g, "-");
     const restore = () => {
       document.title = original;
       window.removeEventListener("afterprint", restore);
@@ -173,6 +179,21 @@ export default function ReportView({
         </div>
 
         <div className={styles.tools}>
+          {clients.length > 0 && (
+            <select
+              className={`field ${styles.scopeSelect}`}
+              value={client?.id ?? ""}
+              disabled={busy}
+              aria-label="Pro koho je report"
+              title="Report za celé studio, nebo jen s prací pro jednoho klienta"
+              // Každý klient má vlastní report (text, stav i odkaz), proto přechod na jinou adresu.
+              onChange={(e) => router.push(e.target.value ? `/report?klient=${e.target.value}` : "/report")}
+            >
+              <option value="">Celé studio</option>
+              {clients.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+          )}
+
           {providers.length > 1 && (
             <div className={styles.seg}>
               {providers.map((p) => (
@@ -249,6 +270,7 @@ export default function ReportView({
 
           <h2 className={styles.title}>Týdenní přehled odvedené práce</h2>
           <p className={styles.period}>{data.rangeText}</p>
+          {client && <p className={styles.scope}>Práce pro <b>{client.name}</b></p>}
 
           <section className={styles.sec}>
             <h3>Shrnutí</h3>
@@ -298,6 +320,7 @@ export default function ReportView({
             ) : (
               <p className={styles.placeholder}>
                 Zatím tu není žádný text. Klikni na <b>Vygenerovat</b> — shrnutí
+                {client ? ` práce pro klienta ${client.name} ` : " "}
                 se sestaví z toho, co je za tenhle týden uzavřené.
               </p>
             )}
@@ -342,13 +365,17 @@ export default function ReportView({
 
           {data.byClient.length > 0 && (
             <section className={styles.sec}>
-              <h3>Po klientech</h3>
+              <h3>{client ? "Co se dělalo" : "Po klientech"}</h3>
               <div className={styles.clients}>
                 {data.byClient.map((g) => (
                   <div key={g.client} className={styles.client}>
                     <div className={styles.clientHead}>
                       <b>{g.client}</b>
-                      <span>{g.items.length} {tasksWord(g.items.length)} · {g.percent} % týdne</span>
+                      {/* U reportu pro jednoho klienta je to vždycky 100 % — podíl by tam jen mátl. */}
+                      <span>
+                        {g.items.length} {tasksWord(g.items.length)}
+                        {client ? "" : ` · ${g.percent} % týdne`}
+                      </span>
                     </div>
                     <ul className={styles.items}>
                       {g.items.map((t, i) => (

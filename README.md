@@ -130,6 +130,13 @@ textem e-mailu přemluvit zhruba v každém čtvrtém pokusu, větší ani jedno
 Živá zkouška včetně pokusů o podvrh: `npm run test:aiposta` (vymyšlené
 e-maily, volá skutečný model, není v `npm test`).
 
+**Report pro jednoho klienta.** Vedle reportu za celé studio může mít každý
+klient za týden vlastní report (`reports.client_id`, adresa `/report?klient=…`):
+vlastní shrnutí, stav i sdílený odkaz. Zúžení se dělá v dotazu i v čistém
+jádru (`lib/report-core.ts`), aby se do reportu pro klienta ani do podkladů
+pro AI nedostala práce pro nikoho jiného — hlídá to `npm run test:reportjadro`
+a `npm run test:reportklient`.
+
 **Zkouška pošty bez schránky.** Při vývoji jde Gmail nahradit místní atrapou
 přes `GMAIL_TEST_API` a `GMAIL_TEST_TOKEN_URL` (`lib/gmail.ts`). V ostrém
 provozu se obě proměnné ignorují. Pravidla Googlu pro data z Workspace API dovolují předat je jen

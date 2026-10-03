@@ -56,6 +56,16 @@
 }
 .segOn { background: var(--surface); color: var(--ink); box-shadow: var(--sh-1); }
 
+/* Výběr, pro koho report je. Dlouhý název klienta nesmí roztáhnout lištu. */
+.scopeSelect {
+  width: auto;
+  max-width: 240px;
+  height: 34px;
+  padding: 0 10px;
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
 .warn, .error {
   padding: 11px 14px;
   border-radius: var(--r2);
@@ -187,6 +197,14 @@
   font-weight: 600;
   margin: 0;
 }
+
+/* Pro koho report je — jen u reportu zúženého na jednoho klienta. */
+.scope {
+  font-size: 14px;
+  color: var(--ink-2);
+  margin: var(--s3) 0 0;
+}
+.scope b { color: var(--ink); font-weight: 600; }
 
 .sec { margin-top: var(--s7); }
 .sec > h3 {

@@ -65,6 +65,7 @@ export default async function SharedReportPage({
 
         <h1 className={styles.title}>Týdenní přehled odvedené práce</h1>
         <p className={styles.period}>{snap?.rangeText ?? formatRange(r.starts_on, r.ends_on)}</p>
+        {snap?.scopeClient && <p className={styles.scope}>Práce pro <b>{snap.scopeClient}</b></p>}
 
         {r.summary && (
           <section className={styles.sec}>
@@ -115,13 +116,16 @@ export default async function SharedReportPage({
 
             {snap.byClient.length > 0 && (
               <section className={styles.sec}>
-                <h2>Po klientech</h2>
+                <h2>{snap.scopeClient ? "Co se dělalo" : "Po klientech"}</h2>
                 <div className={styles.clients}>
                   {snap.byClient.map((g) => (
                     <div key={g.client} className={styles.client}>
                       <div className={styles.clientHead}>
                         <b>{g.client}</b>
-                        <span>{g.items.length} {tasksWord(g.items.length)} · {g.percent} % týdne</span>
+                        <span>
+                          {g.items.length} {tasksWord(g.items.length)}
+                          {snap.scopeClient ? "" : ` · ${g.percent} % týdne`}
+                        </span>
                       </div>
                       <ul className={styles.items}>
                         {g.items.map((t, i) => (

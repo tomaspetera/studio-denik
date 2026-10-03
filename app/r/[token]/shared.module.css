@@ -101,6 +101,14 @@
   margin: 0;
 }
 
+/* Pro koho report je — jen u reportu zúženého na jednoho klienta. */
+.scope {
+  font-size: 14px;
+  color: var(--ink-2);
+  margin: var(--s3) 0 0;
+}
+.scope b { color: var(--ink); font-weight: 600; }
+
 .sec { margin-top: var(--s7); }
 .sec > h2 {
   font-family: var(--ui-s);
