@@ -51,6 +51,10 @@ export default function LoginPage() {
             </ol>
           </div>
         )}
+
+        <p className={styles.legal}>
+          <a href="/soukromi">Zásady ochrany soukromí</a>
+        </p>
       </div>
     </main>
   );

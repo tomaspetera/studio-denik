@@ -1,0 +1,82 @@
+.stage {
+  min-height: 100dvh;
+  padding: var(--s7) var(--s5);
+  background:
+    radial-gradient(120% 90% at 50% 0%, var(--surface) 0%, transparent 60%),
+    var(--paper);
+}
+
+.page {
+  max-width: 720px;
+  margin: 0 auto;
+  background: var(--grad);
+  border: 1px solid var(--line);
+  border-radius: var(--r3);
+  box-shadow: var(--sh-3);
+  padding: var(--s6);
+  animation: enter 0.35s var(--ease);
+}
+
+.back {
+  display: inline-block;
+  font-family: var(--ui-s);
+  font-size: 12.5px;
+  color: var(--muted);
+  text-decoration: none;
+  margin-bottom: var(--s5);
+}
+.back:hover { color: var(--ink); }
+
+.h1 {
+  font-family: var(--ui-d);
+  font-size: 28px;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  line-height: 1.2;
+}
+
+.meta {
+  font-family: var(--ui-s);
+  font-size: 12.5px;
+  color: var(--faint);
+  margin: var(--s2) 0 var(--s6);
+}
+
+.page h2 {
+  font-family: var(--ui-d);
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  margin: var(--s6) 0 var(--s2);
+}
+
+.page p,
+.page li {
+  font-size: 14px;
+  line-height: 1.7;
+  color: var(--ink-2);
+}
+
+.page ul {
+  margin: var(--s2) 0 0;
+  padding-left: var(--s5);
+}
+.page li + li { margin-top: var(--s2); }
+
+.page a {
+  color: var(--accent);
+  text-underline-offset: 3px;
+}
+
+.page code {
+  font-family: var(--mono);
+  font-size: 12.5px;
+  background: var(--sunk);
+  padding: 1px 6px;
+  border-radius: var(--r1);
+}
+
+@media (max-width: 600px) {
+  .stage { padding: var(--s4) var(--s3); }
+  .page { padding: var(--s5); }
+}

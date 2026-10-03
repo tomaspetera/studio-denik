@@ -25,8 +25,11 @@ export async function proxy(request: NextRequest) {
   // umí natáhnout i dřív, než má appka jistotu, že je někdo přihlášený
   // (manifest se generuje pro celou appku, tedy i pro veřejnou přihlašovací
   // stránku).
+  // Zásady ochrany soukromí (`/soukromi`) musí číst i ten, kdo přihlášený
+  // není — vyžaduje je Google u aplikací s přístupem ke Gmailu.
   const isPublic =
     pathname.startsWith("/prihlaseni") ||
+    pathname === "/soukromi" ||
     pathname.startsWith("/auth/") ||
     pathname.startsWith("/r/") ||
     pathname.startsWith("/s/") ||
