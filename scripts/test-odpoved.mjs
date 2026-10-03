@@ -10,8 +10,10 @@
 import {
   REPLY_HINT_MAX,
   REPLY_MAX,
+  SIGNATURE_MAX,
   assembleReply,
   buildReplyPrompt,
+  cleanSignature,
   missingParts,
   riskyParts,
   riskyWarning,
@@ -158,6 +160,19 @@ n = unverifiedNumbers(Array.from({ length: 20 }, (_, i) => String(100 + i)).join
 zkouska("strop na výpis", n.length === 8, "nejvýš osm čísel, ať je upozornění čitelné");
 
 zkouska("věta pro člověka", riskyWarning([{ kind: "ucet", value: "123456/0800" }, { kind: "odkaz", value: "www.jinde.cz" }]) === "Pozor: v návrhu je číslo účtu 123456/0800, odkaz www.jinde.cz — to jsi nezadal. Než odpověď odešleš, ověř, že tam patří." && riskyWarning([]) === null, "srozumitelné upozornění, nebo nic");
+
+// --- Jméno pro podpis ---------------------------------------------------------------
+zkouska("jméno: úklid", cleanSignature("  Tomáš   Petera \n") === "Tomáš Petera", "mezery navíc a konec řádku zmizí");
+zkouska("jméno: s dovětkem", cleanSignature("Tomáš Petera, Studio Deník") === "Tomáš Petera, Studio Deník", "jméno se studiem projde");
+zkouska("jméno: prázdné", cleanSignature("   ") === null && cleanSignature("T") === null && cleanSignature(null) === null && cleanSignature(42) === null, "prázdné, jednopísmenné ani nic jiného než text se neuloží");
+zkouska("jméno: bez písmen", cleanSignature("12345") === null && cleanSignature("---") === null, "samá čísla nebo znaménka nejsou jméno");
+zkouska("jméno: délka", cleanSignature("A".repeat(SIGNATURE_MAX)) !== null && cleanSignature("A".repeat(SIGNATURE_MAX + 1)) === null, "strop na délku");
+zkouska("jméno: adresa a odkaz", cleanSignature("Tomáš <tomas@studio.cz>") === null && cleanSignature("Tomáš www.studio.cz") === null && cleanSignature("Tomáš https://studio.cz") === null, "adresa ani odkaz do podpisu nepatří — appka by na ně upozorňovala u každého návrhu");
+{
+  const jmeno = cleanSignature("Tomáš Petera");
+  const dopis = assembleReply({ informal: false, greeting: "Dobrý den", paragraphs: ["děkuji, ozvu se."], closing: "S pozdravem" }, jmeno);
+  zkouska("jméno: v podpisu", dopis?.text.endsWith("S pozdravem\nTomáš Petera") === true && riskyParts(dopis.text, "").length === 0, "uložené jméno je podpisem návrhu a nespouští upozornění");
+}
 
 // Žádná otevřená spojení, proces doběhne sám.
 console.log(chyby === 0 ? "\nNávrh odpovědi: zadání, složení i pojistky drží." : `\nProblémů: ${chyby}`);

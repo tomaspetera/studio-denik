@@ -35,8 +35,12 @@ type State = {
 
 export type MailReply = ReturnType<typeof useMailReply>;
 
-/** Odkaz, kterým se v Gmailu otevře vlákno téhle zprávy. */
-export const gmailThreadUrl = (threadId: string) => `https://mail.google.com/mail/u/0/#inbox/${threadId}`;
+/**
+ * Odkaz, kterým se v Gmailu otevře vlákno téhle zprávy. Účet se vybírá
+ * adresou schránky, ne pořadím přihlášení — to je v každém prohlížeči jiné.
+ */
+export const gmailThreadUrl = (threadId: string, account: string) =>
+  `https://mail.google.com/mail/u/?authuser=${encodeURIComponent(account)}#inbox/${threadId}`;
 
 /**
  * Průběh „návrh odpovědi“. Appka odpověď nikdy neodesílá ani neukládá —
@@ -139,7 +143,7 @@ const TITLE: Record<Phase, string> = {
  * Okno „návrh odpovědi“. Člověk může heslovitě říct, co chce sdělit, AI z toho
  * napíše celou odpověď. Odesílá se vždycky v Gmailu — appka umí jen číst.
  */
-export default function MailReplyDialog({ reply }: { reply: MailReply }) {
+export default function MailReplyDialog({ reply, account }: { reply: MailReply; /** Adresa připojené schránky. */ account: string }) {
   const s = reply.state;
   if (!s) return null;
 
@@ -175,7 +179,7 @@ export default function MailReplyDialog({ reply }: { reply: MailReply }) {
   async function copyAndOpen() {
     // Nejdřív kopie, pak nová záložka: po přepnutí záložky by prohlížeč
     // zápis do schránky odmítl.
-    if (await copy()) window.open(gmailThreadUrl(mail.threadId), "_blank", "noopener,noreferrer");
+    if (await copy()) window.open(gmailThreadUrl(mail.threadId, account), "_blank", "noopener,noreferrer");
   }
 
   return (

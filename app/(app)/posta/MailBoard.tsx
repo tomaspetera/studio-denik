@@ -12,6 +12,7 @@ import {
   setHandledAction,
   setMailAiConsentAction,
   setMailAutoTriageAction,
+  setSignatureAction,
   syncMailAction,
   taskFromMailAction,
   unignoreAction,
@@ -50,6 +51,7 @@ export default function MailBoard({
   error,
   aiAvailable,
   aiSince,
+  signature,
   clients,
   categories,
   today,
@@ -64,6 +66,8 @@ export default function MailBoard({
   aiAvailable: boolean;
   /** Od kdy je pomoc AI povolená — hotový text, počítaný na serveru podle Prahy. */
   aiSince: string | null;
+  /** Jméno z profilu — appka jím podepisuje návrh odpovědi. */
+  signature: string | null;
   clients: Client[];
   categories: Category[];
   /** Dnešek podle Prahy, počítaný na serveru. */
@@ -75,6 +79,7 @@ export default function MailBoard({
   const [uspech, setUspech] = useState<string | null>(justConnected ? "Schránka je připojená. Načti poštu tlačítkem Obnovit." : null);
   const [odpojit, setOdpojit] = useState(false);
   const [nastaveni, setNastaveni] = useState(false);
+  const [podpis, setPodpis] = useState(signature ?? "");
   const [pending, startTransition] = useTransition();
 
   const ukol = useMailTask((zprava) => {
@@ -289,6 +294,42 @@ export default function MailBoard({
                   </button>
                 </>
               )}
+
+              <h3 className={styles.sub3}>Podpis v návrhu odpovědi</h3>
+              <p className={styles.note}>
+                Tímhle jménem appka podepisuje návrh odpovědi. Je to tvoje jméno v appce, takže ho
+                uvidí i kolegové v Týmu.
+              </p>
+              <form
+                className={styles.signature}
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  run(() => setSignatureAction(podpis), () => {
+                    // Server ukládá jméno bez mezer navíc — ať pole ukazuje totéž.
+                    setPodpis(podpis.replace(/\s+/g, " ").trim());
+                    return "Jméno pro podpis je uložené.";
+                  });
+                }}
+              >
+                <input
+                  className="field"
+                  type="text"
+                  aria-label="Jméno pro podpis"
+                  placeholder="Jméno a příjmení"
+                  autoComplete="name"
+                  // Stejný strop jako na serveru (`SIGNATURE_MAX` v `lib/mail-reply.ts`).
+                  maxLength={80}
+                  value={podpis}
+                  onChange={(e) => setPodpis(e.target.value)}
+                />
+                <button
+                  type="submit"
+                  className="btn btn-sm"
+                  disabled={zaneprazdnen || podpis.trim().length < 2 || podpis.trim() === (signature ?? "")}
+                >
+                  Uložit jméno
+                </button>
+              </form>
             </>
           )}
 
@@ -379,7 +420,7 @@ export default function MailBoard({
               <div className={styles.actions}>
                 <a
                   className="btn btn-sm"
-                  href={gmailThreadUrl(m.threadId)}
+                  href={gmailThreadUrl(m.threadId, account.email)}
                   target="_blank"
                   rel="noopener noreferrer"
                 >
@@ -435,7 +476,7 @@ export default function MailBoard({
       )}
 
       <MailTaskDialog task={ukol} clients={clients} categories={categories} today={today} />
-      <MailReplyDialog reply={odpoved} />
+      <MailReplyDialog reply={odpoved} account={account.email} />
     </div>
   );
 }

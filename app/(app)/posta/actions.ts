@@ -11,6 +11,7 @@ import {
   setHandled,
   setMailAiConsent,
   setMailAutoTriage,
+  setSignature,
   syncMailbox,
   taskFromMail,
   unignore,
@@ -71,6 +72,13 @@ export async function setMailAutoTriageAction(on: boolean): Promise<ActionResult
   const k = await kdo();
   if (!k) return NOT_READY;
   return setMailAutoTriage(k.userId, on === true);
+}
+
+/** Jméno, kterým se podepisuje návrh odpovědi. */
+export async function setSignatureAction(name: string): Promise<ActionResult> {
+  const k = await kdo();
+  if (!k) return NOT_READY;
+  return setSignature(k.userId, name);
 }
 
 /** AI přečte tuhle jednu zprávu a navrhne úkoly. Nic nezakládá. */

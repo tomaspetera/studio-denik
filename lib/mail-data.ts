@@ -20,8 +20,10 @@ import { prepareBody, type PreparedBody } from "./mail-body";
 import { MAIL_MAX_TASKS, buildMailPrompt, finishMailProposals } from "./mail-capture";
 import {
   REPLY_JSON_SCHEMA,
+  SIGNATURE_MAX,
   assembleReply,
   buildReplyPrompt,
+  cleanSignature,
   missingParts,
   riskyParts,
   riskyWarning,
@@ -580,6 +582,33 @@ export async function setMailAutoTriage(userId: string, on: boolean): Promise<Ac
   return { ok: true };
 }
 
+/** Jméno, kterým appka podepisuje návrh odpovědi — jméno z profilu. */
+export async function loadSignature(userId: string): Promise<string | null> {
+  const supabase = await supabaseServer();
+  const { data } = await supabase.from("profiles").select("full_name").eq("id", userId).maybeSingle();
+  return (data?.full_name as string | null) ?? null;
+}
+
+/**
+ * Změna jména pro podpis. Je to jméno v profilu, takže se pod ním člověk
+ * ukazuje i kolegům v Týmu — při registraci se do něj dosadí začátek
+ * e-mailové adresy a jinde v appce se změnit nedá.
+ */
+export async function setSignature(userId: string, name: unknown): Promise<ActionResult> {
+  const jmeno = cleanSignature(name);
+  if (!jmeno) {
+    return { ok: false, message: `Napiš jméno, kterým se chceš podepisovat — 2 až ${SIGNATURE_MAX} znaků, bez adresy a odkazu.` };
+  }
+
+  const supabase = await supabaseServer();
+  const { data, error } = await supabase.from("profiles").update({ full_name: jmeno }).eq("id", userId).select("id");
+  if (error) return { ok: false, message: error.message };
+  if (!data?.length) return { ok: false, message: "Jméno se nepodařilo uložit." };
+
+  revalidatePath("/", "layout");
+  return { ok: true };
+}
+
 /** Neúspěch u čehokoli, kde AI čte e-mail. `needsConsent`: nejde o chybu, jen se nejdřív musí zeptat na souhlas. */
 type AiFail = { ok: false; message: string; needsConsent?: boolean };
 
@@ -745,9 +774,7 @@ export async function draftReplyFromMail(userId: string, mailId: string, hint: u
   const z = await nactiProAi(userId, mailId);
   if (!z.ok) return z;
 
-  const supabase = await supabaseServer();
-  const { data: profil } = await supabase.from("profiles").select("full_name").eq("id", userId).maybeSingle();
-
+  const podpis = await loadSignature(userId);
   const pokyn = typeof hint === "string" ? hint : "";
 
   const { system, prompt } = buildReplyPrompt({
@@ -771,7 +798,7 @@ export async function draftReplyFromMail(userId: string, mailId: string, hint: u
     const raw = await extractJson("gemini", system, prompt, REPLY_JSON_SCHEMA as unknown as Record<string, unknown>, {
       careful: true,
     });
-    const slozeno = assembleReply(raw, (profil?.full_name as string | null) ?? null);
+    const slozeno = assembleReply(raw, podpis);
     if (!slozeno) return { ok: false, message: "AI nevrátila žádný text. Zkus to znovu." };
     return {
       ok: true,

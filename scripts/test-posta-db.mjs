@@ -221,6 +221,21 @@ try {
   const { error: spatnyStav } = await A.klient.from("mail_messages").insert(zprava({ gmail_id: "g2", status: "urgentni" }));
   zkouska("neznámý stav", !!spatnyStav, "jiný stav než waiting/info databáze nepřijme");
 
+  // --- Jméno pro podpis ----------------------------------------------------------
+  // Návrh odpovědi se podepisuje jménem z profilu. Musí jít změnit — a jen vlastní.
+  const { data: vychoziJmeno } = await A.klient.from("profiles").select("full_name").eq("id", A.userId).single();
+  zkouska("podpis: výchozí", vychoziJmeno?.full_name === `posta-a-${razitko}`, "po registraci je jménem začátek adresy — proto se dá přepsat");
+
+  const { data: prepsano, error: jmErr } = await A.klient.from("profiles").update({ full_name: "Anna Dvořáková" }).eq("id", A.userId).select("full_name");
+  zkouska("podpis: vlastní", !jmErr && prepsano?.[0]?.full_name === "Anna Dvořáková", jmErr ? jmErr.message : "vlastní jméno si změním");
+
+  const { data: ciziJmeno } = await B.klient.from("profiles").update({ full_name: "Podvrh" }).eq("id", A.userId).select("full_name");
+  const { data: poPodvrhu } = await admin.from("profiles").select("full_name").eq("id", A.userId).single();
+  zkouska("podpis: cizí", (ciziJmeno ?? []).length === 0 && poPodvrhu?.full_name === "Anna Dvořáková", "kolega mi jméno přepsat nemůže");
+
+  const { data: videnoKolegou } = await B.klient.from("profiles").select("full_name").eq("id", A.userId).maybeSingle();
+  zkouska("podpis: kolega vidí", videnoKolegou?.full_name === "Anna Dvořáková", "kolega ze studia jméno vidí — stejně jako v Týmu");
+
   // --- Ignorovaní --------------------------------------------------------------
   const { error: igErr } = await A.klient.from("mail_ignored").insert({ org_id: orgA, user_id: A.userId, pattern: "newsletter.cz" });
   zkouska("ignorovaný", !igErr, igErr ? igErr.message : "vzorec se uloží");

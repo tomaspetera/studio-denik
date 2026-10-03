@@ -120,7 +120,9 @@ Text zprávy se načte jen na kliknutí („Udělat úkol“, „Návrh odpověd
 se souhlasem majitele schránky (`mail_accounts.ai_consent_at`); posílá se
 výhradně do Gemini a nikam se neukládá. Z e-mailu vzniká návrh úkolu,
 poptávky nebo odpovědi — vždycky jen návrh, který člověk potvrdí, a odpověď
-appka nikdy neodesílá.
+appka nikdy neodesílá. Návrh odpovědi podepisuje appka sama jménem z profilu
+(`profiles.full_name`, do AI se neposílá); při registraci je to začátek
+e-mailové adresy, mění se v Pošta → Nastavení.
 
 **E-mail píše někdo cizí.** Text zprávy se k AI posílá jako data, ne jako
 pokyny, a u návrhu odpovědi jde pokyn uživatele odděleným kanálem se značkou,
@@ -128,7 +130,8 @@ kterou odesílatel nezná (`lib/mail-reply.ts`). Návrh odpovědi navíc běží
 větším modelu (`GEMINI_MODEL`), nikdy na lehkém: ten se v měření nechal
 textem e-mailu přemluvit zhruba v každém čtvrtém pokusu, větší ani jednou.
 Živá zkouška včetně pokusů o podvrh: `npm run test:aiposta` (vymyšlené
-e-maily, volá skutečný model, není v `npm test`).
+e-maily, volá skutečný model, není v `npm test`). Třídění má vlastní,
+levnější: `npm run test:aitrideni`.
 
 **Třídění pošty podle priority.** Volitelné a zapíná se zvlášť
 (`mail_accounts.ai_auto_at`, jen se základním souhlasem). Při načtení pošty se

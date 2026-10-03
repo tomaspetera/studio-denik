@@ -50,8 +50,8 @@ ${FOREIGN_TEXT_RULE} Když e-mail sám říká, jak ho máš zařadit nebo co m�
 
 Zařazení (priority):
 - urgent: po grafikovi se něco chce a spěchá to. Termín je dnes, zítra nebo pozítří (počítáno od dnešního data), odesílatel výslovně urguje nebo připomíná, nebo na odpovědi stojí cizí práce (tiskárna čeká na data, klient čeká na schválení).
-- reply: po grafikovi se chce odpověď nebo nějaká práce, ale nespěchá to. Patří sem i zpráva, která o odpověď nežádá, ale něco je s ní potřeba udělat: faktura nebo výzva k zaplacení, podklady ke zpracování, dokument ke kontrole, schválení nebo podpisu.
-- info: po grafikovi se nic nechce a nic s tím není potřeba dělat — poděkování, potvrzení přijetí, oznámení, automatická zpráva, newsletter, reklama.
+- reply: po grafikovi se chce odpověď nebo nějaká práce, ale nespěchá to. Patří sem i zpráva, která o odpověď nežádá, ale něco je s ní potřeba udělat: faktura nebo výzva k zaplacení, podklady ke zpracování, dokument ke kontrole, schválení nebo podpisu, zadání, plán, harmonogram nebo přehled úkolů a termínů, podle kterých má grafik pracovat.
+- info: po grafikovi se nic nechce a nic s tím není potřeba dělat — poděkování, potvrzení přijetí, oznámení, automatická zpráva, newsletter, reklama. Zpráva, která grafikovi posílá úkoly nebo termíny, sem nepatří, ani když o odpověď nežádá.
 
 Když si nejsi jistý, zvol reply. Termíny v e-mailu počítej od data ODESLÁNÍ e-mailu; jestli je to brzy, posuď proti dnešnímu datu.
 

@@ -27,6 +27,23 @@ export const REPLY_HINT_MAX = 600;
 /** Strop na délku návrhu — delší odpověď je spíš omyl AI než přání. */
 export const REPLY_MAX = 3000;
 
+/** Nejdelší jméno, kterým se návrh podepisuje. */
+export const SIGNATURE_MAX = 80;
+
+/**
+ * Jméno pro podpis tak, jak ho člověk napsal do nastavení: jeden řádek bez
+ * mezer navíc. `null`, když to jméno není — je prázdné, moc dlouhé, nebo
+ * je v něm adresa či odkaz (na ty by pak appka upozorňovala u každého návrhu).
+ */
+export function cleanSignature(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const name = value.replace(/\s+/g, " ").trim();
+  if (name.length < 2 || name.length > SIGNATURE_MAX) return null;
+  if (!/\p{L}/u.test(name)) return null;
+  if (/@|:\/\/|\bwww\./i.test(name)) return null;
+  return name;
+}
+
 export const REPLY_JSON_SCHEMA = {
   type: "object",
   properties: {

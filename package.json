@@ -45,6 +45,7 @@
     "test:trideni": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/test-trideni.mjs",
     "test:poptavkazposty": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/test-poptavka-z-posty.mjs",
     "test:aiposta": "node --env-file=.env.local --import ./scripts/stub-register.mjs --experimental-transform-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --disable-warning=ExperimentalWarning scripts/test-posta-ai.mjs",
+    "test:aitrideni": "node --env-file=.env.local --import ./scripts/stub-register.mjs --experimental-transform-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --disable-warning=ExperimentalWarning scripts/test-trideni-ai.mjs",
     "test:ai": "node --env-file=.env.local --import ./scripts/stub-register.mjs --experimental-transform-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --disable-warning=ExperimentalWarning scripts/test-zapis-ai.mjs",
     "test:ares": "node scripts/test-ares.mjs"
   },
