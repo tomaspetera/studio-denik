@@ -61,6 +61,16 @@ const PROVOZ = [
       </>
     ),
   },
+  {
+    href: "/posta",
+    label: "Pošta",
+    icon: (
+      <>
+        <rect x="2" y="4" width="20" height="16" rx="2" />
+        <path d="M22 7l-10 6L2 7" />
+      </>
+    ),
+  },
 ];
 
 const VYSTUP = [

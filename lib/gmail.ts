@@ -1,0 +1,235 @@
+import "server-only";
+
+import type { RawMessage } from "./mail-rules";
+
+/**
+ * Napojení na Gmail — jen čtení.
+ *
+ * Appka žádá jediné oprávnění `gmail.readonly` a volá jen dvě čtecí adresy
+ * (seznam vláken a jedno vlákno). Žádné odesílání, mazání ani úpravy tu
+ * záměrně nejsou a být nemají: kdyby je někdo doplnil, musel by zároveň
+ * rozšířit oprávnění, což je vidět na souhlasné obrazovce Googlu.
+ *
+ * Z vlákna se čtou jen hlavičky (`format=metadata`), takže Google ani
+ * neposílá těla zpráv. Úryvek, který k vláknu vrací, se nikam neukládá.
+ */
+
+export const GMAIL_SCOPE = "https://www.googleapis.com/auth/gmail.readonly";
+
+/** Doručená pošta bez reklamních a sociálních záložek. */
+const DOTAZ = "in:inbox -category:promotions -category:social";
+
+export class GmailError extends Error {
+  constructor(message: string, readonly status?: number) {
+    super(message);
+    this.name = "GmailError";
+  }
+}
+
+/** Potřebuje-li appka znovu přihlásit (token odvolaný nebo neplatný). */
+export class GmailAuthExpired extends GmailError {
+  constructor() {
+    super("Připojení ke Gmailu vypršelo nebo bylo odvolané. Připoj schránku znovu.", 401);
+    this.name = "GmailAuthExpired";
+  }
+}
+
+function klientId(): string {
+  const v = process.env.GOOGLE_CLIENT_ID;
+  if (!v) throw new GmailError("Chybí GOOGLE_CLIENT_ID.");
+  return v;
+}
+
+function klientSecret(): string {
+  const v = process.env.GOOGLE_CLIENT_SECRET;
+  if (!v) throw new GmailError("Chybí GOOGLE_CLIENT_SECRET.");
+  return v;
+}
+
+export function isGmailConfigured(): boolean {
+  return Boolean(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET && process.env.MAIL_TOKEN_KEY);
+}
+
+/**
+ * Adresa, kam Google po přihlášení vrátí uživatele. Musí se do znaku shodovat
+ * s tím, co je v Google Cloud u klienta — proto se skládá z adresy, na které
+ * appka zrovna běží, ne z pevně zapsaného řetězce.
+ */
+export function redirectUri(origin: string): string {
+  return `${origin.replace(/\/+$/, "")}/api/gmail/callback`;
+}
+
+export function authUrl(origin: string, state: string): string {
+  const p = new URLSearchParams({
+    client_id: klientId(),
+    redirect_uri: redirectUri(origin),
+    response_type: "code",
+    scope: GMAIL_SCOPE,
+    // `offline` kvůli refresh tokenu, `consent` aby ho Google poslal i při
+    // opakovaném připojení — bez toho ho vrátí jen poprvé a druhé připojení
+    // by skončilo bez tokenu.
+    access_type: "offline",
+    prompt: "consent",
+    include_granted_scopes: "true",
+    state,
+  });
+  return `https://accounts.google.com/o/oauth2/v2/auth?${p}`;
+}
+
+type TokenOdpoved = {
+  access_token?: string;
+  refresh_token?: string;
+  expires_in?: number;
+  scope?: string;
+  error?: string;
+  error_description?: string;
+};
+
+async function tokenPozadavek(body: Record<string, string>): Promise<TokenOdpoved> {
+  const res = await fetch("https://oauth2.googleapis.com/token", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams(body),
+  });
+
+  const data = (await res.json().catch(() => ({}))) as TokenOdpoved;
+  if (!res.ok) {
+    // `invalid_grant` = odvolaný nebo vypršelý token; jiné přihlášení nepomůže
+    // ničemu než novému připojení schránky.
+    if (data.error === "invalid_grant") throw new GmailAuthExpired();
+    throw new GmailError(data.error_description ?? data.error ?? `Google odpověděl ${res.status}.`, res.status);
+  }
+  return data;
+}
+
+/** Výměna kódu z přesměrování za trvalé přihlášení. */
+export async function exchangeCode(code: string, origin: string): Promise<{ refreshToken: string; accessToken: string }> {
+  const data = await tokenPozadavek({
+    code,
+    client_id: klientId(),
+    client_secret: klientSecret(),
+    redirect_uri: redirectUri(origin),
+    grant_type: "authorization_code",
+  });
+
+  if (!data.refresh_token || !data.access_token) {
+    throw new GmailError("Google nevrátil přihlašovací token. Zkus připojení znovu.");
+  }
+  // Pojistka: kdyby se někdy rozšířil rozsah oprávnění, ať se to pozná tady
+  // a ne až tím, že appka umí víc, než zásady soukromí slibují.
+  if (data.scope && !data.scope.includes(GMAIL_SCOPE)) {
+    throw new GmailError("Google nedal oprávnění ke čtení pošty.");
+  }
+  return { refreshToken: data.refresh_token, accessToken: data.access_token };
+}
+
+export async function accessTokenFrom(refreshToken: string): Promise<string> {
+  const data = await tokenPozadavek({
+    refresh_token: refreshToken,
+    client_id: klientId(),
+    client_secret: klientSecret(),
+    grant_type: "refresh_token",
+  });
+  if (!data.access_token) throw new GmailAuthExpired();
+  return data.access_token;
+}
+
+/** Zrušení přístupu u Googlu — volá se při odpojení schránky. */
+export async function revokeToken(refreshToken: string): Promise<void> {
+  await fetch(`https://oauth2.googleapis.com/revoke?token=${encodeURIComponent(refreshToken)}`, {
+    method: "POST",
+  }).catch(() => {
+    // Když se to nepovede, uložené přihlášení stejně mažeme — přístup si jde
+    // odvolat i ručně v nastavení Google účtu.
+  });
+}
+
+async function gmailGet<T>(cesta: string, accessToken: string): Promise<T> {
+  const res = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/${cesta}`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+
+  if (res.status === 401 || res.status === 403) throw new GmailAuthExpired();
+  if (!res.ok) {
+    const telo = await res.text().catch(() => "");
+    throw new GmailError(`Gmail odpověděl ${res.status}. ${telo.slice(0, 200)}`.trim(), res.status);
+  }
+  return (await res.json()) as T;
+}
+
+export async function fetchEmailAddress(accessToken: string): Promise<string> {
+  const profil = await gmailGet<{ emailAddress?: string }>("profile", accessToken);
+  if (!profil.emailAddress) throw new GmailError("Gmail nevrátil adresu schránky.");
+  return profil.emailAddress.toLowerCase();
+}
+
+type Hlavicka = { name?: string; value?: string };
+type Zprava = { id?: string; internalDate?: string; payload?: { headers?: Hlavicka[] } };
+type Vlakno = { id?: string; messages?: Zprava[] };
+
+function hlavicka(z: Zprava, jmeno: string): string | null {
+  const h = z.payload?.headers?.find((x) => (x.name ?? "").toLowerCase() === jmeno.toLowerCase());
+  return h?.value ?? null;
+}
+
+/**
+ * Doručená pošta za posledních `days` dní, po vláknech.
+ *
+ * Vlákno se stahuje celé (`threads.get`), protože jen tak je vidět, jestli
+ * poslední slovo měli oni, nebo já — moje odpovědi leží v odeslané poště,
+ * ne v doručené.
+ *
+ * V seznamu se ukazuje poslední zpráva **od nich**, ne úplně poslední zpráva
+ * vlákna. Jinak by vlákno, ve kterém jsem právě odpověděl, vypadalo jako
+ * zpráva ode mě sobě — a protože se vlastní pošta odfiltrovává, zmizelo by
+ * z přehledu úplně. Stav („čeká na odpověď“) se přitom počítá z celého
+ * vlákna, takže odpovězené vlákno zůstane vidět a je označené jako vyřízené.
+ */
+export async function fetchInbox(
+  accessToken: string,
+  days: number,
+  myEmail: string,
+  maxThreads = 60,
+): Promise<RawMessage[]> {
+  const ja = myEmail.trim().toLowerCase();
+  const jeOdeMe = (z: Zprava) => (hlavicka(z, "From") ?? "").toLowerCase().includes(ja);
+
+  const q = `${DOTAZ} newer_than:${Math.max(1, Math.trunc(days))}d`;
+  const seznam = await gmailGet<{ threads?: { id?: string }[] }>(
+    `threads?q=${encodeURIComponent(q)}&maxResults=${maxThreads}`,
+    accessToken,
+  );
+
+  const idVlaken = (seznam.threads ?? []).map((t) => t.id).filter((id): id is string => Boolean(id));
+  const out: RawMessage[] = [];
+
+  // Postupně, ne naráz: Gmail má limit na počet dotazů za vteřinu a zápis
+  // schránky není nic, na co by se čekalo v reálném čase.
+  for (const idVlakna of idVlaken) {
+    const vlakno = await gmailGet<Vlakno>(
+      `threads/${idVlakna}?format=metadata&metadataHeaders=From&metadataHeaders=Subject&metadataHeaders=Date`,
+      accessToken,
+    );
+
+    const zpravy = vlakno.messages ?? [];
+    if (zpravy.length === 0) continue;
+
+    // Poslední zpráva od nich; když je celé vlákno jen moje, vezme se
+    // poslední a `triage` ho pak odfiltruje.
+    const posledni = [...zpravy].reverse().find((z) => !jeOdeMe(z)) ?? zpravy[zpravy.length - 1];
+    const kdy = posledni.internalDate ? new Date(Number(posledni.internalDate)) : null;
+    if (!posledni.id || !kdy || Number.isNaN(kdy.getTime())) continue;
+
+    out.push({
+      gmailId: posledni.id,
+      threadId: idVlakna,
+      from: hlavicka(posledni, "From"),
+      // Předmět bývá jen u první zprávy vlákna, u odpovědí chybí.
+      subject: hlavicka(posledni, "Subject") ?? hlavicka(zpravy[0], "Subject"),
+      receivedAt: kdy.toISOString(),
+      threadSenders: zpravy.map((z) => hlavicka(z, "From") ?? ""),
+    });
+  }
+
+  return out;
+}
