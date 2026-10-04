@@ -142,6 +142,17 @@ kliknutí. Čemu appka nerozumí, nechá mezi zprávami čekajícími na odpově
 (`lib/mail-buckets.ts`) — omyl nesmí zprávu schovat. Vypnutím se zařazení
 i shrnutí mažou.
 
+**Ranní načítání pošty.** Volitelné a zapíná se zvlášť
+(`mail_accounts.auto_sync_at`). V úterý, ve středu a ve čtvrtek
+(`lib/mail-schedule.ts`) ranní cron před souhrnem načte poštu schránkám, které
+to mají zapnuté — totéž co „Obnovit“, takže třídí jen tomu, kdo má zapnuté
+i třídění. Kolik zpráv čeká, je pak na stránce Dnes a v ranním upozornění, ale
+jen u majitele schránky: pošta je soukromá. Ranní běh jede se servisním klíčem,
+proto každý dotaz na poštu filtruje podle majitele výslovně. Vývojový server
+sdílí databázi s ostrým provozem, takže `/api/cron/rano` na něm sahá jen na
+jedno zkušební studio (`CRON_TEST_ORG`, den jde podvrhnout přes
+`CRON_TEST_TODAY`) a bez něj neudělá nic.
+
 **Čtení příloh.** Volitelné a zapíná se zvlášť (`mail_accounts.ai_files_at`,
 jen se základním souhlasem). Když je zapnuté, jdou při kliknutí na „Udělat
 úkol“ nebo „Návrh odpovědi“ k AI spolu s textem i přílohy té jedné zprávy;

@@ -11,6 +11,8 @@ import { listPriorityClientIds } from "@/lib/clients";
 import { groupByBucket, shortDateLabel, BUCKET_LABEL, type Bucket } from "@/lib/buckets";
 import { loadAttention } from "@/lib/attention-data";
 import { supabaseServer } from "@/lib/supabase/server";
+import { loadMailSummary } from "@/lib/mail-data";
+import { lastSyncLabel, mailLine } from "@/lib/mail-schedule";
 import AttentionPanel from "./AttentionPanel";
 import { BALL_HINT, BALL_LABEL, BALL_ORDER, csDate, csDateFromKey, dateKeyUTC, type Ball } from "@/lib/domain";
 import styles from "./home.module.css";
@@ -27,14 +29,19 @@ export default async function DnesPage() {
   if (ws.state !== "ready") return <SetupNeeded ws={ws} />;
 
   const supabase = await supabaseServer();
-  const [tasks, { members }, capacity, leads, attention, priorityIds] = await Promise.all([
+  const { data: { user } } = await supabase.auth.getUser();
+  const [tasks, { members }, capacity, leads, attention, priorityIds, posta] = await Promise.all([
     listTasks(ws.orgId),
     loadTeam(ws.orgId),
     loadCapacity(ws.orgId),
     listLeads(ws.orgId),
     loadAttention(supabase, ws.orgId),
     listPriorityClientIds(ws.orgId),
+    // Pošta je soukromá — počty vidí jen majitel schránky, ne celé studio.
+    user ? loadMailSummary(user.id) : null,
   ]);
+  const postaRadek = posta ? mailLine(posta) : null;
+  const postaNactena = posta ? lastSyncLabel(posta.lastSyncAt) : null;
   const counts = countByBall(tasks);
 
   const dnes = new Date();
@@ -74,6 +81,14 @@ export default async function DnesPage() {
           <p className={styles.sub}>{csDate(dnes)}</p>
         </div>
       </header>
+
+      {postaRadek && (
+        <Link href="/posta" className={`${styles.mailRow} ${posta && posta.urgent > 0 ? styles.mailRowUrgent : ""}`}>
+          <b>Pošta</b>
+          <span>{postaRadek}</span>
+          {postaNactena && <em>načteno {postaNactena}</em>}
+        </Link>
+      )}
 
       {tasks.length === 0 ? (
         <>

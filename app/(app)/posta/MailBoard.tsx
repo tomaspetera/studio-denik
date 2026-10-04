@@ -11,6 +11,7 @@ import {
   ignoreSenderAction,
   setHandledAction,
   setMailAiConsentAction,
+  setMailAutoSyncAction,
   setMailAutoTriageAction,
   setMailFilesAction,
   setSignatureAction,
@@ -64,6 +65,7 @@ export default function MailBoard({
     aiConsentAt: string | null;
     aiAutoAt: string | null;
     aiFilesAt: string | null;
+    autoSyncAt: string | null;
   } | null;
   messages: MailRow[];
   ignored: { id: string; pattern: string }[];
@@ -223,6 +225,47 @@ export default function MailBoard({
             Pošta se načítá za posledních 7 dní z doručené pošty, bez záložek Reklamy a Sociální sítě.
             Odpovídá se vždycky v Gmailu — appka umí jen číst.
           </p>
+
+          <h3 className={styles.sub3}>Ranní načítání pošty</h3>
+          {account.autoSyncAt ? (
+            <>
+              <p className={styles.note}>
+                Zapnuto. Každé úterý, středu a čtvrtek ráno appka poštu načte sama, i když ji nemáš
+                otevřenou — stejně jako tlačítkem Obnovit. Na stránce Dnes a v ranním upozornění
+                pak vidíš, kolik zpráv čeká na odpověď.
+                {tridiSe ? " Nové zprávy přitom rovnou roztřídí." : ""}
+              </p>
+              <button
+                type="button"
+                className="btn btn-sm"
+                disabled={zaneprazdnen}
+                onClick={() => run(() => setMailAutoSyncAction(false), () => "Ranní načítání pošty je vypnuté.")}
+              >
+                Vypnout ranní načítání
+              </button>
+            </>
+          ) : (
+            <>
+              <p className={styles.note}>
+                Vypnuto — pošta se načítá, jen když klikneš na Obnovit. Zapnutím dovolíš, aby ji appka
+                načetla <b>sama každé úterý, středu a čtvrtek ráno</b>, i když ji nemáš otevřenou.
+                Čte přitom totéž co při Obnovit: odesílatele, předmět a datum.
+                {tridiSe
+                  ? " Protože máš zapnuté automatické třídění, nové zprávy přitom rovnou roztřídí."
+                  : " Třídit je bude, jen když si zapneš i automatické třídění."}
+              </p>
+              <button
+                type="button"
+                className="btn btn-sm"
+                disabled={zaneprazdnen}
+                onClick={() =>
+                  run(() => setMailAutoSyncAction(true), () => "Ranní načítání pošty je zapnuté — v úterý, ve středu a ve čtvrtek ráno.")
+                }
+              >
+                Zapnout ranní načítání
+              </button>
+            </>
+          )}
 
           {aiAvailable && (
             <>

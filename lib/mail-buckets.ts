@@ -41,6 +41,28 @@ export function mailBucket(row: TriageRow): MailBucket {
   return "reply";
 }
 
+export type MailCounts = {
+  /** Kolik zpráv čeká na odpověď — včetně těch, které spěchají. */
+  waiting: number;
+  /** Kolik z nich spěchá. */
+  urgent: number;
+};
+
+/**
+ * Počty pro stránku Dnes a ranní upozornění. Zprávy „jen pro informaci“,
+ * odpovězené a vyřízené se nepočítají — stejně jako v přehledu pošty.
+ */
+export function mailCounts(rows: Pick<TriageRow, "status" | "handledAt" | "priority">[]): MailCounts {
+  let waiting = 0;
+  let urgent = 0;
+  for (const r of rows) {
+    const bucket = mailBucket({ ...r, receivedAt: "" });
+    if (bucket === "urgent") urgent++;
+    if (bucket === "urgent" || bucket === "reply") waiting++;
+  }
+  return { waiting, urgent };
+}
+
 /** Čeká na odpověď: nejdřív to, co spěchá, pak od nejnovější. */
 export function sortWaiting<T extends TriageRow>(rows: T[]): T[] {
   const rank = (r: T) => (mailBucket(r) === "urgent" ? 0 : 1);

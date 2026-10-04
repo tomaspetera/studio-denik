@@ -169,6 +169,33 @@ try {
   const { data: poCizichPrilohach } = await admin.from("mail_accounts").select("ai_files_at").eq("user_id", A.userId).single();
   zkouska("přílohy: cizí souhlas", (ciziPrilohy ?? []).length === 0 && poCizichPrilohach?.ai_files_at === null, "kolega nezapne čtení příloh cizí pošty");
 
+  // --- Ranní načítání (migrace 0023) --------------------------------------------------
+  // Appka pak čte Gmail sama, bez kliknutí. Zapnout to smí jen majitel schránky
+  // a ranní běh (servisní klíč) musí umět vybrat právě jen zapnuté schránky.
+  const { data: ranoVychozi, error: ranoSloupec } = await A.klient
+    .from("mail_accounts")
+    .select("auto_sync_at")
+    .eq("user_id", A.userId)
+    .single();
+  zkouska("ráno: výchozí stav", !ranoSloupec && ranoVychozi?.auto_sync_at === null, ranoSloupec ? ranoSloupec.message : "bez výslovného souhlasu se pošta sama nenačítá");
+
+  const zapnuteRano = () => admin.from("mail_accounts").select("user_id").not("auto_sync_at", "is", null).eq("org_id", orgA);
+  const { data: predZapnutim } = await zapnuteRano();
+  zkouska("ráno: výběr pro cron", (predZapnutim ?? []).length === 0, "vypnutou schránku ranní běh nevybere");
+
+  const { data: ciziRano } = await B.klient.from("mail_accounts").update({ auto_sync_at: ted() }).eq("user_id", A.userId).select("id");
+  const { data: poCizimRanu } = await zapnuteRano();
+  zkouska("ráno: cizí souhlas", (ciziRano ?? []).length === 0 && (poCizimRanu ?? []).length === 0, "kolega nezapne ranní načítání cizí pošty");
+
+  const { data: ranoZapnuto } = await A.klient.from("mail_accounts").update({ auto_sync_at: ted() }).eq("user_id", A.userId).select("auto_sync_at, ai_consent_at");
+  zkouska("ráno: vlastní souhlas", !!ranoZapnuto?.[0]?.auto_sync_at && ranoZapnuto[0].ai_consent_at === null, "majitel si ho zapne — a pomoc AI k tomu nepotřebuje");
+
+  const { data: poZapnuti } = await zapnuteRano();
+  zkouska("ráno: cron ji najde", (poZapnuti ?? []).length === 1 && poZapnuti[0].user_id === A.userId, "zapnutou schránku ranní běh vybere");
+
+  const { data: ranoVypnuto } = await A.klient.from("mail_accounts").update({ auto_sync_at: null }).eq("user_id", A.userId).select("auto_sync_at");
+  zkouska("ráno: vypnutí", ranoVypnuto?.length === 1 && ranoVypnuto[0].auto_sync_at === null, "a zase vypne");
+
   // --- Zprávy -----------------------------------------------------------------
   const { error: zErr } = await A.klient.from("mail_messages").insert(zprava());
   zkouska("uložení zprávy", !zErr, zErr ? zErr.message : "vlastní zpráva se uloží");

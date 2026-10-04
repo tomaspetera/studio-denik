@@ -23,7 +23,7 @@ export default function SoukromiPage() {
         <Link href="/prihlaseni" className={styles.back}>← Studio Deník</Link>
 
         <h1 className={styles.h1}>Zásady ochrany soukromí</h1>
-        <p className={styles.meta}>Studio Deník · poslední změna 3. října 2026</p>
+        <p className={styles.meta}>Studio Deník · poslední změna 4. října 2026</p>
 
         <h2>Co je Studio Deník</h2>
         <p>
@@ -47,6 +47,12 @@ export default function SoukromiPage() {
           <li>
             Pro přehled pošty aplikace čte jen hlavičky zpráv: odesílatele, předmět a datum.
             Odpověď Gmailu obsahuje i krátký úryvek zprávy; aplikace ho nepoužívá a neukládá.
+          </li>
+          <li>
+            Pošta se načítá ve chvíli, kdy v aplikaci klikneš na „Obnovit“. Pokud si zvlášť zapneš
+            ranní načítání, načte ji aplikace také sama v úterý, ve středu a ve čtvrtek ráno,
+            i když ji nemáš otevřenou — čte přitom totéž, tedy hlavičky zpráv. V ostatní dny a bez
+            zapnutého ranního načítání se sama nenačítá.
           </li>
           <li>
             Text zprávy aplikace načte jen u jedné konkrétní zprávy, a to ve chvíli, kdy u ní sám
@@ -110,7 +116,8 @@ export default function SoukromiPage() {
         </p>
         <p>
           Automatické třídění podle priority je další volitelná funkce a zapíná se zvlášť. Je-li
-          zapnutá, odešle se při každém načtení pošty odesílatel, předmět, datum a text každé
+          zapnutá, odešle se při každém načtení pošty (tedy i při ranním, pokud ho máš zapnuté)
+          odesílatel, předmět, datum a text každé
           nové zprávy, která čeká na tvou odpověď (bez příloh), službě Google Gemini API. Ta vrátí
           zařazení a shrnutí jednou větou, které se uloží a ukážou v přehledu pošty. Každá zpráva
           se takhle zpracuje jednou. Vypnutím se uložená zařazení i shrnutí smažou. Bez zapnutého
@@ -178,8 +185,10 @@ export default function SoukromiPage() {
         <p lang="en">
           Studio Deník is a private work tool for a small graphic design studio. If you connect
           Gmail, it requests the read-only scope <code>gmail.readonly</code>. For the mail overview
-          it reads only message headers (sender, subject, date). It never sends, deletes or modifies
-          mail. It stores sender, subject, date, a status label, message/thread IDs and the matching
+          it reads only message headers (sender, subject, date). Mail is loaded when the user clicks
+          “Refresh”; if the mailbox owner separately enables scheduled loading, the app also loads
+          the headers on its own on Tuesday, Wednesday and Thursday mornings. It never sends, deletes
+          or modifies mail. It stores sender, subject, date, a status label, message/thread IDs and the matching
           client, but never the message text or attachments. The Gmail access token is stored
           encrypted and is only available to the server.
         </p>
@@ -196,7 +205,7 @@ export default function SoukromiPage() {
           editable beforehand) is created only after the user confirms it. A reply draft is never
           sent or stored by the app; the user copies it into Gmail. These features run only on the
           user’s click, and the message text is not stored. A second optional feature, enabled
-          separately, sorts mail by priority: on each mail refresh, the sender, subject, date and
+          separately, sorts mail by priority: on each mail load (manual or scheduled), the sender, subject, date and
           text of each new message awaiting the user’s reply (never attachments) are sent to the
           Google Gemini API, which returns a priority label and a one-sentence summary. Only the
           label and the summary are stored, never the message text, and turning the feature off

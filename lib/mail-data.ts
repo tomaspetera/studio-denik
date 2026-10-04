@@ -2,7 +2,7 @@ import "server-only";
 
 import { randomBytes } from "node:crypto";
 import { revalidatePath } from "next/cache";
-import { supabaseServer } from "./supabase/server";
+import { supabaseAdmin, supabaseServer } from "./supabase/server";
 import { decryptToken, encryptToken } from "./mail-crypto";
 import {
   GmailAuthExpired,
@@ -54,7 +54,7 @@ import {
   type ExtractOptions,
 } from "./ai";
 import { TRIAGE_BODY_MAX, TRIAGE_JSON_SCHEMA, buildTriagePrompt, finishTriage } from "./mail-triage";
-import type { MailPriority } from "./mail-buckets";
+import { mailCounts, type MailCounts, type MailPriority } from "./mail-buckets";
 import { listCategories, listClients } from "./tasks";
 import { dateKeyPrague, todayKeyPrague } from "./domain";
 
@@ -79,7 +79,16 @@ export type MailAccount = {
   aiAutoAt: string | null;
   /** Kdy majitel povolil, aby AI na kliknutí četla i přílohy zprávy (PDF, obrázky). */
   aiFilesAt: string | null;
+  /** Kdy majitel povolil ranní načítání pošty bez kliknutí (`mail-schedule.ts`). */
+  autoSyncAt: string | null;
 };
+
+/**
+ * Klient databáze, se kterým pošta pracuje: běžně ten přihlášeného člověka
+ * (platí pro něj přístupová práva), u ranního běhu servisní. Proto každý
+ * dotaz na poštu filtruje podle `user_id` výslovně a nespoléhá na práva.
+ */
+type Db = Awaited<ReturnType<typeof supabaseServer>> | ReturnType<typeof supabaseAdmin>;
 
 export type MailRow = {
   id: string;
@@ -143,7 +152,7 @@ export async function loadMailAccount(userId: string): Promise<MailAccount | nul
   const supabase = await supabaseServer();
   const { data } = await supabase
     .from("mail_accounts")
-    .select("email, last_sync_at, ai_consent_at, ai_auto_at, ai_files_at")
+    .select("email, last_sync_at, ai_consent_at, ai_auto_at, ai_files_at, auto_sync_at")
     .eq("user_id", userId)
     .maybeSingle();
 
@@ -154,6 +163,7 @@ export async function loadMailAccount(userId: string): Promise<MailAccount | nul
         aiConsentAt: (data.ai_consent_at as string | null) ?? null,
         aiAutoAt: (data.ai_auto_at as string | null) ?? null,
         aiFilesAt: (data.ai_files_at as string | null) ?? null,
+        autoSyncAt: (data.auto_sync_at as string | null) ?? null,
       }
     : null;
 }
@@ -219,8 +229,7 @@ export async function disconnectMailbox(userId: string): Promise<ActionResult> {
 }
 
 /** Adresy, podle kterých se pozná, komu zpráva patří: z karty klienta i z kontaktů. */
-async function nactiKontakty(orgId: string): Promise<ClientContact[]> {
-  const supabase = await supabaseServer();
+async function nactiKontakty(supabase: Db, orgId: string): Promise<ClientContact[]> {
   const [{ data: klienti }, { data: kontakty }] = await Promise.all([
     supabase.from("clients").select("id, email").eq("org_id", orgId).eq("archived", false),
     supabase.from("client_contacts").select("client_id, email").eq("org_id", orgId),
@@ -242,13 +251,20 @@ async function nactiKontakty(orgId: string): Promise<ClientContact[]> {
  * Stažení pošty. Vlákna, která už v doručených nejsou, se z appky smažou —
  * přehled má zrcadlit schránku, ne si držet vlastní historii.
  */
-export async function syncMailbox(
-  orgId: string,
-  userId: string,
-): Promise<ActionResult & { count?: number; /** Kolik zpráv AI nově zařadila. */ sorted?: number; note?: string }> {
-  const zacatek = Date.now();
-  const supabase = await supabaseServer();
+export async function syncMailbox(orgId: string, userId: string): Promise<SyncResult> {
+  const res = await syncMailboxWith(await supabaseServer(), orgId, userId, Date.now() + TRIDIT_NEJDELE_MS);
+  if (res.ok) revalidatePath("/", "layout");
+  return res;
+}
 
+type SyncResult = ActionResult & { count?: number; /** Kolik zpráv AI nově zařadila. */ sorted?: number; note?: string };
+
+/**
+ * Vlastní stažení pošty jedné schránky. `supabase` je klient přihlášeného
+ * člověka („Obnovit“), nebo servisní (ranní běh). `tridimeDo` je čas, po
+ * kterém se už nezačne třídit další zpráva.
+ */
+async function syncMailboxWith(supabase: Db, orgId: string, userId: string, tridimeDo: number): Promise<SyncResult> {
   const { data: ucet } = await supabase
     .from("mail_accounts")
     .select("email, token_enc, ai_consent_at, ai_auto_at")
@@ -261,7 +277,7 @@ export async function syncMailbox(
     const syrove = await fetchInbox(accessToken, OKNO_DNI, ucet.email as string);
 
     const [kontakty, { data: ignorovani }, { data: stavajici }] = await Promise.all([
-      nactiKontakty(orgId),
+      nactiKontakty(supabase, orgId),
       supabase.from("mail_ignored").select("pattern").eq("user_id", userId),
       supabase.from("mail_messages").select("gmail_id, handled_at, task_id").eq("user_id", userId),
     ]);
@@ -310,10 +326,9 @@ export async function syncMailbox(
     // takže když se třídění nepovede, přehled to nerozbije — jen zůstane po starém.
     const trideni =
       ucet.ai_consent_at && ucet.ai_auto_at
-        ? await sortNewMail(userId, accessToken, zacatek + TRIDIT_NEJDELE_MS)
+        ? await sortNewMail(supabase, userId, accessToken, tridimeDo)
         : null;
 
-    revalidatePath("/", "layout");
     return { ok: true, count: zpravy.length, sorted: trideni?.sorted ?? 0, note: trideni?.note ?? undefined };
   } catch (e) {
     return { ok: false, message: chybaText(e) };
@@ -330,12 +345,11 @@ export async function syncMailbox(
  * Ukládá se zařazení a jedna věta shrnutí. Text zprávy ne.
  */
 async function sortNewMail(
+  supabase: Db,
   userId: string,
   accessToken: string,
   deadline: number,
 ): Promise<{ sorted: number; note: string | null }> {
-  const supabase = await supabaseServer();
-
   const { data: cekajici } = await supabase
     .from("mail_messages")
     .select("id, gmail_id, from_name, from_email, subject, received_at")
@@ -428,6 +442,93 @@ async function sortNewMail(
       ? "Zbylé zprávy roztřídím při dalším načtení."
       : null;
   return { sorted, note };
+}
+
+/** Kolik času před koncem ranního běhu se už nezačíná další schránka. */
+const RANO_REZERVA_MS = 10_000;
+
+/**
+ * Ranní načtení pošty bez přihlášeného člověka — volá ho jen ranní cron
+ * a jen ve dny, kdy se pošta načítá sama (`isMailAutoDay`).
+ *
+ * Běží se servisním klíčem, tedy mimo přístupová práva. O to přísněji se
+ * vybírá: jen schránky, jejichž majitel si ranní načítání sám zapnul
+ * (`auto_sync_at`), a každý dotaz filtruje podle majitele. Dělá přesně to,
+ * co „Obnovit“ — třídí tedy jen tomu, kdo má zapnuté i třídění.
+ *
+ * Vrací počty čekajících zpráv podle majitele (pro jeho ranní upozornění)
+ * a kolik schránek se povedlo. Do odpovědi ani do záznamu nejde nic
+ * z obsahu pošty.
+ */
+export async function syncMailboxesForCron(
+  supabase: ReturnType<typeof supabaseAdmin>,
+  deadline: number,
+  /** Jen schránky jednoho studia — pro zkoušku ve vývoji, kde databáze je ta ostrá. */
+  onlyOrgId: string | null = null,
+): Promise<{ counts: Map<string, MailCounts>; synced: number; failed: number; skipped: number }> {
+  const counts = new Map<string, MailCounts>();
+  let synced = 0;
+  let failed = 0;
+  let skipped = 0;
+
+  if (!isGmailConfigured()) return { counts, synced, failed, skipped };
+
+  const zapnute = supabase.from("mail_accounts").select("org_id, user_id").not("auto_sync_at", "is", null);
+  const { data: ucty } = await (onlyOrgId ? zapnute.eq("org_id", onlyOrgId) : zapnute).order("auto_sync_at");
+
+  for (const u of ucty ?? []) {
+    // Na další schránku už není čas — načte se příště, nebo ručně.
+    if (Date.now() > deadline - RANO_REZERVA_MS) {
+      skipped++;
+      continue;
+    }
+
+    const userId = u.user_id as string;
+    const res = await syncMailboxWith(
+      supabase,
+      u.org_id as string,
+      userId,
+      Math.min(Date.now() + TRIDIT_NEJDELE_MS, deadline - RANO_REZERVA_MS),
+    );
+    if (!res.ok) {
+      // Odvolaný přístup, výpadek Gmailu… Majitel to uvidí, až poštu otevře;
+      // staré počty se mu ráno neposílají.
+      failed++;
+      continue;
+    }
+    synced++;
+
+    const { data: zpravy } = await supabase
+      .from("mail_messages")
+      .select("status, handled_at, priority")
+      .eq("user_id", userId);
+    counts.set(userId, spocitej(zpravy));
+  }
+
+  return { counts, synced, failed, skipped };
+}
+
+type CountRow = { status: unknown; handled_at: unknown; priority: unknown };
+
+function spocitej(zpravy: CountRow[] | null): MailCounts {
+  return mailCounts(
+    (zpravy ?? []).map((z) => ({
+      status: z.status as MailStatus,
+      handledAt: (z.handled_at as string | null) ?? null,
+      priority: (z.priority as MailPriority | null) ?? null,
+    })),
+  );
+}
+
+/** Pošta na stránce Dnes: kolik zpráv čeká a kdy se naposledy načetla. `null` bez připojené schránky. */
+export async function loadMailSummary(userId: string): Promise<(MailCounts & { lastSyncAt: string | null }) | null> {
+  const supabase = await supabaseServer();
+  const [{ data: ucet }, { data: zpravy }] = await Promise.all([
+    supabase.from("mail_accounts").select("last_sync_at").eq("user_id", userId).maybeSingle(),
+    supabase.from("mail_messages").select("status, handled_at, priority").eq("user_id", userId),
+  ]);
+  if (!ucet) return null;
+  return { ...spocitej(zpravy), lastSyncAt: (ucet.last_sync_at as string | null) ?? null };
 }
 
 export async function listMail(userId: string): Promise<MailRow[]> {
@@ -634,6 +735,25 @@ export async function setMailFiles(userId: string, on: boolean): Promise<ActionR
     .eq("user_id", userId);
   if (error) return { ok: false, message: error.message };
 
+  revalidatePath("/", "layout");
+  return { ok: true };
+}
+
+/**
+ * Zapnutí nebo vypnutí ranního načítání pošty. Appka pak čte Gmail sama,
+ * i když ji člověk nemá otevřenou — proto se to zapíná zvlášť. Čte se totéž
+ * co při „Obnovit“ a jen ve dny z `mail-schedule.ts`.
+ */
+export async function setMailAutoSync(userId: string, on: boolean): Promise<ActionResult> {
+  const supabase = await supabaseServer();
+  const { data, error } = await supabase
+    .from("mail_accounts")
+    .update({ auto_sync_at: on ? new Date().toISOString() : null })
+    .eq("user_id", userId)
+    .select("id");
+
+  if (error) return { ok: false, message: error.message };
+  if (!data?.length) return { ok: false, message: "Schránka není připojená." };
   revalidatePath("/", "layout");
   return { ok: true };
 }

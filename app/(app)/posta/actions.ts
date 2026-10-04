@@ -10,6 +10,7 @@ import {
   proposeLeadFromMail,
   setHandled,
   setMailAiConsent,
+  setMailAutoSync,
   setMailAutoTriage,
   setMailFiles,
   setSignature,
@@ -73,6 +74,13 @@ export async function setMailAutoTriageAction(on: boolean): Promise<ActionResult
   const k = await kdo();
   if (!k) return NOT_READY;
   return setMailAutoTriage(k.userId, on === true);
+}
+
+/** Zapnutí nebo vypnutí ranního načítání pošty bez kliknutí — zvláštní souhlas. */
+export async function setMailAutoSyncAction(on: boolean): Promise<ActionResult> {
+  const k = await kdo();
+  if (!k) return NOT_READY;
+  return setMailAutoSync(k.userId, on === true);
 }
 
 /** Zapnutí nebo vypnutí čtení příloh (PDF, obrázky) na kliknutí — zvláštní souhlas. */

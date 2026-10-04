@@ -61,6 +61,32 @@
 /* Pruh čísel                                                        */
 /* ---------------------------------------------------------------- */
 
+/* Pošta: jeden řádek s odkazem — jen když na odpověď něco čeká. */
+.mailRow {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--s2) var(--s4);
+  padding: var(--s3) var(--s5);
+  margin-bottom: var(--s5);
+  border: 1px solid var(--line);
+  border-radius: var(--r3);
+  background: var(--grad-raise);
+  color: inherit;
+  text-decoration: none;
+  font-size: 13px;
+}
+.mailRow:hover { border-color: var(--faint); }
+.mailRow b { font-weight: 600; }
+.mailRow em {
+  margin-left: auto;
+  font-family: var(--ui-s);
+  font-size: 11.5px;
+  font-style: normal;
+  color: var(--faint);
+}
+.mailRowUrgent { border-left: 3px solid var(--alarm); }
+
 .strip {
   display: grid;
   grid-template-columns: repeat(5, 1fr);
