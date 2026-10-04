@@ -58,7 +58,7 @@ async function navrhni(popis, mail, klientId = null) {
     today: DNES,
     defaultClientId: klientId,
     truncated: cely.truncated,
-    attachments: cely.attachments,
+    fileNotes: cely.attachments > 0 ? ["E-mail má přílohy — ty AI nečte."] : [],
     sender: { name: cely.fromName, email: cely.fromEmail },
   });
 
@@ -282,7 +282,7 @@ async function poptavka(popis, mail) {
     sender: { name: cely.fromName, email: cely.fromEmail },
     subject: cely.subject,
     truncated: cely.truncated,
-    attachments: cely.attachments,
+    fileNotes: cely.attachments > 0 ? ["E-mail má přílohy — ty AI nečte."] : [],
   });
   const d = vysledek.draft;
   console.log(`\n${popis} — ${ms} ms:\n   název: ${d.name}\n   firma: ${d.company ?? "—"} | kontakt: ${d.contact ?? "—"} | e-mail: ${d.email} | telefon: ${d.phone ?? "—"}\n   další krok: ${d.nextStep} do ${d.nextStepAt}\n   poznámka: ${d.note ?? "—"}`);

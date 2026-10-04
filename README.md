@@ -142,6 +142,20 @@ kliknutí. Čemu appka nerozumí, nechá mezi zprávami čekajícími na odpově
 (`lib/mail-buckets.ts`) — omyl nesmí zprávu schovat. Vypnutím se zařazení
 i shrnutí mažou.
 
+**Čtení příloh.** Volitelné a zapíná se zvlášť (`mail_accounts.ai_files_at`,
+jen se základním souhlasem). Když je zapnuté, jdou při kliknutí na „Udělat
+úkol“ nebo „Návrh odpovědi“ k AI spolu s textem i přílohy té jedné zprávy;
+třídění přílohy nečte nikdy a nic z nich se neukládá. Co k AI smí, rozhoduje
+`lib/mail-files.ts`: jen PDF a obrázky (JPG, PNG, WEBP), typ se ověřuje podle
+prvních bajtů souboru, ne podle toho, co tvrdí odesílatel, nejvýš 4 soubory,
+5 MB na soubor a 10 MB dohromady. Délku hlídá `countTokens` (je zdarma):
+strana PDF stojí 560 tokenů, obrázek asi 1 100 a strop 12 000 tokenů odpovídá
+zhruba 20 stranám — na větším modelu kolem 20 haléřů za kliknutí. Příloha je
+cizí obsah stejně jako e-mail: s přílohami běží i návrh úkolu a poptávky na
+větším modelu, protože lehký si v měření nechal pokynem schovaným v PDF
+přepsat telefon poptávky v šesti pokusech ze šesti, větší ani jednou. Živá
+zkouška: `npm run test:aiprilohy` (vymyšlená PDF z `scripts/zkusebni-soubory.mjs`).
+
 **Report pro jednoho klienta.** Vedle reportu za celé studio může mít každý
 klient za týden vlastní report (`reports.client_id`, adresa `/report?klient=…`):
 vlastní shrnutí, stav i sdílený odkaz. Zúžení se dělá v dotazu i v čistém

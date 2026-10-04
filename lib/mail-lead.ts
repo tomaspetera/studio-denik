@@ -1,6 +1,15 @@
 import { addDaysKey, daysBetweenKeys } from "./domain.ts";
 import { isValidDateKey } from "./attention.ts";
-import { FOREIGN_TEXT_RULE, bodyLines, dayWithName, oneLine, senderLine } from "./mail-capture.ts";
+import {
+  FILES_END,
+  FILES_RULE,
+  FOREIGN_TEXT_RULE,
+  attachmentsLine,
+  bodyLines,
+  dayWithName,
+  oneLine,
+  senderLine,
+} from "./mail-capture.ts";
 
 /**
  * Poptávka z e-mailu — zadání pro AI a dotažení toho, co vrátí.
@@ -58,9 +67,11 @@ export type LeadMail = {
   body: string;
   truncated: boolean;
   attachments: number;
+  /** Jména příloh, které AI dostane za e-mailem. Bez nich přílohy nevidí. */
+  files?: string[];
 };
 
-const LEAD_SYSTEM = `Čteš e-mail od možného nového zákazníka grafického studia a připravuješ z něj záznam poptávky.
+const LEAD_SYSTEM =`Čteš e-mail od možného nového zákazníka grafického studia a připravuješ z něj záznam poptávky.
 
 ${FOREIGN_TEXT_RULE}
 
@@ -75,7 +86,12 @@ Pole:
 
 Nic nevymýšlej. Když údaj v e-mailu není, vrať prázdný řetězec.`;
 
-export function buildLeadPrompt(mail: LeadMail, today: string): { system: string; prompt: string } {
+/** `closing` je text, který má přijít až za přílohami; `null`, když AI žádné nedostane. */
+export function buildLeadPrompt(
+  mail: LeadMail,
+  today: string,
+): { system: string; prompt: string; closing: string | null } {
+  const files = mail.files ?? [];
   const lines = [
     `Dnešní datum: ${dayWithName(today)}`,
     `E-mail odeslán: ${dayWithName(mail.sentOn)}`,
@@ -83,10 +99,15 @@ export function buildLeadPrompt(mail: LeadMail, today: string): { system: string
     `Odesílatel: ${senderLine(mail.fromName, mail.fromEmail)}`,
     `Předmět: ${oneLine(mail.subject, 300) || "(bez předmětu)"}`,
   ];
-  if (mail.attachments > 0) lines.push(`Přílohy: ${mail.attachments} (jejich obsah nevidíš)`);
+  const prilohy = attachmentsLine(mail.attachments, files);
+  if (prilohy) lines.push(prilohy);
   lines.push("", ...bodyLines(mail));
 
-  return { system: LEAD_SYSTEM, prompt: lines.join("\n") };
+  return {
+    system: files.length ? `${LEAD_SYSTEM}\n\n${FILES_RULE}` : LEAD_SYSTEM,
+    prompt: lines.join("\n"),
+    closing: files.length ? FILES_END : null,
+  };
 }
 
 const clean = (v: unknown, max: number) => (typeof v === "string" ? v.replace(/\s+/g, " ").trim().slice(0, max) : "");
@@ -124,7 +145,8 @@ export function finishLeadDraft(
     sender: { name: string | null; email: string };
     subject: string | null;
     truncated: boolean;
-    attachments: number;
+    /** Co říct o přílohách — které AI četla a které ne (`fileNotes` v `mail-files.ts`). */
+    fileNotes: string[];
   },
 ): { draft: LeadDraft; warnings: string[] } {
   const r = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
@@ -149,7 +171,7 @@ export function finishLeadDraft(
   }
 
   if (opts.truncated) warnings.push("E-mail je dlouhý, AI četla jen jeho začátek.");
-  if (opts.attachments > 0) warnings.push("E-mail má přílohy — ty AI nečte.");
+  warnings.push(...opts.fileNotes);
 
   return {
     draft: {

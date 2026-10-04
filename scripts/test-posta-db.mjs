@@ -131,6 +131,44 @@ try {
   const { data: poCizim } = await admin.from("mail_accounts").select("ai_auto_at").eq("user_id", A.userId).single();
   zkouska("třídění: cizí souhlas", (ciziAuto ?? []).length === 0 && poCizim?.ai_auto_at === null, "kolega nezapne třídění cizí pošty");
 
+  // --- Čtení příloh (migrace 0022) ---------------------------------------------------
+  // Další zvláštní souhlas: v přílohách bývají faktury a smlouvy. Ani ten nesmí
+  // existovat bez základního — a nijak nesouvisí s automatickým tříděním.
+  const { data: prilohyVychozi, error: prilohySloupec } = await A.klient
+    .from("mail_accounts")
+    .select("ai_files_at")
+    .eq("user_id", A.userId)
+    .single();
+  zkouska("přílohy: výchozí stav", !prilohySloupec && prilohyVychozi?.ai_files_at === null, prilohySloupec ? prilohySloupec.message : "bez výslovného souhlasu je čtení příloh vypnuté");
+
+  const { error: prilohyBez } = await A.klient.from("mail_accounts").update({ ai_files_at: ted() }).eq("user_id", A.userId);
+  zkouska("přílohy: bez souhlasu", !!prilohyBez, "čtení příloh nejde zapnout bez pomoci AI");
+
+  const { data: sPrilohami } = await A.klient
+    .from("mail_accounts")
+    .update({ ai_consent_at: ted(), ai_files_at: ted() })
+    .eq("user_id", A.userId)
+    .select("ai_files_at, ai_auto_at");
+  zkouska("přílohy: se základním", !!sPrilohami?.[0]?.ai_files_at && sPrilohami[0].ai_auto_at === null, "se základním souhlasem jde zapnout — a třídění tím nezapne");
+
+  const { error: jenPrilohy } = await A.klient.from("mail_accounts").update({ ai_consent_at: null }).eq("user_id", A.userId);
+  zkouska("přílohy: jen základní", !!jenPrilohy, "základní souhlas nejde odebrat, dokud je čtení příloh zapnuté");
+
+  const { data: vsePryc } = await A.klient
+    .from("mail_accounts")
+    .update({ ai_consent_at: null, ai_auto_at: null, ai_files_at: null })
+    .eq("user_id", A.userId)
+    .select("ai_consent_at, ai_files_at");
+  zkouska("přílohy: vypnutí všeho", vsePryc?.[0]?.ai_consent_at === null && vsePryc?.[0]?.ai_files_at === null, "všechny souhlasy jdou odebrat najednou — tak to dělá vypnutí pomoci AI");
+
+  const { data: ciziPrilohy } = await B.klient
+    .from("mail_accounts")
+    .update({ ai_consent_at: ted(), ai_files_at: ted() })
+    .eq("user_id", A.userId)
+    .select("id");
+  const { data: poCizichPrilohach } = await admin.from("mail_accounts").select("ai_files_at").eq("user_id", A.userId).single();
+  zkouska("přílohy: cizí souhlas", (ciziPrilohy ?? []).length === 0 && poCizichPrilohach?.ai_files_at === null, "kolega nezapne čtení příloh cizí pošty");
+
   // --- Zprávy -----------------------------------------------------------------
   const { error: zErr } = await A.klient.from("mail_messages").insert(zprava());
   zkouska("uložení zprávy", !zErr, zErr ? zErr.message : "vlastní zpráva se uloží");

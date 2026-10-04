@@ -7,13 +7,14 @@ import type { RawMessage } from "./mail-rules";
  * Napojení na Gmail — jen čtení.
  *
  * Appka žádá jediné oprávnění `gmail.readonly` a volá jen čtecí adresy
- * (seznam vláken, jedno vlákno, jedna zpráva). Žádné odesílání, mazání ani
+ * (seznam vláken, jedno vlákno, jedna zpráva, jedna příloha). Žádné odesílání, mazání ani
  * úpravy tu záměrně nejsou a být nemají: kdyby je někdo doplnil, musel by
  * zároveň rozšířit oprávnění, což je vidět na souhlasné obrazovce Googlu.
  *
  * Přehled pošty čte z vláken jen hlavičky (`format=metadata`), takže Google
  * těla zpráv ani neposílá. Text jedné zprávy se načítá až na výslovné
- * kliknutí (`fetchMessage`) a nikam se neukládá.
+ * kliknutí (`fetchMessage`) a nikam se neukládá. Totéž platí pro její
+ * přílohy (`fetchAttachment`) — a ty navíc jen se zvláštním souhlasem.
  */
 
 export const GMAIL_SCOPE = "https://www.googleapis.com/auth/gmail.readonly";
@@ -260,4 +261,17 @@ export async function fetchMessage(accessToken: string, gmailId: string): Promis
     accessToken,
   );
   return zprava.payload ?? null;
+}
+
+/**
+ * Obsah jedné přílohy (base64url). Volá se jen na výslovné kliknutí u jedné
+ * zprávy a jen když majitel schránky povolil čtení příloh pomocí AI. Nikam
+ * se neukládá. Stačí na to stejné oprávnění jako na čtení zprávy.
+ */
+export async function fetchAttachment(accessToken: string, gmailId: string, attachmentId: string): Promise<string> {
+  const priloha = await gmailGet<{ data?: string }>(
+    `messages/${encodeURIComponent(gmailId)}/attachments/${encodeURIComponent(attachmentId)}`,
+    accessToken,
+  );
+  return priloha.data ?? "";
 }

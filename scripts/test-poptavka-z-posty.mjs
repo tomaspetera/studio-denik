@@ -52,7 +52,7 @@ zkouska("telefon: nesmysl", cleanPhone("zavolejte mi") === null && cleanPhone("1
 
 // --- Dotažení návrhu -----------------------------------------------------------------
 const dotahni = (raw, over = {}) =>
-  finishLeadDraft(raw, { today: DNES, sender: PETR, subject: "Re: Fwd: Poptávka na logo", truncated: false, attachments: 0, ...over });
+  finishLeadDraft(raw, { today: DNES, sender: PETR, subject: "Re: Fwd: Poptávka na logo", truncated: false, fileNotes: [], ...over });
 
 const odAI = {
   name: "Logo a vizitky pro kavárnu",
@@ -90,7 +90,7 @@ zkouska("nesmyslný termín", v.draft.nextStepAt === "2026-10-05" && v.warnings.
 v = dotahni({ ...odAI, next_step_due: "do středy" });
 zkouska("termín slovy", v.draft.nextStepAt === "2026-10-05", "co není datum, se bere jako chybějící");
 
-v = dotahni({ ...odAI, name: "  Logo \n a   vizitky  ", note: "x".repeat(5000), company: 42 }, { truncated: true, attachments: 3 });
+v = dotahni({ ...odAI, name: "  Logo \n a   vizitky  ", note: "x".repeat(5000), company: 42 }, { truncated: true, fileNotes: ["E-mail má přílohy — ty AI nečte."] });
 zkouska("úklid a stropy", v.draft.name === "Logo a vizitky" && v.draft.note.length === LEAD_NOTE_MAX && v.draft.company === null, "mezery, délka poznámky, špatný typ");
 zkouska("co AI neviděla", v.warnings.includes("E-mail je dlouhý, AI četla jen jeho začátek.") && v.warnings.includes("E-mail má přílohy — ty AI nečte."), "zkrácení i přílohy se řeknou");
 

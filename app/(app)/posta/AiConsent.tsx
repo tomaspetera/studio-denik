@@ -14,7 +14,8 @@ export default function AiConsent({ lead }: { lead: string }) {
     <>
       <p className={styles.consentLead}>
         {lead} pošle se <b>text téhle jedné zprávy</b> ke zpracování do služby Google Gemini:
-        odesílatel, předmět, datum a text bez příloh.
+        odesílatel, předmět, datum a text. Přílohy ne — jejich čtení se zapíná zvlášť
+        v Nastavení pošty.
       </p>
       <ul className={styles.consentList}>
         <li>

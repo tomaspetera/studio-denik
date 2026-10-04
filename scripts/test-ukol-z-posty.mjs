@@ -99,7 +99,7 @@ const navrh = (over = {}) => ({
 });
 const JANA = { name: "Jana Nováková", email: "jana@ultramarine.cz" };
 const dotahni = (proposals, over = {}, warnings = []) =>
-  finishMailProposals({ proposals, warnings }, { today: DNES, defaultClientId: "ume", truncated: false, attachments: 0, sender: JANA, ...over });
+  finishMailProposals({ proposals, warnings }, { today: DNES, defaultClientId: "ume", truncated: false, fileNotes: [], sender: JANA, ...over });
 
 let v = dotahni([navrh({ dueKey: "2026-10-06" })]);
 zkouska("termín z e-mailu", v.proposals[0].dueKey === "2026-10-06" && v.warnings.length === 0, "platný termín zůstane a nic se nehlásí");
@@ -129,7 +129,7 @@ zkouska("vždy nový úkol", v.proposals[0].step === 0 && v.proposals[0].doneOn 
 v = dotahni(Array.from({ length: 8 }, (_, i) => navrh({ title: `Úkol ${i + 1}`, dueKey: "2026-10-06" })));
 zkouska("strop na počet", v.proposals.length === MAIL_MAX_TASKS && v.proposals[4].title === "Úkol 5" && v.warnings.some((w) => w.includes(`prvních ${MAIL_MAX_TASKS}`)), "nejvýš pět, v původním pořadí");
 
-v = dotahni([navrh({ dueKey: "2026-10-06" })], { truncated: true, attachments: 3 });
+v = dotahni([navrh({ dueKey: "2026-10-06" })], { truncated: true, fileNotes: ["E-mail má přílohy — ty AI nečte."] });
 zkouska("co AI neviděla", v.warnings.includes("E-mail je dlouhý, AI četla jen jeho začátek.") && v.warnings.includes("E-mail má přílohy — ty AI nečte."), "zkrácení i přílohy se řeknou");
 
 // --- Odesílatel v poznámce ---------------------------------------------------------
@@ -170,12 +170,12 @@ let c = normalizeProposals(odpovedAI, ctx, { quietUnknownClient: true });
 zkouska("tichý neznámý klient", c.warnings.length === 0 && c.proposals[1].clientId === null, "u e-mailu se neznámý klient nehlásí");
 zkouska("hlasitý jinde", normalizeProposals(odpovedAI, ctx).warnings.some((w) => w.includes("Neexistující firma")), "u rychlého zápisu se hlásí dál");
 
-c = finishMailProposals(c, { today: DNES, defaultClientId: "lipa", truncated: false, attachments: 1, sender: JANA });
+c = finishMailProposals(c, { today: DNES, defaultClientId: "lipa", truncated: false, fileNotes: ["E-mail má přílohy — ty AI nečte."], sender: JANA });
 zkouska("celá cesta: první", c.proposals[0].clientId === "ume" && c.proposals[0].categoryId === "tisk" && c.proposals[0].dueKey === "2026-10-02" && c.proposals[0].note?.includes("do pátku"), "klient spárovaný z textu, kategorie, termín, poznámka");
 zkouska("celá cesta: druhý", c.proposals[1].clientId === "lipa" && c.proposals[1].step === 0 && c.proposals[1].doneOn === null && c.proposals[1].dueKey === "2026-10-05", "neznámý klient → odesílatelův, hotový → nový, termín za dva dny");
 zkouska("celá cesta: hlášky", c.warnings.length === 3, "uplynulý termín, odhadnutý termín a přílohy");
 
-c = finishMailProposals(normalizeProposals({ nesmysl: true }, ctx, { quietUnknownClient: true }), { today: DNES, defaultClientId: null, truncated: false, attachments: 0, sender: JANA });
+c = finishMailProposals(normalizeProposals({ nesmysl: true }, ctx, { quietUnknownClient: true }), { today: DNES, defaultClientId: null, truncated: false, fileNotes: [], sender: JANA });
 zkouska("rozbitá odpověď", c.proposals.length === 0 && c.warnings.some((w) => w.includes("nečekaném tvaru")), "nečitelná odpověď AI nic nezaloží");
 
 // Žádná otevřená spojení, proces doběhne sám.

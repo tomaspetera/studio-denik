@@ -309,6 +309,22 @@ export type ExtractOptions = {
    * bez přemýšlení.
    */
   thinkingBudget?: number;
+  /**
+   * Soubory, které má model přečíst spolu se zadáním — přílohy e-mailu.
+   * Umí je jen Gemini; jdou za text zadání, každý se svým popiskem.
+   */
+  files?: AiFile[];
+  /** Text až za soubory. Co model četl naposled, tím se řídí nejochotněji. */
+  closing?: string | null;
+};
+
+/** PDF nebo obrázek přiložený k zadání. */
+export type AiFile = {
+  /** Řádek před souborem, třeba „Příloha 1 („plan.pdf“):“. */
+  label: string;
+  mimeType: string;
+  /** Obsah v base64 (ne base64url). */
+  data: string;
 };
 
 /**
@@ -377,6 +393,12 @@ const GEMINI_FAST_MODEL = process.env.GEMINI_FAST_MODEL || "gemini-3.1-flash-lit
  */
 const ATTEMPT_TIMEOUT_MS = 10_000;
 
+/**
+ * S přílohami čte model déle (PDF o dvaceti stranách). Dva pokusy se pořád
+ * musí vejít do limitu stránky s poštou (60 s) i se stažením příloh z Gmailu.
+ */
+const FILES_TIMEOUT_MS = 22_000;
+
 /** Kolik „přemýšlení“ má model u opatrného volání (viz `ExtractOptions`). */
 const CAREFUL_THINKING = 512;
 
@@ -406,11 +428,27 @@ async function extractJsonGemini(
   const models = opts.careful ? [GEMINI_MODEL, GEMINI_MODEL] : [...new Set([GEMINI_FAST_MODEL, GEMINI_MODEL])];
   let last: unknown;
 
+  // Se soubory: zadání, pak každý soubor se svým popiskem, a nakonec ještě
+  // jednou připomenutí — aby poslední slovo neměl ten, kdo soubor poslal.
+  const files = opts.files ?? [];
+  const contents = files.length
+    ? [
+        {
+          role: "user",
+          parts: [
+            { text: prompt },
+            ...files.flatMap((f) => [{ text: f.label }, { inlineData: { mimeType: f.mimeType, data: f.data } }]),
+            ...(opts.closing ? [{ text: opts.closing }] : []),
+          ],
+        },
+      ]
+    : prompt;
+
   for (const model of models) {
     try {
       const res = await ai.models.generateContent({
         model,
-        contents: prompt,
+        contents,
         config: {
           systemInstruction: system,
           responseMimeType: "application/json",
@@ -420,7 +458,7 @@ async function extractJsonGemini(
           // U opatrného volání má model krátký prostor na rozmyšlenou — pomáhá
           // mu rozeznat podvržený pokyn a stojí to zlomek vteřiny.
           thinkingConfig: { thinkingBudget: opts.thinkingBudget ?? (opts.careful ? CAREFUL_THINKING : 0) },
-          httpOptions: { timeout: ATTEMPT_TIMEOUT_MS },
+          httpOptions: { timeout: files.length ? FILES_TIMEOUT_MS : ATTEMPT_TIMEOUT_MS },
         },
       });
       return res.text ?? "";
@@ -434,4 +472,25 @@ async function extractJsonGemini(
   if (isQuotaError(last)) throw new AiQuotaExceeded("gemini", models[0]);
   if (isOverloaded(last) || isTimeout(last)) throw new AiOverloaded("gemini", models.length);
   throw last;
+}
+
+/**
+ * Kolik tokenů by soubor stál na vstupu. Počítání je zdarma a nic negeneruje —
+ * slouží jako strop: příloha, která by byla moc dlouhá, se k modelu vůbec
+ * nepošle (viz `FILES_MAX_TOKENS` v `mail-files.ts`).
+ */
+export async function countFileTokens(file: AiFile): Promise<number> {
+  const key = process.env.GEMINI_API_KEY;
+  if (!key) throw new AiNotConfigured("gemini");
+
+  const ai = new GoogleGenAI({ apiKey: key });
+  const res = await ai.models.countTokens({
+    model: GEMINI_MODEL,
+    contents: [{ role: "user", parts: [{ inlineData: { mimeType: file.mimeType, data: file.data } }] }],
+    config: { httpOptions: { timeout: ATTEMPT_TIMEOUT_MS } },
+  });
+
+  const tokens = res.totalTokens;
+  if (typeof tokens !== "number" || !Number.isFinite(tokens) || tokens <= 0) throw new AiBadResponse();
+  return tokens;
 }

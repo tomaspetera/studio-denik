@@ -9,6 +9,7 @@ import {
   GmailError,
   accessTokenFrom,
   exchangeCode,
+  fetchAttachment,
   fetchEmailAddress,
   fetchInbox,
   fetchMessage,
@@ -16,7 +17,16 @@ import {
   revokeToken,
 } from "./gmail";
 import { triage, type ClientContact, type MailStatus } from "./mail-rules";
-import { prepareBody, type PreparedBody } from "./mail-body";
+import { prepareBody, type MailAttachment, type PreparedBody } from "./mail-body";
+import {
+  checkBytes,
+  expectedMime,
+  fileNotes,
+  fitBudget,
+  planFiles,
+  type SkipReason,
+  type SkippedFile,
+} from "./mail-files";
 import { MAIL_MAX_TASKS, buildMailPrompt, finishMailProposals } from "./mail-capture";
 import {
   REPLY_JSON_SCHEMA,
@@ -33,7 +43,16 @@ import { LEAD_JSON_SCHEMA, buildLeadPrompt, finishLeadDraft, sanitizeLeadDraft, 
 import { createLead } from "./leads";
 import { CAPTURE_JSON_SCHEMA, normalizeProposals, type CaptureResult } from "./capture";
 import { createProposedTasks, knownAiError } from "./capture-data";
-import { AiNoCredit, AiNotConfigured, AiQuotaExceeded, availableProviders, extractJson } from "./ai";
+import {
+  AiNoCredit,
+  AiNotConfigured,
+  AiQuotaExceeded,
+  availableProviders,
+  countFileTokens,
+  extractJson,
+  type AiFile,
+  type ExtractOptions,
+} from "./ai";
 import { TRIAGE_BODY_MAX, TRIAGE_JSON_SCHEMA, buildTriagePrompt, finishTriage } from "./mail-triage";
 import type { MailPriority } from "./mail-buckets";
 import { listCategories, listClients } from "./tasks";
@@ -46,6 +65,9 @@ import { dateKeyPrague, todayKeyPrague } from "./domain";
  * Text zprávy se neukládá nikdy. Do AI jde jediná věc: text jedné zprávy,
  * u které majitel schránky klikl na „Udělat úkol“, a jen když návrh úkolu
  * pomocí AI sám povolil (`ai_consent_at`). Viz `proposeFromMail`.
+ *
+ * Přílohy té zprávy (PDF a obrázky) jdou k AI jen se zvláštním souhlasem
+ * (`ai_files_at`) a taky jen na kliknutí. Neukládají se. Viz `nactiPrilohy`.
  */
 
 export type MailAccount = {
@@ -55,6 +77,8 @@ export type MailAccount = {
   aiConsentAt: string | null;
   /** Kdy majitel povolil automatické třídění pošty podle priority. */
   aiAutoAt: string | null;
+  /** Kdy majitel povolil, aby AI na kliknutí četla i přílohy zprávy (PDF, obrázky). */
+  aiFilesAt: string | null;
 };
 
 export type MailRow = {
@@ -119,7 +143,7 @@ export async function loadMailAccount(userId: string): Promise<MailAccount | nul
   const supabase = await supabaseServer();
   const { data } = await supabase
     .from("mail_accounts")
-    .select("email, last_sync_at, ai_consent_at, ai_auto_at")
+    .select("email, last_sync_at, ai_consent_at, ai_auto_at, ai_files_at")
     .eq("user_id", userId)
     .maybeSingle();
 
@@ -129,6 +153,7 @@ export async function loadMailAccount(userId: string): Promise<MailAccount | nul
         lastSyncAt: (data.last_sync_at as string | null) ?? null,
         aiConsentAt: (data.ai_consent_at as string | null) ?? null,
         aiAutoAt: (data.ai_auto_at as string | null) ?? null,
+        aiFilesAt: (data.ai_files_at as string | null) ?? null,
       }
     : null;
 }
@@ -533,8 +558,12 @@ export async function setMailAiConsent(userId: string, on: boolean): Promise<Act
   const supabase = await supabaseServer();
   const { data, error } = await supabase
     .from("mail_accounts")
-    // Vypnutím padá i automatické třídění — bez základního souhlasu nesmí běžet.
-    .update(on ? { ai_consent_at: new Date().toISOString() } : { ai_consent_at: null, ai_auto_at: null })
+    // Vypnutím padá i automatické třídění a čtení příloh — bez základního souhlasu nesmí běžet.
+    .update(
+      on
+        ? { ai_consent_at: new Date().toISOString() }
+        : { ai_consent_at: null, ai_auto_at: null, ai_files_at: null },
+    )
     .eq("user_id", userId)
     .select("id");
 
@@ -582,6 +611,33 @@ export async function setMailAutoTriage(userId: string, on: boolean): Promise<Ac
   return { ok: true };
 }
 
+/**
+ * Zapnutí nebo vypnutí čtení příloh. Zvláštní souhlas: v přílohách bývají
+ * faktury a smlouvy, tedy citlivější věci než v textu zprávy. Platí jen pro
+ * zprávu, u které člověk klikne — automatické třídění přílohy nečte nikdy.
+ * Nic se neukládá, takže vypnutím není co mazat.
+ */
+export async function setMailFiles(userId: string, on: boolean): Promise<ActionResult> {
+  const supabase = await supabaseServer();
+  const { data: ucet } = await supabase
+    .from("mail_accounts")
+    .select("ai_consent_at")
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (!ucet) return { ok: false, message: "Schránka není připojená." };
+  if (on && !ucet.ai_consent_at) return { ok: false, message: "Nejdřív zapni pomoc AI s e-mailem." };
+
+  const { error } = await supabase
+    .from("mail_accounts")
+    .update({ ai_files_at: on ? new Date().toISOString() : null })
+    .eq("user_id", userId);
+  if (error) return { ok: false, message: error.message };
+
+  revalidatePath("/", "layout");
+  return { ok: true };
+}
+
 /** Jméno, kterým appka podepisuje návrh odpovědi — jméno z profilu. */
 export async function loadSignature(userId: string): Promise<string | null> {
   const supabase = await supabaseServer();
@@ -620,7 +676,81 @@ type MailWithBody = {
   receivedAt: string;
   clientId: string | null;
   telo: PreparedBody;
+  prilohy: MailFiles;
 };
+
+/** Přílohy připravené pro AI a co o nich říct člověku. Nic z toho se neukládá. */
+type MailFiles = {
+  /** Soubory, které AI dostane za e-mailem. */
+  files: AiFile[];
+  /** Jejich jména, ve stejném pořadí — do zadání. */
+  names: string[];
+  /** Které přílohy AI četla a které ne — pro člověka, který návrh kontroluje. */
+  notes: string[];
+};
+
+/**
+ * Přílohy jedné zprávy pro AI. Bez zvláštního souhlasu (`allowed`) se
+ * z Gmailu nestáhne nic a vrátí se jen věta, že AI přílohy nečte.
+ *
+ * Stahují se jen PDF a obrázky do stropu na počet a velikost. U každého
+ * souboru se podle prvních bajtů ověří, že je tím, za co se vydává, a spočítá
+ * se, kolik by stál — co je moc dlouhé, k AI nejde. Když se některý soubor
+ * nepovede, zbytek pokračuje bez něj a člověk se to dozví.
+ */
+async function nactiPrilohy(
+  accessToken: string,
+  gmailId: string,
+  prilohy: MailAttachment[],
+  allowed: boolean,
+): Promise<MailFiles> {
+  const total = prilohy.length;
+  const readable = prilohy.some((p) => expectedMime(p) !== null);
+  if (!allowed || total === 0) {
+    return { files: [], names: [], notes: fileNotes({ total, allowed, readable, read: [], skipped: [] }) };
+  }
+
+  const plan = planFiles(prilohy);
+  const skipped: SkippedFile[] = [...plan.skipped];
+
+  type Stazena =
+    | { name: string; reason: SkipReason }
+    | { name: string; tokens: number; soubor: { mimeType: string; data: string } };
+
+  const stazene = await Promise.all(
+    plan.take.map(async (p): Promise<Stazena> => {
+      try {
+        const data =
+          p.file.data ?? (p.file.attachmentId ? await fetchAttachment(accessToken, gmailId, p.file.attachmentId) : "");
+        const bytes = Buffer.from(data, "base64url");
+        const check = checkBytes(bytes);
+        if ("reason" in check) return { name: p.name, reason: check.reason };
+
+        const soubor = { mimeType: check.mime, data: bytes.toString("base64") };
+        return { name: p.name, soubor, tokens: await countFileTokens({ label: "", ...soubor }) };
+      } catch (e) {
+        // Do záznamu jen druh chyby — nikdy jméno souboru ani nic z obsahu.
+        console.error("Příloha se nenačetla:", e instanceof Error ? e.name : typeof e);
+        return { name: p.name, reason: "failed" };
+      }
+    }),
+  );
+
+  const kPocitani: Extract<Stazena, { tokens: number }>[] = [];
+  for (const s of stazene) {
+    if ("reason" in s) skipped.push({ name: s.name, reason: s.reason });
+    else kPocitani.push(s);
+  }
+
+  const { keep, skipped: dlouhe } = fitBudget(kPocitani);
+  skipped.push(...dlouhe);
+
+  return {
+    files: keep.map((k, i) => ({ label: `Příloha ${i + 1} („${k.name}“):`, ...k.soubor })),
+    names: keep.map((k) => k.name),
+    notes: fileNotes({ total, allowed, readable, read: keep.map((k) => k.name), skipped }),
+  };
+}
 
 /**
  * Společný začátek všeho, k čemu AI potřebuje číst e-mail: návrh úkolu,
@@ -638,7 +768,7 @@ async function nactiProAi(
   const supabase = await supabaseServer();
 
   const [{ data: ucet }, { data: zprava }] = await Promise.all([
-    supabase.from("mail_accounts").select("token_enc, ai_consent_at").eq("user_id", userId).maybeSingle(),
+    supabase.from("mail_accounts").select("token_enc, ai_consent_at, ai_files_at").eq("user_id", userId).maybeSingle(),
     supabase
       .from("mail_messages")
       .select("gmail_id, from_name, from_email, subject, received_at, client_id, task_id")
@@ -654,9 +784,12 @@ async function nactiProAi(
   if (!isMailAiAvailable()) return { ok: false, message: "Na serveru chybí klíč ke Gemini (GEMINI_API_KEY)." };
 
   let telo: PreparedBody;
+  let prilohy: MailFiles;
   try {
     const accessToken = await accessTokenFrom(decryptToken(ucet.token_enc as string, klicProSifrovani()));
     telo = prepareBody(await fetchMessage(accessToken, zprava.gmail_id as string), zprava.subject as string | null);
+    // Přílohy jen se zvláštním souhlasem — bez něj se z Gmailu nestahují vůbec.
+    prilohy = await nactiPrilohy(accessToken, zprava.gmail_id as string, telo.files, Boolean(ucet.ai_files_at));
   } catch (e) {
     if (e instanceof GmailError && e.status === 404) {
       return { ok: false, message: "Zpráva už v Gmailu není. Klikni na Obnovit." };
@@ -664,13 +797,16 @@ async function nactiProAi(
     return { ok: false, message: chybaText(e) };
   }
 
-  if (!telo.text) {
+  // Zpráva bez textu má smysl jen tehdy, když AI dostane aspoň přílohu.
+  if (!telo.text && prilohy.files.length === 0) {
+    if (telo.attachments === 0) return { ok: false, message: "E-mail nemá žádný text, který by šel přečíst." };
+    if (ucet.ai_files_at) {
+      return { ok: false, message: `E-mail nemá žádný text a z příloh AI nic přečíst nemohla. ${prilohy.notes.join(" ")}` };
+    }
+    const sloByTo = telo.files.some((p) => expectedMime(p) !== null);
     return {
       ok: false,
-      message:
-        telo.attachments > 0
-          ? "E-mail nemá žádný text, jen přílohy — a ty AI nečte."
-          : "E-mail nemá žádný text, který by šel přečíst.",
+      message: `E-mail nemá žádný text, jen přílohy — a ty AI nečte.${sloByTo ? " Čtení PDF a obrázků se zapíná v nastavení pošty." : ""}`,
     };
   }
 
@@ -682,7 +818,21 @@ async function nactiProAi(
     receivedAt: zprava.received_at as string,
     clientId: zprava.client_id as string | null,
     telo,
+    prilohy,
   };
+}
+
+/**
+ * Jak volat AI, když má číst i přílohy.
+ *
+ * Návrh úkolu a poptávky jinak běží na lehkém modelu. S přílohami ne: pokyn
+ * schovaný v PDF si lehký model v měření nechal vnutit pokaždé (do poptávky
+ * dosadil podvržený telefon, 6 ze 6), větší ani jednou (0 z 16, 3. 10. 2026).
+ * Přemýšlení k tomu nepotřeboval, tak se neplatí.
+ */
+function sPrilohami(prilohy: MailFiles, closing: string | null): ExtractOptions {
+  if (prilohy.files.length === 0) return {};
+  return { careful: true, thinkingBudget: 0, files: prilohy.files, closing };
 }
 
 /** Známou chybu AI řekne přesně, neznámou obecně. `rada` je, co zkusit místo toho. */
@@ -694,10 +844,10 @@ function aiSelhala(e: unknown, co: string, rada: string): AiFail {
 }
 
 /** Co AI neviděla — ať se podle toho člověk při kontrole zařídí. */
-function coNevidela(telo: PreparedBody): string[] {
+function coNevidela(telo: PreparedBody, prilohy: MailFiles): string[] {
   const out: string[] = [];
   if (telo.truncated) out.push("E-mail je dlouhý, AI četla jen jeho začátek.");
-  if (telo.attachments > 0) out.push("E-mail má přílohy — ty AI nečte.");
+  out.push(...prilohy.notes);
   return out;
 }
 
@@ -719,7 +869,7 @@ export async function proposeFromMail(orgId: string, userId: string, mailId: str
   // a není archivovaný — jinak by se úkol při zakládání odmítl.
   const klient = ctx.clients.find((c) => c.id === z.clientId) ?? null;
 
-  const { system, prompt } = buildMailPrompt(
+  const { system, prompt, closing } = buildMailPrompt(
     {
       fromName: z.fromName,
       fromEmail: z.fromEmail,
@@ -728,13 +878,20 @@ export async function proposeFromMail(orgId: string, userId: string, mailId: str
       body: z.telo.text,
       truncated: z.telo.truncated,
       attachments: z.telo.attachments,
+      files: z.prilohy.names,
       clientName: klient?.name ?? null,
     },
     ctx,
   );
 
   try {
-    const raw = await extractJson("gemini", system, prompt, CAPTURE_JSON_SCHEMA as unknown as Record<string, unknown>);
+    const raw = await extractJson(
+      "gemini",
+      system,
+      prompt,
+      CAPTURE_JSON_SCHEMA as unknown as Record<string, unknown>,
+      sPrilohami(z.prilohy, closing),
+    );
     const navrh = normalizeProposals(raw, ctx, { quietUnknownClient: Boolean(klient) });
     return {
       ok: true,
@@ -742,7 +899,7 @@ export async function proposeFromMail(orgId: string, userId: string, mailId: str
         today: ctx.today,
         defaultClientId: klient?.id ?? null,
         truncated: z.telo.truncated,
-        attachments: z.telo.attachments,
+        fileNotes: z.prilohy.notes,
         sender: { name: z.fromName, email: z.fromEmail },
       }),
     };
@@ -777,7 +934,7 @@ export async function draftReplyFromMail(userId: string, mailId: string, hint: u
   const podpis = await loadSignature(userId);
   const pokyn = typeof hint === "string" ? hint : "";
 
-  const { system, prompt } = buildReplyPrompt({
+  const { system, prompt, closing } = buildReplyPrompt({
     today: todayKeyPrague(),
     fromName: z.fromName,
     fromEmail: z.fromEmail,
@@ -786,6 +943,7 @@ export async function draftReplyFromMail(userId: string, mailId: string, hint: u
     body: z.telo.text,
     truncated: z.telo.truncated,
     attachments: z.telo.attachments,
+    files: z.prilohy.names,
     hint: pokyn,
     // Pro každé volání nový kód: ohraničuje pokyn uživatele tak, aby ho
     // odesílatel e-mailu nemohl napodobit (viz `mail-reply.ts`).
@@ -797,6 +955,8 @@ export async function draftReplyFromMail(userId: string, mailId: string, hint: u
     // někdo cizí — lehký model se tu dá textem e-mailu přemluvit.
     const raw = await extractJson("gemini", system, prompt, REPLY_JSON_SCHEMA as unknown as Record<string, unknown>, {
       careful: true,
+      files: z.prilohy.files,
+      closing,
     });
     const slozeno = assembleReply(raw, podpis);
     if (!slozeno) return { ok: false, message: "AI nevrátila žádný text. Zkus to znovu." };
@@ -806,7 +966,7 @@ export async function draftReplyFromMail(userId: string, mailId: string, hint: u
       missing: missingParts(slozeno.text),
       risk: riskyWarning(riskyParts(slozeno.text, pokyn)),
       numbers: unverifiedNumbers(slozeno.text, pokyn),
-      warnings: coNevidela(z.telo),
+      warnings: coNevidela(z.telo, z.prilohy),
     };
   } catch (e) {
     return aiSelhala(e, "Návrh odpovědi", "Zkus to znovu.");
@@ -821,7 +981,7 @@ export async function proposeLeadFromMail(orgId: string, userId: string, mailId:
   if (!z.ok) return z;
 
   const today = todayKeyPrague();
-  const { system, prompt } = buildLeadPrompt(
+  const { system, prompt, closing } = buildLeadPrompt(
     {
       fromName: z.fromName,
       fromEmail: z.fromEmail,
@@ -830,18 +990,25 @@ export async function proposeLeadFromMail(orgId: string, userId: string, mailId:
       body: z.telo.text,
       truncated: z.telo.truncated,
       attachments: z.telo.attachments,
+      files: z.prilohy.names,
     },
     today,
   );
 
   try {
-    const raw = await extractJson("gemini", system, prompt, LEAD_JSON_SCHEMA as unknown as Record<string, unknown>);
+    const raw = await extractJson(
+      "gemini",
+      system,
+      prompt,
+      LEAD_JSON_SCHEMA as unknown as Record<string, unknown>,
+      sPrilohami(z.prilohy, closing),
+    );
     const { draft, warnings } = finishLeadDraft(raw, {
       today,
       sender: { name: z.fromName, email: z.fromEmail },
       subject: z.subject,
       truncated: z.telo.truncated,
-      attachments: z.telo.attachments,
+      fileNotes: z.prilohy.notes,
     });
 
     // Otevřená poptávka od stejné adresy už existuje — tohle je nejspíš její

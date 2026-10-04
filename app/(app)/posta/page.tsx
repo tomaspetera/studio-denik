@@ -8,7 +8,8 @@ import MailBoard from "./MailBoard";
 
 export const dynamic = "force-dynamic";
 // Obnovení tahá vlákna z Gmailu jedno po druhém, což chvíli trvá. Platí i pro
-// návrh úkolu z e-mailu: načtení zprávy a až dva pokusy u AI po deseti vteřinách.
+// návrh úkolu z e-mailu: načtení zprávy a až dva pokusy u AI po deseti vteřinách
+// — s přílohami po dvaadvaceti, plus jejich stažení z Gmailu.
 export const maxDuration = 60;
 
 export default async function PostaPage({

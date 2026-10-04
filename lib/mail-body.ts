@@ -5,6 +5,9 @@
  * text té jedné zprávy: bez příloh, bez citované starší korespondence
  * a zkrácený na rozumnou délku. Nic z toho se neukládá — výsledek jde jen
  * do návrhu úkolu a pak se zahodí.
+ *
+ * Přílohy se tu jen vyjmenují (jméno, typ, velikost). Jejich obsah tenhle
+ * modul nečte; co z nich smí k AI, rozhoduje `mail-files.ts`.
  */
 
 export type GmailHeader = { name?: string; value?: string };
@@ -17,12 +20,31 @@ export type GmailPart = {
   parts?: GmailPart[];
 };
 
+/**
+ * Příloha tak, jak ji popisuje Gmail — bez obsahu. Ten se stahuje zvlášť
+ * a jen tehdy, když majitel schránky povolil čtení příloh (`mail-files.ts`).
+ */
+export type MailAttachment = {
+  /** Jméno souboru, jak ho pojmenoval odesílatel. */
+  filename: string;
+  /** Typ, který uvádí odesílatel — obsahu odpovídat nemusí. */
+  mimeType: string;
+  /** Velikost v bajtech podle Gmailu; 0, když ji neuvádí. */
+  size: number;
+  /** Klíč, kterým se obsah přílohy stahuje. */
+  attachmentId: string | null;
+  /** Obsah v base64url, když ho Gmail u malé přílohy poslal rovnou se zprávou. */
+  data: string | null;
+};
+
 export type PreparedBody = {
   text: string;
   /** Text byl delší než limit a je uříznutý. */
   truncated: boolean;
-  /** Počet příloh. Jejich obsah se nečte nikdy. */
+  /** Počet příloh. Do textu zprávy se jejich obsah nebere nikdy. */
   attachments: number;
+  /** Přílohy jednotlivě — jen popis, bez obsahu. */
+  files: MailAttachment[];
 };
 
 /** Kolik znaků textu jde nejvýš do AI. Delší e-mail se uřízne. */
@@ -152,21 +174,32 @@ export function htmlToText(html: string, keepQuoted = false): string {
 /* Výběr textové části                                                  */
 /* ------------------------------------------------------------------ */
 
-type Found = { plain: GmailPart | null; html: GmailPart | null; attachments: number };
+type Found = { plain: GmailPart | null; html: GmailPart | null; files: MailAttachment[] };
 
 function walk(part: GmailPart, found: Found, depth: number): void {
   if (depth > 12) return;
 
+  const mime = (part.mimeType ?? "").toLowerCase();
   if (part.filename) {
     // Obrázek vložený do podpisu má jméno souboru taky, ale příloha to není.
+    // Platí to jen pro obrázky: PDF, které poštovní program označil jako
+    // „inline“ (Apple Mail to dělá běžně), přílohou je.
     const inline =
-      header(part, "content-disposition").toLowerCase().startsWith("inline") || Boolean(header(part, "content-id"));
-    if (!inline) found.attachments++;
-    // Obsah souboru se nečte nikdy, ani kdyby to byl text.
+      mime.startsWith("image/") &&
+      (header(part, "content-disposition").toLowerCase().startsWith("inline") || Boolean(header(part, "content-id")));
+    if (!inline) {
+      found.files.push({
+        filename: part.filename,
+        mimeType: mime,
+        size: typeof part.body?.size === "number" && part.body.size > 0 ? part.body.size : 0,
+        attachmentId: part.body?.attachmentId ?? null,
+        data: part.body?.data ?? null,
+      });
+    }
+    // Do textu zprávy se obsah souboru nebere nikdy, ani kdyby to byl text.
     return;
   }
 
-  const mime = (part.mimeType ?? "").toLowerCase();
   if (part.body?.data) {
     if (mime === "text/plain" && !found.plain) found.plain = part;
     else if (mime === "text/html" && !found.html) found.html = part;
@@ -181,21 +214,22 @@ function walk(part: GmailPart, found: Found, depth: number): void {
 export function extractBody(
   payload: GmailPart | null | undefined,
   opts: { keepQuoted?: boolean } = {},
-): { text: string; attachments: number } {
-  if (!payload) return { text: "", attachments: 0 };
+): { text: string; attachments: number; files: MailAttachment[] } {
+  if (!payload) return { text: "", attachments: 0, files: [] };
 
-  const found: Found = { plain: null, html: null, attachments: 0 };
+  const found: Found = { plain: null, html: null, files: [] };
   walk(payload, found, 0);
+  const prilohy = { attachments: found.files.length, files: found.files };
 
   const read = (p: GmailPart | null) =>
     p?.body?.data ? decodeBytes(fromBase64Url(p.body.data), charsetOf(p)).slice(0, RAW_MAX_CHARS) : "";
 
   const plain = read(found.plain);
-  if (plain.trim()) return { text: plain, attachments: found.attachments };
+  if (plain.trim()) return { text: plain, ...prilohy };
 
   const html = read(found.html);
   const keep = opts.keepQuoted || /forwarded message|přeposlaná zpráva/i.test(html);
-  return { text: htmlToText(html, keep), attachments: found.attachments };
+  return { text: htmlToText(html, keep), ...prilohy };
 }
 
 /* ------------------------------------------------------------------ */
@@ -305,11 +339,11 @@ export function prepareBody(
   max: number = MAIL_BODY_MAX_CHARS,
 ): PreparedBody {
   const forwardBySubject = isForward(subject);
-  const { text: raw, attachments } = extractBody(payload, { keepQuoted: forwardBySubject });
+  const { text: raw, attachments, files } = extractBody(payload, { keepQuoted: forwardBySubject });
 
   const cleaned = cleanText(raw);
   const forward = forwardBySubject || FORWARD_MARK.test(cleaned);
   const body = cleanText(stripQuoted(cleaned, forward));
 
-  return { ...clip(body, max), attachments };
+  return { ...clip(body, max), attachments, files };
 }

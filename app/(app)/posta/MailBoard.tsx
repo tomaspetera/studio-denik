@@ -12,6 +12,7 @@ import {
   setHandledAction,
   setMailAiConsentAction,
   setMailAutoTriageAction,
+  setMailFilesAction,
   setSignatureAction,
   syncMailAction,
   taskFromMailAction,
@@ -57,7 +58,13 @@ export default function MailBoard({
   today,
 }: {
   configured: boolean;
-  account: { email: string; lastSyncAt: string | null; aiConsentAt: string | null; aiAutoAt: string | null } | null;
+  account: {
+    email: string;
+    lastSyncAt: string | null;
+    aiConsentAt: string | null;
+    aiAutoAt: string | null;
+    aiFilesAt: string | null;
+  } | null;
   messages: MailRow[];
   ignored: { id: string; pattern: string }[];
   justConnected: boolean;
@@ -170,6 +177,7 @@ export default function MailBoard({
 
   const aiPovolena = Boolean(account.aiConsentAt);
   const tridiSe = aiPovolena && Boolean(account.aiAutoAt);
+  const ctePrilohy = aiPovolena && Boolean(account.aiFilesAt);
   const zaneprazdnen = pending || ukol.pending || odpoved.pending;
 
   return (
@@ -272,6 +280,45 @@ export default function MailBoard({
                         }
                       >
                         Zapnout třídění
+                      </button>
+                    </>
+                  )}
+
+                  <h3 className={styles.sub3}>Čtení příloh</h3>
+                  {ctePrilohy ? (
+                    <>
+                      <p className={styles.note}>
+                        Zapnuto. Když u zprávy klikneš na „Udělat úkol“ nebo „Návrh odpovědi“, pošlou
+                        se do služby Google Gemini spolu s textem i její přílohy — PDF a obrázky
+                        (nejvýš 4 soubory, každý do 5 MB, dohromady asi 20 stran). Nic z nich se
+                        neukládá. Automatické třídění přílohy nečte.
+                      </p>
+                      <button
+                        type="button"
+                        className="btn btn-sm"
+                        disabled={zaneprazdnen}
+                        onClick={() => run(() => setMailFilesAction(false), () => "Čtení příloh je vypnuté.")}
+                      >
+                        Vypnout čtení příloh
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <p className={styles.note}>
+                        Vypnuto — AI čte jen text zprávy. Zapnutím dovolíš, aby se u zprávy, na kterou
+                        klikneš, poslaly do služby Google Gemini <b>i její přílohy</b> — PDF a obrázky.
+                        V přílohách bývají faktury a smlouvy, proto se to zapíná zvlášť. Nic z nich
+                        se neukládá a automatické třídění přílohy nečte nikdy.
+                      </p>
+                      <button
+                        type="button"
+                        className="btn btn-sm"
+                        disabled={zaneprazdnen}
+                        onClick={() =>
+                          run(() => setMailFilesAction(true), () => "Čtení příloh je zapnuté. Platí pro zprávu, u které klikneš na „Udělat úkol“ nebo „Návrh odpovědi“.")
+                        }
+                      >
+                        Zapnout čtení příloh
                       </button>
                     </>
                   )}

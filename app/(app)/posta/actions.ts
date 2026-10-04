@@ -11,6 +11,7 @@ import {
   setHandled,
   setMailAiConsent,
   setMailAutoTriage,
+  setMailFiles,
   setSignature,
   syncMailbox,
   taskFromMail,
@@ -72,6 +73,13 @@ export async function setMailAutoTriageAction(on: boolean): Promise<ActionResult
   const k = await kdo();
   if (!k) return NOT_READY;
   return setMailAutoTriage(k.userId, on === true);
+}
+
+/** Zapnutí nebo vypnutí čtení příloh (PDF, obrázky) na kliknutí — zvláštní souhlas. */
+export async function setMailFilesAction(on: boolean): Promise<ActionResult> {
+  const k = await kdo();
+  if (!k) return NOT_READY;
+  return setMailFiles(k.userId, on === true);
 }
 
 /** Jméno, kterým se podepisuje návrh odpovědi. */

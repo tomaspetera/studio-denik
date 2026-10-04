@@ -52,7 +52,12 @@ export default function SoukromiPage() {
             Text zprávy aplikace načte jen u jedné konkrétní zprávy, a to ve chvíli, kdy u ní sám
             klikneš na „Udělat úkol“ nebo „Návrh odpovědi“ a máš zapnutou pomoc umělé inteligence
             (viz níže). Pokud si navíc zapneš automatické třídění, načte při načtení pošty i text
-            nových zpráv, které čekají na tvou odpověď. Přílohy nečte nikdy.
+            nových zpráv, které čekají na tvou odpověď.
+          </li>
+          <li>
+            Přílohy aplikace načte jen tehdy, když si jejich čtení zvlášť zapneš, a jen u té jedné
+            zprávy, u které klikneš na „Udělat úkol“ nebo „Návrh odpovědi“. Bez toho je nečte
+            nikdy, a automatické třídění je nečte ani potom.
           </li>
           <li>
             Aplikace <strong>nikdy nic neodesílá, nemaže ani neupravuje</strong> a nevytváří koncepty.
@@ -68,8 +73,8 @@ export default function SoukromiPage() {
         <p>
           U každé zprávy se ukládá odesílatel, předmět, datum přijetí, stav (čeká na odpověď,
           vyřízeno), identifikátor zprávy a vlákna (kvůli odkazu do Gmailu) a klient, ke kterému
-          zpráva patří. <strong>Text zprávy se neukládá</strong> — ani tehdy, když ti s ní pomáhá
-          umělá inteligence. Uloží se až úkol nebo poptávka, které sám potvrdíš: název, krátké
+          zpráva patří. <strong>Text zprávy ani její přílohy se neukládají</strong> — ani tehdy,
+          když ti s ní pomáhá umělá inteligence. Uloží se až úkol nebo poptávka, které sám potvrdíš: název, krátké
           shrnutí a kontaktní údaje odesílatele (jméno a adresa, u poptávky i firma a telefon,
           pokud je uvedl). Všechno můžeš před uložením přepsat. Návrh odpovědi se neukládá vůbec.
           Je-li zapnuté automatické třídění, ukládá se u zprávy i její zařazení (spěchá, čeká na
@@ -94,6 +99,14 @@ export default function SoukromiPage() {
           i to, co do okna sám napíšeš jako pokyn. Děje se to jen na tvoje kliknutí. Úkol nebo
           poptávka vzniknou až po tvém potvrzení; odpověď aplikace neodesílá — zkopíruješ si ji
           do Gmailu sám.
+        </p>
+        <p>
+          Čtení příloh je další volitelná funkce a zapíná se zvlášť. Je-li zapnutá a klikneš
+          u zprávy na „Udělat úkol“ nebo „Návrh odpovědi“, odešlou se službě Google Gemini API
+          spolu s textem i přílohy <strong>této jedné zprávy</strong> — jen soubory PDF a obrázky,
+          nejvýš čtyři, každý do 5 MB. Jiné typy souborů se neodesílají. Přílohy se nikam
+          neukládají; do úkolu nebo poptávky se z nich dostane jen to, co sám potvrdíš. Bez
+          zapnutého čtení příloh se neodesílá žádná.
         </p>
         <p>
           Automatické třídění podle priority je další volitelná funkce a zapíná se zvlášť. Je-li
@@ -123,9 +136,9 @@ export default function SoukromiPage() {
         <ul>
           <li>Supabase (databáze) a Vercel (hosting): provoz aplikace.</li>
           <li>
-            Google (Gemini API): zpracování textu při návrhu úkolu, poptávky nebo odpovědi ze
-            zprávy, při třídění pošty, shrnutí reportu a převodu poznámek na úkoly — jen v rozsahu
-            popsaném výše.
+            Google (Gemini API): zpracování textu — a se zvláštním souhlasem i příloh — při návrhu
+            úkolu, poptávky nebo odpovědi ze zprávy, zpracování textu při třídění pošty, shrnutí
+            reportu a převodu poznámek na úkoly — jen v rozsahu popsaném výše.
           </li>
           <li>
             Data neprodáváme, nepoužíváme k reklamě a kromě uvedených poskytovatelů je nikomu
@@ -167,17 +180,19 @@ export default function SoukromiPage() {
           Gmail, it requests the read-only scope <code>gmail.readonly</code>. For the mail overview
           it reads only message headers (sender, subject, date). It never sends, deletes or modifies
           mail. It stores sender, subject, date, a status label, message/thread IDs and the matching
-          client, but never the message text. The Gmail access token is stored encrypted and is only
-          available to the server.
+          client, but never the message text or attachments. The Gmail access token is stored
+          encrypted and is only available to the server.
         </p>
         <p lang="en">
           <strong>By default, no Gmail data is sent to any artificial intelligence service.</strong>{" "}
           Triage is done by fixed rules inside the application. An optional feature, which the
           mailbox owner must explicitly enable and can turn off at any time, lets the user click
           “Create task” or “Draft reply” on a single message: the sender, subject, date and text of
-          that one message (never attachments), plus any instruction the user types for the reply,
-          are then sent to the Google Gemini API to propose a task, a sales-lead record or a reply
-          draft. A task or lead (a title, a short summary and the sender’s contact details, all
+          that one message, plus any instruction the user types for the reply, are then sent to the
+          Google Gemini API to propose a task, a sales-lead record or a reply draft. Attachments are
+          not included unless the mailbox owner has separately enabled attachment reading; in that
+          case the PDF and image attachments of that one message (at most four files, up to 5 MB
+          each) are sent along with its text. Attachments are never stored. A task or lead (a title, a short summary and the sender’s contact details, all
           editable beforehand) is created only after the user confirms it. A reply draft is never
           sent or stored by the app; the user copies it into Gmail. These features run only on the
           user’s click, and the message text is not stored. A second optional feature, enabled
