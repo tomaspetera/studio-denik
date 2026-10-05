@@ -5,15 +5,18 @@ import { useRouter } from "next/navigation";
 import { csDate, plural, type DateKey } from "@/lib/domain";
 import type { MailRow } from "@/lib/mail-data";
 import { mailBucket, sortWaiting } from "@/lib/mail-buckets";
+import { LABELS_MAX, labelRows, sourcesLabel, withChildren, type MailLabel } from "@/lib/mail-labels";
 import type { Category, Client } from "@/lib/tasks";
 import {
   disconnectMailAction,
   ignoreSenderAction,
+  listGmailLabelsAction,
   setHandledAction,
   setMailAiConsentAction,
   setMailAutoSyncAction,
   setMailAutoTriageAction,
   setMailFilesAction,
+  setMailLabelsAction,
   setSignatureAction,
   syncMailAction,
   taskFromMailAction,
@@ -66,6 +69,7 @@ export default function MailBoard({
     aiAutoAt: string | null;
     aiFilesAt: string | null;
     autoSyncAt: string | null;
+    labels: MailLabel[];
   } | null;
   messages: MailRow[];
   ignored: { id: string; pattern: string }[];
@@ -89,6 +93,8 @@ export default function MailBoard({
   const [odpojit, setOdpojit] = useState(false);
   const [nastaveni, setNastaveni] = useState(false);
   const [podpis, setPodpis] = useState(signature ?? "");
+  /** Výběr štítků v nastavení: `null` = zavřený; jinak štítky z Gmailu a co je zaškrtnuté. */
+  const [stitky, setStitky] = useState<{ all: MailLabel[]; picked: string[] } | null>(null);
   const [pending, startTransition] = useTransition();
 
   const ukol = useMailTask((zprava) => {
@@ -108,6 +114,27 @@ export default function MailBoard({
       if (!res.ok) setHlaska(res.message ?? "Nepodařilo se to.");
       else if (poUspechu) setUspech(poUspechu(res));
       router.refresh();
+    });
+  }
+
+  /** Seznam štítků se čte z Gmailu až na kliknutí — a neukládá se, dokud člověk výběr nepotvrdí. */
+  function otevriStitky(ulozene: MailLabel[]) {
+    setHlaska(null);
+    setUspech(null);
+    startTransition(async () => {
+      const res = await listGmailLabelsAction();
+      if (!res.ok) setHlaska(res.message);
+      // Štítek, který mezitím v Gmailu zanikl, z výběru vypadne.
+      else setStitky({ all: res.labels, picked: ulozene.map((l) => l.id).filter((id) => res.labels.some((l) => l.id === id)) });
+    });
+  }
+
+  /** Zaškrtnutí vezme i podštítky (v Gmailu jsou to samostatné štítky); odškrtnutí jen ten jeden. */
+  function prepniStitek(id: string) {
+    setStitky((s) => {
+      if (!s) return s;
+      if (s.picked.includes(id)) return { ...s, picked: s.picked.filter((x) => x !== id) };
+      return { ...s, picked: [...new Set([...s.picked, ...withChildren(s.all, id)])] };
     });
   }
 
@@ -222,9 +249,66 @@ export default function MailBoard({
         <section className={`panel ${styles.settings}`}>
           <h2>Nastavení schránky</h2>
           <p className={styles.note}>
-            Pošta se načítá za posledních 7 dní z doručené pošty, bez záložek Reklamy a Sociální sítě.
-            Odpovídá se vždycky v Gmailu — appka umí jen číst.
+            Pošta se načítá za posledních 7 dní {sourcesLabel(account.labels)}, bez záložek Reklamy
+            a Sociální sítě. Odpovídá se vždycky v Gmailu — appka umí jen číst.
           </p>
+
+          <h3 className={styles.sub3}>Štítky z Gmailu</h3>
+          {!stitky ? (
+            <>
+              <p className={styles.note}>
+                {account.labels.length === 0
+                  ? "Načítá se jen doručená pošta. Když ti Gmail poštu filtrem přesouvá do štítků mimo doručenou, vyber je tady — jinak je appka neuvidí."
+                  : `Navíc k doručené poště se načítá: ${account.labels.map((l) => l.name).join(", ")}.`}
+              </p>
+              <button type="button" className="btn btn-sm" disabled={zaneprazdnen} onClick={() => otevriStitky(account.labels)}>
+                {account.labels.length === 0 ? "Vybrat štítky" : "Změnit štítky"}
+              </button>
+            </>
+          ) : stitky.all.length === 0 ? (
+            <>
+              <p className={styles.note}>V Gmailu nemáš žádné vlastní štítky.</p>
+              <button type="button" className="btn btn-sm btn-ghost" onClick={() => setStitky(null)}>Zavřít</button>
+            </>
+          ) : (
+            <>
+              <p className={styles.note}>
+                Zaškrtni štítky, ze kterých se má pošta načítat navíc k doručené. Podštítek je v Gmailu
+                samostatný štítek — s nadřazeným se zaškrtne taky a jde odškrtnout zvlášť.
+              </p>
+              <ul className={styles.labelList}>
+                {labelRows(stitky.all).map((l) => (
+                  <li key={l.id} style={{ paddingLeft: l.depth * 22 }}>
+                    <label>
+                      <input type="checkbox" checked={stitky.picked.includes(l.id)} onChange={() => prepniStitek(l.id)} />
+                      <span>{l.short}</span>
+                    </label>
+                  </li>
+                ))}
+              </ul>
+              {stitky.picked.length > LABELS_MAX && (
+                <p className={styles.warn}>Najednou jde načítat nejvýš {LABELS_MAX} štítků — některé odškrtni.</p>
+              )}
+              <div className={styles.row}>
+                <button
+                  type="button"
+                  className="btn btn-sm btn-primary"
+                  disabled={zaneprazdnen || stitky.picked.length > LABELS_MAX}
+                  onClick={() =>
+                    run(() => setMailLabelsAction(stitky.picked), () => {
+                      setStitky(null);
+                      return stitky.picked.length === 0
+                        ? "Uloženo — načítá se zase jen doručená pošta. Klikni na Obnovit."
+                        : "Štítky jsou uložené. Klikni na Obnovit a pošta se načte i z nich.";
+                    })
+                  }
+                >
+                  Uložit výběr
+                </button>
+                <button type="button" className="btn btn-sm btn-ghost" onClick={() => setStitky(null)}>Zrušit</button>
+              </div>
+            </>
+          )}
 
           <h3 className={styles.sub3}>Ranní načítání pošty</h3>
           {account.autoSyncAt ? (

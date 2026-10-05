@@ -142,6 +142,16 @@ kliknutí. Čemu appka nerozumí, nechá mezi zprávami čekajícími na odpově
 (`lib/mail-buckets.ts`) — omyl nesmí zprávu schovat. Vypnutím se zařazení
 i shrnutí mažou.
 
+**Štítky Gmailu.** Appka čte doručenou poštu. Komu Gmail zprávy filtrem
+přesouvá rovnou do štítků, ten si v Pošta → Nastavení vybere štítky, které se
+načítají taky (`mail_accounts.labels`, `lib/mail-labels.ts`). Seznam štítků se
+z Gmailu čte až na kliknutí a ukládá se jen výběr — identifikátor a jméno, vždy
+podle Gmailu, ne podle toho, co pošle prohlížeč. Podštítek je v Gmailu
+samostatný štítek („Ultra_Marine/MRL“), proto se s nadřazeným zaškrtne taky.
+Každý vybraný štítek je při načtení další dotaz (`threads?labelIds=…`); vlákna
+ze všech zdrojů se slučují střídavě a do stropu 90, aby plná doručená pošta
+štítky nevytlačila. Štítek, který v Gmailu zanikl, načtení neshodí.
+
 **Ranní načítání pošty.** Volitelné a zapíná se zvlášť
 (`mail_accounts.auto_sync_at`). V úterý, ve středu a ve čtvrtek
 (`lib/mail-schedule.ts`) ranní cron před souhrnem načte poštu schránkám, které

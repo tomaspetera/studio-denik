@@ -6,6 +6,7 @@ import {
   disconnectMailbox,
   draftReplyFromMail,
   ignoreSender,
+  listGmailLabels,
   proposeFromMail,
   proposeLeadFromMail,
   setHandled,
@@ -13,11 +14,13 @@ import {
   setMailAutoSync,
   setMailAutoTriage,
   setMailFiles,
+  setMailLabels,
   setSignature,
   syncMailbox,
   taskFromMail,
   unignore,
   type ActionResult,
+  type MailLabelsResult,
   type MailLeadResult,
   type MailProposeResult,
   type MailReplyResult,
@@ -74,6 +77,20 @@ export async function setMailAutoTriageAction(on: boolean): Promise<ActionResult
   const k = await kdo();
   if (!k) return NOT_READY;
   return setMailAutoTriage(k.userId, on === true);
+}
+
+/** Seznam štítků v Gmailu — jen jména, pro výběr v nastavení. */
+export async function listGmailLabelsAction(): Promise<MailLabelsResult> {
+  const k = await kdo();
+  if (!k) return NOT_READY;
+  return listGmailLabels(k.userId);
+}
+
+/** Uložení výběru štítků, ze kterých se pošta načítá navíc k doručené. */
+export async function setMailLabelsAction(ids: string[]): Promise<MailLabelsResult> {
+  const k = await kdo();
+  if (!k) return NOT_READY;
+  return setMailLabels(k.userId, ids);
 }
 
 /** Zapnutí nebo vypnutí ranního načítání pošty bez kliknutí — zvláštní souhlas. */

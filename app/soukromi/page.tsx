@@ -23,7 +23,7 @@ export default function SoukromiPage() {
         <Link href="/prihlaseni" className={styles.back}>← Studio Deník</Link>
 
         <h1 className={styles.h1}>Zásady ochrany soukromí</h1>
-        <p className={styles.meta}>Studio Deník · poslední změna 4. října 2026</p>
+        <p className={styles.meta}>Studio Deník · poslední změna 5. října 2026</p>
 
         <h2>Co je Studio Deník</h2>
         <p>
@@ -47,6 +47,12 @@ export default function SoukromiPage() {
           <li>
             Pro přehled pošty aplikace čte jen hlavičky zpráv: odesílatele, předmět a datum.
             Odpověď Gmailu obsahuje i krátký úryvek zprávy; aplikace ho nepoužívá a neukládá.
+          </li>
+          <li>
+            Čte se doručená pošta. Pokud si v nastavení vybereš štítky, čtou se i zprávy s těmito
+            štítky — pro případ, že ti Gmail poštu přesouvá mimo doručenou. Kvůli tomu výběru
+            aplikace načte seznam názvů tvých štítků; uloží jen názvy a identifikátory těch, které
+            vybereš.
           </li>
           <li>
             Pošta se načítá ve chvíli, kdy v aplikaci klikneš na „Obnovit“. Pokud si zvlášť zapneš
@@ -79,7 +85,7 @@ export default function SoukromiPage() {
         <p>
           U každé zprávy se ukládá odesílatel, předmět, datum přijetí, stav (čeká na odpověď,
           vyřízeno), identifikátor zprávy a vlákna (kvůli odkazu do Gmailu) a klient, ke kterému
-          zpráva patří. <strong>Text zprávy ani její přílohy se neukládají</strong> — ani tehdy,
+          zpráva patří. U schránky se ukládají názvy štítků, které sis vybral k načítání. <strong>Text zprávy ani její přílohy se neukládají</strong> — ani tehdy,
           když ti s ní pomáhá umělá inteligence. Uloží se až úkol nebo poptávka, které sám potvrdíš: název, krátké
           shrnutí a kontaktní údaje odesílatele (jméno a adresa, u poptávky i firma a telefon,
           pokud je uvedl). Všechno můžeš před uložením přepsat. Návrh odpovědi se neukládá vůbec.
@@ -185,7 +191,10 @@ export default function SoukromiPage() {
         <p lang="en">
           Studio Deník is a private work tool for a small graphic design studio. If you connect
           Gmail, it requests the read-only scope <code>gmail.readonly</code>. For the mail overview
-          it reads only message headers (sender, subject, date). Mail is loaded when the user clicks
+          it reads only message headers (sender, subject, date) of the inbox and, if the mailbox
+          owner selects Gmail labels, of messages carrying those labels; to offer that choice it reads
+          the list of the user’s label names and stores only the names and IDs of the selected ones.
+          Mail is loaded when the user clicks
           “Refresh”; if the mailbox owner separately enables scheduled loading, the app also loads
           the headers on its own on Tuesday, Wednesday and Thursday mornings. It never sends, deletes
           or modifies mail. It stores sender, subject, date, a status label, message/thread IDs and the matching

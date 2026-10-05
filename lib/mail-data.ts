@@ -12,6 +12,7 @@ import {
   fetchAttachment,
   fetchEmailAddress,
   fetchInbox,
+  fetchLabels,
   fetchMessage,
   isGmailConfigured,
   revokeToken,
@@ -55,6 +56,7 @@ import {
 } from "./ai";
 import { TRIAGE_BODY_MAX, TRIAGE_JSON_SCHEMA, buildTriagePrompt, finishTriage } from "./mail-triage";
 import { mailCounts, type MailCounts, type MailPriority } from "./mail-buckets";
+import { pickLabels, readLabels, type MailLabel } from "./mail-labels";
 import { listCategories, listClients } from "./tasks";
 import { dateKeyPrague, todayKeyPrague } from "./domain";
 
@@ -81,6 +83,8 @@ export type MailAccount = {
   aiFilesAt: string | null;
   /** Kdy majitel povolil ranní načítání pošty bez kliknutí (`mail-schedule.ts`). */
   autoSyncAt: string | null;
+  /** Štítky Gmailu, ze kterých se pošta načítá navíc k doručené (`mail-labels.ts`). */
+  labels: MailLabel[];
 };
 
 /**
@@ -152,7 +156,7 @@ export async function loadMailAccount(userId: string): Promise<MailAccount | nul
   const supabase = await supabaseServer();
   const { data } = await supabase
     .from("mail_accounts")
-    .select("email, last_sync_at, ai_consent_at, ai_auto_at, ai_files_at, auto_sync_at")
+    .select("email, last_sync_at, ai_consent_at, ai_auto_at, ai_files_at, auto_sync_at, labels")
     .eq("user_id", userId)
     .maybeSingle();
 
@@ -164,6 +168,7 @@ export async function loadMailAccount(userId: string): Promise<MailAccount | nul
         aiAutoAt: (data.ai_auto_at as string | null) ?? null,
         aiFilesAt: (data.ai_files_at as string | null) ?? null,
         autoSyncAt: (data.auto_sync_at as string | null) ?? null,
+        labels: readLabels(data.labels),
       }
     : null;
 }
@@ -267,14 +272,22 @@ type SyncResult = ActionResult & { count?: number; /** Kolik zpráv AI nově za�
 async function syncMailboxWith(supabase: Db, orgId: string, userId: string, tridimeDo: number): Promise<SyncResult> {
   const { data: ucet } = await supabase
     .from("mail_accounts")
-    .select("email, token_enc, ai_consent_at, ai_auto_at")
+    .select("email, token_enc, ai_consent_at, ai_auto_at, labels")
     .eq("user_id", userId)
     .maybeSingle();
   if (!ucet) return { ok: false, message: "Schránka není připojená." };
 
+  // Jen štítky, které si majitel schránky sám vybral; bez výběru jen doručená pošta.
+  const stitky = readLabels(ucet.labels);
+
   try {
     const accessToken = await accessTokenFrom(decryptToken(ucet.token_enc as string, klicProSifrovani()));
-    const syrove = await fetchInbox(accessToken, OKNO_DNI, ucet.email as string);
+    const { messages: syrove, missingLabels } = await fetchInbox(
+      accessToken,
+      OKNO_DNI,
+      ucet.email as string,
+      stitky.map((s) => s.id),
+    );
 
     const [kontakty, { data: ignorovani }, { data: stavajici }] = await Promise.all([
       nactiKontakty(supabase, orgId),
@@ -329,7 +342,18 @@ async function syncMailboxWith(supabase: Db, orgId: string, userId: string, trid
         ? await sortNewMail(supabase, userId, accessToken, tridimeDo)
         : null;
 
-    return { ok: true, count: zpravy.length, sorted: trideni?.sorted ?? 0, note: trideni?.note ?? undefined };
+    // Štítek, který mezitím v Gmailu zanikl: zbytek se načetl, ale člověk o tom má vědět.
+    const zanikle = stitky.filter((s) => missingLabels.includes(s.id)).map((s) => `„${s.name}“`);
+    const poznamky = [
+      trideni?.note ?? null,
+      zanikle.length === 1
+        ? `Štítek ${zanikle[0]} už v Gmailu není — odškrtni ho v Nastavení.`
+        : zanikle.length > 1
+          ? `Štítky ${zanikle.join(", ")} už v Gmailu nejsou — odškrtni je v Nastavení.`
+          : null,
+    ].filter((p): p is string => Boolean(p));
+
+    return { ok: true, count: zpravy.length, sorted: trideni?.sorted ?? 0, note: poznamky.join(" ") || undefined };
   } catch (e) {
     return { ok: false, message: chybaText(e) };
   }
@@ -737,6 +761,44 @@ export async function setMailFiles(userId: string, on: boolean): Promise<ActionR
 
   revalidatePath("/", "layout");
   return { ok: true };
+}
+
+export type MailLabelsResult = { ok: true; labels: MailLabel[] } | { ok: false; message: string };
+
+/**
+ * Štítky, které má majitel schránky v Gmailu — pro výběr v nastavení. Čte se
+ * jen jejich seznam (jména), žádná pošta, a neukládá se.
+ */
+export async function listGmailLabels(userId: string): Promise<MailLabelsResult> {
+  const supabase = await supabaseServer();
+  const { data: ucet } = await supabase.from("mail_accounts").select("token_enc").eq("user_id", userId).maybeSingle();
+  if (!ucet) return { ok: false, message: "Schránka není připojená." };
+
+  try {
+    const accessToken = await accessTokenFrom(decryptToken(ucet.token_enc as string, klicProSifrovani()));
+    return { ok: true, labels: await fetchLabels(accessToken) };
+  } catch (e) {
+    return { ok: false, message: chybaText(e) };
+  }
+}
+
+/**
+ * Uložení výběru štítků, ze kterých se pošta načítá navíc k doručené.
+ * Z prohlížeče přijdou jen identifikátory; jména a to, že štítek opravdu
+ * existuje, se bere z Gmailu. Ukládá se jen vybrané, ne celý seznam štítků.
+ */
+export async function setMailLabels(userId: string, ids: unknown): Promise<MailLabelsResult> {
+  const dostupne = await listGmailLabels(userId);
+  if (!dostupne.ok) return dostupne;
+
+  const labels = pickLabels(ids, dostupne.labels);
+  const supabase = await supabaseServer();
+  const { data, error } = await supabase.from("mail_accounts").update({ labels }).eq("user_id", userId).select("id");
+  if (error) return { ok: false, message: error.message };
+  if (!data?.length) return { ok: false, message: "Schránka není připojená." };
+
+  revalidatePath("/", "layout");
+  return { ok: true, labels };
 }
 
 /**

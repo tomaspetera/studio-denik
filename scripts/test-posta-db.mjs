@@ -196,6 +196,33 @@ try {
   const { data: ranoVypnuto } = await A.klient.from("mail_accounts").update({ auto_sync_at: null }).eq("user_id", A.userId).select("auto_sync_at");
   zkouska("ráno: vypnutí", ranoVypnuto?.length === 1 && ranoVypnuto[0].auto_sync_at === null, "a zase vypne");
 
+  // --- Štítky Gmailu (migrace 0024) ------------------------------------------------------
+  // Výběr štítků, ze kterých se pošta načítá navíc k doručené. Bez výběru se
+  // nenačítá nic navíc; měnit ho smí jen majitel schránky.
+  const { data: stitkyVychozi, error: stitkySloupec } = await A.klient
+    .from("mail_accounts")
+    .select("labels")
+    .eq("user_id", A.userId)
+    .single();
+  zkouska("štítky: výchozí stav", !stitkySloupec && Array.isArray(stitkyVychozi?.labels) && stitkyVychozi.labels.length === 0, stitkySloupec ? stitkySloupec.message : "bez výběru se načítá jen doručená pošta");
+
+  const vyber = [{ id: "Label_1", name: "Ultra_Marine" }, { id: "Label_2", name: "Ultra_Marine/MRL" }];
+  const { data: stitkyUlozene, error: stitkyErr } = await A.klient.from("mail_accounts").update({ labels: vyber }).eq("user_id", A.userId).select("labels");
+  zkouska("štítky: uložení", !stitkyErr && JSON.stringify(stitkyUlozene?.[0]?.labels) === JSON.stringify(vyber), stitkyErr ? stitkyErr.message : "majitel si výběr uloží");
+
+  const { error: neniPole } = await A.klient.from("mail_accounts").update({ labels: { id: "Label_1" } }).eq("user_id", A.userId);
+  zkouska("štítky: jen seznam", !!neniPole, "cokoli jiného než seznam databáze odmítne");
+
+  const { error: mocStitku } = await A.klient
+    .from("mail_accounts")
+    .update({ labels: Array.from({ length: 21 }, (_, i) => ({ id: `L${i}`, name: `Štítek ${i}` })) })
+    .eq("user_id", A.userId);
+  zkouska("štítky: strop", !!mocStitku, "víc než dvacet štítků databáze odmítne");
+
+  const { data: ciziStitky } = await B.klient.from("mail_accounts").update({ labels: [] }).eq("user_id", A.userId).select("id");
+  const { data: poCizichStitcich } = await admin.from("mail_accounts").select("labels").eq("user_id", A.userId).single();
+  zkouska("štítky: cizí změna", (ciziStitky ?? []).length === 0 && poCizichStitcich?.labels?.length === 2, "kolega cizí výběr nezmění");
+
   // --- Zprávy -----------------------------------------------------------------
   const { error: zErr } = await A.klient.from("mail_messages").insert(zprava());
   zkouska("uložení zprávy", !zErr, zErr ? zErr.message : "vlastní zpráva se uloží");

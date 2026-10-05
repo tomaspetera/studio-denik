@@ -38,9 +38,11 @@ export type MailReply = ReturnType<typeof useMailReply>;
 /**
  * Odkaz, kterým se v Gmailu otevře vlákno téhle zprávy. Účet se vybírá
  * adresou schránky, ne pořadím přihlášení — to je v každém prohlížeči jiné.
+ * „#all“ (Všechny zprávy) místo „#inbox“: vlákno, které Gmail filtrem přesunul
+ * pod štítek, v doručené není.
  */
 export const gmailThreadUrl = (threadId: string, account: string) =>
-  `https://mail.google.com/mail/u/?authuser=${encodeURIComponent(account)}#inbox/${threadId}`;
+  `https://mail.google.com/mail/u/?authuser=${encodeURIComponent(account)}#all/${threadId}`;
 
 /**
  * Průběh „návrh odpovědi“. Appka odpověď nikdy neodesílá ani neukládá —

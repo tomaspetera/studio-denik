@@ -2,12 +2,13 @@ import "server-only";
 
 import type { GmailPart } from "./mail-body";
 import type { RawMessage } from "./mail-rules";
+import { mergeThreadIds, type MailLabel } from "./mail-labels";
 
 /**
  * Napojení na Gmail — jen čtení.
  *
  * Appka žádá jediné oprávnění `gmail.readonly` a volá jen čtecí adresy
- * (seznam vláken, jedno vlákno, jedna zpráva, jedna příloha). Žádné odesílání, mazání ani
+ * (seznam vláken, jedno vlákno, jedna zpráva, jedna příloha, seznam štítků). Žádné odesílání, mazání ani
  * úpravy tu záměrně nejsou a být nemají: kdyby je někdo doplnil, musel by
  * zároveň rozšířit oprávnění, což je vidět na souhlasné obrazovce Googlu.
  *
@@ -33,6 +34,12 @@ const TOKEN_URL = (VYVOJ && process.env.GMAIL_TEST_TOKEN_URL) || "https://oauth2
 
 /** Doručená pošta bez reklamních a sociálních záložek. */
 const DOTAZ = "in:inbox -category:promotions -category:social";
+
+/** Totéž pro zprávy s vybraným štítkem — ty v doručené být nemusí. */
+const DOTAZ_STITEK = "-category:promotions -category:social";
+
+/** Kolik vláken se nejvýš stáhne ze všech zdrojů dohromady — každé je jeden dotaz na Gmail. */
+const VLAKEN_CELKEM = 90;
 
 export class GmailError extends Error {
   constructor(message: string, readonly status?: number) {
@@ -188,7 +195,12 @@ function hlavicka(z: Zprava, jmeno: string): string | null {
 }
 
 /**
- * Doručená pošta za posledních `days` dní, po vláknech.
+ * Doručená pošta za posledních `days` dní, po vláknech. K ní zprávy se štítky
+ * `labelIds`, které si majitel schránky sám vybral (`mail-labels.ts`) — pro
+ * toho, komu Gmail poštu filtrem přesouvá mimo doručenou.
+ *
+ * Štítek, který mezitím v Gmailu zanikl, načtení neshodí: vrátí se
+ * v `missingLabels` a zbytek pošty se načte bez něj.
  *
  * Vlákno se stahuje celé (`threads.get`), protože jen tak je vidět, jestli
  * poslední slovo měli oni, nebo já — moje odpovědi leží v odeslané poště,
@@ -204,18 +216,35 @@ export async function fetchInbox(
   accessToken: string,
   days: number,
   myEmail: string,
+  labelIds: string[] = [],
   maxThreads = 60,
-): Promise<RawMessage[]> {
+): Promise<{ messages: RawMessage[]; missingLabels: string[] }> {
   const ja = myEmail.trim().toLowerCase();
   const jeOdeMe = (z: Zprava) => (hlavicka(z, "From") ?? "").toLowerCase().includes(ja);
 
-  const q = `${DOTAZ} newer_than:${Math.max(1, Math.trunc(days))}d`;
-  const seznam = await gmailGet<{ threads?: { id?: string }[] }>(
-    `threads?q=${encodeURIComponent(q)}&maxResults=${maxThreads}`,
-    accessToken,
-  );
+  const stari = `newer_than:${Math.max(1, Math.trunc(days))}d`;
+  const seznam = async (cesta: string) => {
+    const s = await gmailGet<{ threads?: { id?: string }[] }>(`${cesta}&maxResults=${maxThreads}`, accessToken);
+    return (s.threads ?? []).map((t) => t.id).filter((id): id is string => Boolean(id));
+  };
 
-  const idVlaken = (seznam.threads ?? []).map((t) => t.id).filter((id): id is string => Boolean(id));
+  const zdroje = [await seznam(`threads?q=${encodeURIComponent(`${DOTAZ} ${stari}`)}`)];
+  const missingLabels: string[] = [];
+  for (const id of labelIds) {
+    try {
+      zdroje.push(await seznam(`threads?labelIds=${encodeURIComponent(id)}&q=${encodeURIComponent(`${DOTAZ_STITEK} ${stari}`)}`));
+    } catch (e) {
+      // Neznámý štítek Gmail odmítne (400 nebo 404). Vypršelé přihlášení a jiné
+      // chyby ale platí pro celou schránku — ty se nepolykají.
+      if (e instanceof GmailError && !(e instanceof GmailAuthExpired) && (e.status === 400 || e.status === 404)) {
+        missingLabels.push(id);
+      } else {
+        throw e;
+      }
+    }
+  }
+
+  const idVlaken = mergeThreadIds(zdroje, VLAKEN_CELKEM);
   const out: RawMessage[] = [];
 
   // Postupně, ne naráz: Gmail má limit na počet dotazů za vteřinu a zápis
@@ -246,7 +275,7 @@ export async function fetchInbox(
     });
   }
 
-  return out;
+  return { messages: out, missingLabels };
 }
 
 /**
@@ -274,4 +303,17 @@ export async function fetchAttachment(accessToken: string, gmailId: string, atta
     accessToken,
   );
   return priloha.data ?? "";
+}
+
+/**
+ * Štítky, které si majitel schránky v Gmailu sám založil — jen jejich jména
+ * a identifikátory, žádná pošta. Volá se, když v nastavení vybírá, ze kterých
+ * štítků se má pošta načítat navíc k doručené. Systémové štítky (Doručená,
+ * Odeslaná, Koš…) se nenabízejí.
+ */
+export async function fetchLabels(accessToken: string): Promise<MailLabel[]> {
+  const odpoved = await gmailGet<{ labels?: { id?: string; name?: string; type?: string }[] }>("labels", accessToken);
+  return (odpoved.labels ?? [])
+    .filter((l) => l.type === "user" && l.id && l.name)
+    .map((l) => ({ id: l.id as string, name: l.name as string }));
 }
