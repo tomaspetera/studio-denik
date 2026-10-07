@@ -1,7 +1,7 @@
 import "server-only";
 
 import Anthropic from "@anthropic-ai/sdk";
-import { GoogleGenAI } from "@google/genai";
+import { GoogleGenAI, ThinkingLevel } from "@google/genai";
 import { isNoCredit, isOverloaded, isQuotaError, isTimeout } from "./ai-errors.ts";
 
 /**
@@ -303,12 +303,17 @@ export function pickProvider(): Provider | null {
 export type ExtractOptions = {
   careful?: boolean;
   /**
-   * Kolik „přemýšlení“ model dostane. Výchozí je krátké u opatrného volání
-   * a žádné jinde. Třídění pošty si ho vypíná: běží u každé nové zprávy,
-   * vybírá jen ze tří možností a větší model se v měření nenechal zmást ani
-   * bez přemýšlení.
+   * Kolik „přemýšlení“ model dostane: "minimal" = žádné, "low" = krátké.
+   * Výchozí je krátké u opatrného volání a žádné jinde. Třídění pošty si ho
+   * vypíná: běží u každé nové zprávy, vybírá jen ze tří možností a větší model
+   * se v měření nenechal zmást ani bez přemýšlení.
+   *
+   * Je to úroveň, ne počet tokenů: `thinking_budget` Google u nových modelů
+   * ruší (vrátí chybu 400) a nahrazuje ho `thinking_level`. Na současných
+   * modelech vychází "minimal" stejně jako dřívější rozpočet 0 a "low" jako
+   * rozpočet 512 (změřeno 7. 10. 2026).
    */
-  thinkingBudget?: number;
+  thinking?: "minimal" | "low";
   /**
    * Soubory, které má model přečíst spolu se zadáním — přílohy e-mailu.
    * Umí je jen Gemini; jdou za text zadání, každý se svým popiskem.
@@ -400,7 +405,9 @@ const ATTEMPT_TIMEOUT_MS = 10_000;
 const FILES_TIMEOUT_MS = 22_000;
 
 /** Kolik „přemýšlení“ má model u opatrného volání (viz `ExtractOptions`). */
-const CAREFUL_THINKING = 512;
+const CAREFUL_THINKING = "low";
+
+const THINKING_LEVEL = { minimal: ThinkingLevel.MINIMAL, low: ThinkingLevel.LOW } as const;
 
 /**
  * Po jakém selhání má smysl zkusit jiný model: přetížení, vyčerpaná minutová
@@ -457,7 +464,7 @@ async function extractJsonGemini(
           // "přemýšlením" trvala odpověď 10–19 s, bez něj kolem 3–5 s.
           // U opatrného volání má model krátký prostor na rozmyšlenou — pomáhá
           // mu rozeznat podvržený pokyn a stojí to zlomek vteřiny.
-          thinkingConfig: { thinkingBudget: opts.thinkingBudget ?? (opts.careful ? CAREFUL_THINKING : 0) },
+          thinkingConfig: { thinkingLevel: THINKING_LEVEL[opts.thinking ?? (opts.careful ? CAREFUL_THINKING : "minimal")] },
           httpOptions: { timeout: files.length ? FILES_TIMEOUT_MS : ATTEMPT_TIMEOUT_MS },
         },
       });

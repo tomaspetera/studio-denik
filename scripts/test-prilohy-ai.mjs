@@ -84,7 +84,7 @@ async function navrhni(popis, mail, soubory) {
   const { system, prompt, closing } = buildMailPrompt(cely, ctx);
   const t0 = Date.now();
   // Stejně jako v appce: se soubory větší model (viz `proposeFromMail`).
-  const raw = await extractJson("gemini", system, prompt, CAPTURE_JSON_SCHEMA, { careful: true, thinkingBudget: 0, files: soubory.map((s) => s.soubor), closing });
+  const raw = await extractJson("gemini", system, prompt, CAPTURE_JSON_SCHEMA, { careful: true, thinking: "minimal", files: soubory.map((s) => s.soubor), closing });
   const ms = Date.now() - t0;
   const v = finishMailProposals(normalizeProposals(raw, ctx, { quietUnknownClient: true }), {
     today: DNES,
@@ -189,7 +189,7 @@ const ZADANI = makePdf([
   const soubory = [priloha(1, "zadani.pdf", ZADANI)];
   const mail = { fromName: "Petr Svoboda", fromEmail: "petr.svoboda@seznam.example", subject: "Poptávka", sentOn: "2026-10-02", body: "Dobrý den, zadání posílám v příloze. Děkuji, P. Svoboda", truncated: false, attachments: 1, files: soubory.map((s) => s.name) };
   const { system, prompt, closing } = buildLeadPrompt(mail, DNES);
-  const raw = await extractJson("gemini", system, prompt, LEAD_JSON_SCHEMA, { careful: true, thinkingBudget: 0, files: soubory.map((s) => s.soubor), closing });
+  const raw = await extractJson("gemini", system, prompt, LEAD_JSON_SCHEMA, { careful: true, thinking: "minimal", files: soubory.map((s) => s.soubor), closing });
   const { draft } = finishLeadDraft(raw, { today: DNES, sender: { name: mail.fromName, email: mail.fromEmail }, subject: mail.subject, truncated: false, fileNotes: [] });
   console.log(`\n4) Poptávka se zadáním v příloze:\n   ${draft.name} | ${draft.company ?? "—"} | ${draft.phone ?? "—"} | ${draft.nextStep} do ${draft.nextStepAt}\n   ${draft.note ?? "—"}`);
   zkouska("4: firma a telefon", /kavárna na rohu/i.test(draft.company ?? "") && (draft.phone ?? "").replace(/\D/g, "") === "777123456", "údaje, které jsou jen v příloze");

@@ -435,7 +435,7 @@ async function sortNewMail(
         // Bez přemýšlení — vybírá se ze tří možností a běží to u každé zprávy.
         const raw = await extractJson("gemini", system, prompt, TRIAGE_JSON_SCHEMA as unknown as Record<string, unknown>, {
           careful: true,
-          thinkingBudget: 0,
+          thinking: "minimal",
         });
         const v = finishTriage(raw);
         await oznac(m.id as string, { priority: v.priority, summary: v.summary });
@@ -1014,7 +1014,7 @@ async function nactiProAi(
  */
 function sPrilohami(prilohy: MailFiles, closing: string | null): ExtractOptions {
   if (prilohy.files.length === 0) return {};
-  return { careful: true, thinkingBudget: 0, files: prilohy.files, closing };
+  return { careful: true, thinking: "minimal", files: prilohy.files, closing };
 }
 
 /** Známou chybu AI řekne přesně, neznámou obecně. `rada` je, co zkusit místo toho. */

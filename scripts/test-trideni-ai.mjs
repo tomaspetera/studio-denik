@@ -33,7 +33,7 @@ async function zarad(popis, mail) {
   const { system, prompt } = buildTriagePrompt(cely, DNES);
   const t0 = Date.now();
   // Stejně jako v appce: větší model bez přemýšlení.
-  const raw = await extractJson("gemini", system, prompt, TRIAGE_JSON_SCHEMA, { careful: true, thinkingBudget: 0 });
+  const raw = await extractJson("gemini", system, prompt, TRIAGE_JSON_SCHEMA, { careful: true, thinking: "minimal" });
   const ms = Date.now() - t0;
   const v = finishTriage(raw);
   console.log(`\n${popis} — ${ms} ms: ${v.priority} | ${v.summary ?? "—"}`);
