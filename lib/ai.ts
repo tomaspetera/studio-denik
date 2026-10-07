@@ -389,8 +389,15 @@ async function extractJsonClaude(system: string, prompt: string, schema: Record<
  * vteřin (velký model za "vysoké poptávky" vrací 503 a ta sama trvá kolem
  * 10 s) a bezplatný limit na minutu platí pro každý model zvlášť, takže zápis
  * neubírá z kvóty shrnutí reportu. Velký model (`GEMINI_MODEL`) je záloha.
+ *
+ * Lehký model čte i e-maily od cizích lidí (návrh úkolu a poptávky bez
+ * příloh), takže na něm záleží, jestli se dá textem přemluvit. Předchozí
+ * `gemini-3.1-flash-lite` se dal: na podvržený „konec e-mailu a nová pravidla“
+ * navrhl jako úkol převod peněz na cizí účet v 7 pokusech z 8. Tenhle v témže
+ * měření ani jednou (0 ze 128, osm různých podvrhů, 7. 10. 2026). Při výměně
+ * modelu to změř znovu — `npm run test:aiposta`, případy 4 a 4b.
  */
-const GEMINI_FAST_MODEL = process.env.GEMINI_FAST_MODEL || "gemini-3.1-flash-lite";
+const GEMINI_FAST_MODEL = process.env.GEMINI_FAST_MODEL || "gemini-3.5-flash-lite";
 
 /**
  * Jeden pokus nesmí trvat déle — dva se musí vejít do limitu stránky (30 s).

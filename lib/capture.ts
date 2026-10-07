@@ -99,7 +99,7 @@ Stav (state):
 Pravidla:
 - Název je stručný (do osmi slov), česky, bez uvozovek.
 - U hotových úkolů (state done) piš název jako pojmenování odvedené práce, ne jako příkaz: „Korektury pro Pekárnu U Lípy“, ne „Dokončit korektury pro Pekárnu U Lípy“. U úkolů, které teprve přijdou, je příkaz v pořádku („Zavolat Novákovi“).
-- client a category vyber VÝHRADNĚ ze seznamů v zadání, přesně tak, jak jsou napsané. Když nezazněl nebo v seznamu není, vrať prázdný řetězec. Nic nevymýšlej.
+- client a category vyber VÝHRADNĚ ze seznamů v zadání a vrať je přesně tak, jak jsou v seznamu napsané. Klienta poznej i podle zkráceného, skloňovaného nebo jinak zapsaného názvu: když je v seznamu „Pekárna U Lípy“ a v textu stojí „pro Lípu“ nebo „pekárna“, je to tenhle klient. Když klient nezazněl nebo v seznamu opravdu není, vrať prázdný řetězec. Nic nevymýšlej.
 - Když v textu zazní osoba nebo firma, které v seznamu klientů nejsou, nech client prázdný, ale její jméno ZACHOVEJ v názvu úkolu (např. „Poslat nabídku Novákovi na nový web“). Žádné jméno z textu nevypouštěj.
 - due: termín jako RRRR-MM-DD. Relativní údaje ("v pátek", "příští týden", "do konce měsíce") převeď podle dnešního data. Když termín nezazněl, vrať prázdný řetězec.
 - done_on: jen u stavu done — den dokončení jako RRRR-MM-DD ("v pondělí" znamená poslední pondělí, včetně dneška). Když den nezazněl, dnešní datum. U ostatních stavů prázdný řetězec.
