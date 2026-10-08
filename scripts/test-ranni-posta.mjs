@@ -6,7 +6,7 @@
  * že se to děje jen ve dny, na kterých je dohoda (úterý, středa, čtvrtek),
  * a že se do počtů dostane jen to, co opravdu čeká na odpověď.
  */
-import { MAIL_AUTO_DAYS, isMailAutoDay, lastSyncLabel, mailLine, mailPushPart, morningPushBody } from "../lib/mail-schedule.ts";
+import { MAIL_AUTO_DAYS, isMailAutoDay, lastSyncLabel, mailPushPart, morningPushBody } from "../lib/mail-schedule.ts";
 import { mailCounts } from "../lib/mail-buckets.ts";
 
 let chyby = 0;
@@ -49,12 +49,6 @@ zkouska("souhrn: kolega", morningPushBody(ukoly, undefined) === "dnes končí 2 
 zkouska("souhrn: jen pošta", morningPushBody([], { waiting: 2, urgent: 0 }) === "pošta čeká 2", "bez úkolů přijde aspoň pošta");
 zkouska("souhrn: nic", morningPushBody([], { waiting: 0, urgent: 0 }) === null && morningPushBody([], undefined) === null, "když nic nehoří a nic nečeká, upozornění se neposílá");
 zkouska("souhrn: pošta nečeká", morningPushBody(ukoly, { waiting: 0, urgent: 0 }) === "dnes končí 2 · po termínu 1", "prázdná pošta souhrn úkolů nemění");
-
-// --- Řádek na Dnes -------------------------------------------------------------------------
-zkouska("řádek: nic", mailLine({ waiting: 0, urgent: 0 }) === null, "bez čekajících zpráv se řádek neukáže");
-zkouska("řádek: skloňování", mailLine({ waiting: 1, urgent: 0 }) === "Čeká 1 zpráva" && mailLine({ waiting: 3, urgent: 0 }) === "Čekají 3 zprávy" && mailLine({ waiting: 7, urgent: 0 }) === "Čeká 7 zpráv", "jedna, tři, sedm");
-zkouska("řádek: spěchá", mailLine({ waiting: 3, urgent: 1 }) === "Čekají 3 zprávy, 1 spěchá" && mailLine({ waiting: 7, urgent: 2 }) === "Čeká 7 zpráv, 2 spěchají" && mailLine({ waiting: 9, urgent: 5 }) === "Čeká 9 zpráv, 5 spěchá", "počet spěchajících ve správném tvaru");
-zkouska("řádek: jediná spěchá", mailLine({ waiting: 1, urgent: 1 }) === "Čeká 1 zpráva a spěchá", "jedna zpráva, která spěchá");
 
 // --- Kdy se naposledy načetla ------------------------------------------------------------------
 // 6. 10. 2026 v Praze platí letní čas (UTC+2).

@@ -1,26 +1,26 @@
-import { Fragment } from "react";
-import Link from "next/link";
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import { getWorkspace } from "@/lib/workspace";
 import { signOut } from "../prihlaseni/actions";
-import { listTasks, countByBall } from "@/lib/tasks";
+import { listCategories, listClients, listTasks } from "@/lib/tasks";
 import { loadTeam } from "@/lib/team";
 import { loadCapacity } from "@/lib/capacity";
-import { listLeads } from "@/lib/leads";
 import { listPriorityClientIds } from "@/lib/clients";
-import { groupByBucket, shortDateLabel, BUCKET_LABEL, type Bucket } from "@/lib/buckets";
 import { loadAttention } from "@/lib/attention-data";
 import { supabaseServer } from "@/lib/supabase/server";
-import { loadMailSummary } from "@/lib/mail-data";
-import { lastSyncLabel, mailLine } from "@/lib/mail-schedule";
+import { isMailAiAvailable, listMail, loadMailAccount } from "@/lib/mail-data";
+import { mailBucket, sortWaiting } from "@/lib/mail-buckets";
+import { lastSyncLabel } from "@/lib/mail-schedule";
+import { buildToday } from "@/lib/today";
 import AttentionPanel from "./AttentionPanel";
-import { BALL_HINT, BALL_LABEL, BALL_ORDER, csDate, csDateFromKey, dateKeyUTC, type Ball } from "@/lib/domain";
+import TodayBoard, { type TodayMail } from "./TodayBoard";
+import { csDate, csDateFromKey } from "@/lib/domain";
 import styles from "./home.module.css";
 
 export const dynamic = "force-dynamic";
 
-/** Kolik úkolů "Na tobě" se na Dnes ukáže — zbytek je za odkazem. */
-const MINE_ROWS = 8;
+/** Kolik čekajících zpráv se na Dnes ukáže — zbytek je za odkazem do Pošty. */
+const MAIL_ROWS = 5;
 
 export default async function DnesPage() {
   const ws = await getWorkspace();
@@ -30,68 +30,49 @@ export default async function DnesPage() {
 
   const supabase = await supabaseServer();
   const { data: { user } } = await supabase.auth.getUser();
-  const [tasks, { members }, capacity, leads, attention, priorityIds, posta] = await Promise.all([
+  const [tasks, { members }, capacity, attention, priorityIds, ucet, zpravy] = await Promise.all([
     listTasks(ws.orgId),
     loadTeam(ws.orgId),
     loadCapacity(ws.orgId),
-    listLeads(ws.orgId),
     loadAttention(supabase, ws.orgId),
     listPriorityClientIds(ws.orgId),
-    // Pošta je soukromá — počty vidí jen majitel schránky, ne celé studio.
-    user ? loadMailSummary(user.id) : null,
+    // Pošta je soukromá — vidí ji jen majitel schránky, ne celé studio.
+    user ? loadMailAccount(user.id) : null,
+    user ? listMail(user.id) : [],
   ]);
-  const postaRadek = posta ? mailLine(posta) : null;
-  const postaNactena = posta ? lastSyncLabel(posta.lastSyncAt) : null;
-  const counts = countByBall(tasks);
+  // Klienti a kategorie jsou potřeba jen v okně s návrhem úkolu z e-mailu.
+  const [klienti, kategorie] = ucet ? await Promise.all([listClients(ws.orgId), listCategories(ws.orgId)]) : [[], []];
 
   const dnes = new Date();
-  const hori = tasks.filter((t) => t.is_late);
-  const naTobe = tasks.filter((t) => t.ball === "me");
   const capacityByUser = new Map(capacity.map((c) => [c.userId, c]));
   const maxLoad = Math.max(1, ...capacity.map((c) => c.loadSize));
-  const otevrenePoptavky = leads.filter((l) => l.status === "poptavka" || l.status === "nabidka").length;
 
-  // "Na tobě" podle termínu, hlavní klient první v rámci stejného dne. Ukáže
-  // se prvních MINE_ROWS úkolů v tomhle pořadí — skupiny, na které rozpočet
-  // nezbyde, se vynechají celé.
-  const mineGroups = groupByBucket(
-    naTobe.map((t) => ({
-      task: t,
-      dueKey: t.due_at ? dateKeyUTC(t.due_at) : null,
-      isLate: t.is_late,
-      priority: t.client_id ? priorityIds.has(t.client_id) : false,
-      title: t.title,
-    })),
-    attention.today,
-  ).reduce<{ bucket: Bucket; total: number; items: { task: (typeof naTobe)[number]; dueKey: string | null; priority: boolean }[] }[]>(
-    (acc, g) => {
-      const used = acc.reduce((n, x) => n + x.items.length, 0);
-      const items = g.items.slice(0, Math.max(MINE_ROWS - used, 0));
-      return items.length > 0 ? [...acc, { bucket: g.bucket, total: g.items.length, items }] : acc;
-    },
-    [],
-  );
-  const mineHidden = naTobe.length - mineGroups.reduce((n, g) => n + g.items.length, 0);
+  const ceka = sortWaiting(zpravy.filter((m) => mailBucket(m) === "urgent" || mailBucket(m) === "reply"));
+  const posta: TodayMail | null = ucet
+    ? {
+        rows: ceka.slice(0, MAIL_ROWS),
+        waiting: ceka.length,
+        urgent: ceka.filter((m) => mailBucket(m) === "urgent").length,
+        lastSync: lastSyncLabel(ucet.lastSyncAt),
+        email: ucet.email,
+        aiAvailable: isMailAiAvailable(),
+        aiAllowed: Boolean(ucet.aiConsentAt),
+      }
+    : null;
+
+  // Bez úkolů a bez čekající pošty není co řadit — místo prázdného seznamu pozvánka.
+  const prazdno = tasks.length === 0 && (!posta || posta.rows.length === 0);
 
   return (
     <div className={styles.wrap}>
-      <header className={styles.head}>
-        <div>
-          <h1 className={styles.h1}>Dnes</h1>
-          <p className={styles.sub}>{csDate(dnes)}</p>
-        </div>
-      </header>
-
-      {postaRadek && (
-        <Link href="/posta" className={`${styles.mailRow} ${posta && posta.urgent > 0 ? styles.mailRowUrgent : ""}`}>
-          <b>Pošta</b>
-          <span>{postaRadek}</span>
-          {postaNactena && <em>načteno {postaNactena}</em>}
-        </Link>
-      )}
-
-      {tasks.length === 0 ? (
+      {prazdno ? (
         <>
+          <header className={styles.head}>
+            <div>
+              <h1 className={styles.h1}>Dnes</h1>
+              <p className={styles.sub}>{csDate(dnes)}</p>
+            </div>
+          </header>
           <section className={styles.hero}>
             <span className="eyebrow">Pracovní prostor {ws.orgName}</span>
             <h2 className={styles.heroTitle}>Zatím je tu prázdno</h2>
@@ -104,171 +85,59 @@ export default async function DnesPage() {
               Zapsat první úkol
             </Link>
           </section>
-
-          {/* Poptávky vznikají dřív než úkoly — kdo začne od nich, hlídání
-              nesmí přijít o to, že ještě nemá co zapsat do úkolů. */}
-          {attention.items.length > 0 && (
-            <AttentionPanel items={attention.items} today={attention.today} silenceDays={attention.silenceDays} />
-          )}
         </>
       ) : (
-        <>
-          <div className={styles.strip}>
-            <Tile tone="done" label="Uzavřeno" value={counts.done} hint="projde do reportu" />
-            <Tile tone="me" label="Na tobě" value={counts.me} hint="nikdo jiný neposune" />
-            <Tile tone="client" label="U klienta" value={counts.client} hint="čeká na schválení" />
-            <Tile tone="alarm" label="Po termínu" value={counts.late} hint="vyžaduje zásah" />
-            <Tile tone="note" label="Poptávky" value={otevrenePoptavky} hint="čeká na rozhodnutí" />
-          </div>
-
-          <div className={styles.cols}>
-            <section className="panel">
-              <header className={styles.panelHead}>
-                <h2>Na tobě</h2>
-                <span className={styles.note}>{naTobe.length} úkolů</span>
-              </header>
-              {naTobe.length === 0 ? (
-                <p className={styles.blank}>Nic nečeká — míč je jinde.</p>
-              ) : (
-                <ul className={styles.list}>
-                  {mineGroups.map((g) => (
-                    <Fragment key={g.bucket}>
-                      <li className={`${styles.bucketHead} ${g.bucket === "late" ? styles.bucketLate : ""}`}>
-                        <span>{BUCKET_LABEL[g.bucket]}</span>
-                        <em>{g.total}</em>
-                      </li>
-                      {g.items.map(({ task: t, dueKey, priority }) => (
-                        <li key={t.id}>
-                          <span className={styles.itemTitle}>
-                            {priority && <span className={styles.star} title="Hlavní klient" aria-label="Hlavní klient">★</span>}
-                            {t.title}
-                          </span>
-                          <span className={styles.itemSub}>
-                            {t.step_name}
-                            {t.client_name ? ` · ${t.client_name}` : ""}
-                          </span>
-                          {dueKey && (
-                            <span className={`${styles.itemRight} ${styles.itemDue}`}>{shortDateLabel(dueKey)}</span>
-                          )}
-                        </li>
-                      ))}
-                    </Fragment>
-                  ))}
-                </ul>
-              )}
-              <footer className={styles.panelFoot}>
-                <Link href="/ukoly?filtr=me" className="btn">
-                  {mineHidden > 0 ? `Zobrazit všechny (ještě ${mineHidden})` : "Zobrazit všechny"}
-                </Link>
-              </footer>
-            </section>
-
-            <section className="panel">
-              <header className={styles.panelHead}>
-                <h2>U koho leží míč</h2>
-                <span className={styles.note}>{tasks.length} celkem</span>
-              </header>
-              <div className={styles.share}>
-                <div className={styles.shareBar}>
-                  {BALL_ORDER.map((b) => (
-                    <i
-                      key={b}
-                      className={`o-${b}`}
-                      style={{ flexGrow: counts[b] || 0.001 }}
-                    />
-                  ))}
-                </div>
-                <ul className={styles.shareKeys}>
-                  {BALL_ORDER.map((b) => (
-                    <li key={b} className={`o-${b}`}>
-                      <i />
-                      <span>{BALL_LABEL[b]}</span>
-                      <em>{BALL_HINT[b]}</em>
-                      <b>{counts[b]}</b>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            </section>
-          </div>
-
-          {hori.length > 0 && (
-            <section className="panel" style={{ marginTop: "var(--s5)" }}>
-              <header className={styles.panelHead}>
-                <h2>Po termínu</h2>
-                <span className={styles.note}>vyžaduje zásah</span>
-              </header>
-              <ul className={styles.list}>
-                {hori.map((t) => (
-                  <li key={t.id}>
-                    <span className={styles.itemTitle}>{t.title}</span>
-                    <span className={styles.itemSub}>
-                      {t.step_name}
-                      {t.supplier_name ? ` · ${t.supplier_name}` : ""}
-                    </span>
-                    <span className={`pill o-alarm ${styles.itemRight}`}>
-                      {BALL_LABEL[t.ball]}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            </section>
-          )}
-
-          <AttentionPanel items={attention.items} today={attention.today} silenceDays={attention.silenceDays} />
-
-          {members.length > 1 && (
-            <section className="panel" style={{ marginTop: "var(--s5)" }}>
-              <header className={styles.panelHead}>
-                <h2>Tým dnes</h2>
-                <span className={styles.note}>
-                  {/* Bez hodin — počet a velikost otevřených úkolů, stejně jako v Týmu. */}
-                  podle otevřených úkolů
-                </span>
-              </header>
-              <ul className={styles.list}>
-                {members.map((m) => {
-                  const cap = capacityByUser.get(m.userId);
-                  return (
-                    <li key={m.userId}>
-                      <span className={styles.itemTitle}>
-                        {m.fullName ?? m.email}
-                        {cap?.absentToday && (
-                          <em className={styles.awayTag} title={cap.absentUntil ? `Do ${csDateFromKey(cap.absentUntil)}` : undefined}>
-                            pryč
-                          </em>
-                        )}
-                      </span>
-                      <span className={styles.capBarTrack}>
-                        <span
-                          className={styles.capBarFill}
-                          style={{ width: `${((cap?.loadSize ?? 0) / maxLoad) * 100}%` }}
-                        />
-                      </span>
-                      <span className={styles.itemRight}>{cap?.openCount ?? 0}</span>
-                    </li>
-                  );
-                })}
-              </ul>
-              <footer className={styles.panelFoot}>
-                <Link href="/tym" className="btn">Zapsat nepřítomnost</Link>
-              </footer>
-            </section>
-          )}
-        </>
+        <TodayBoard
+          today={attention.today}
+          dateLabel={csDate(dnes)}
+          sections={buildToday(tasks, attention.today, priorityIds)}
+          mail={posta}
+          clients={klienti}
+          categories={kategorie}
+        />
       )}
-    </div>
-  );
-}
 
-function Tile({
-  tone, label, value, hint,
-}: { tone: Ball | "alarm" | "note"; label: string; value: number; hint: string }) {
-  return (
-    <div className={`${styles.tile} o-${tone}`}>
-      <span className={styles.tileLabel}>{label}</span>
-      <span className={styles.tileValue}>{value}</span>
-      <span className={styles.tileHint}>{hint}</span>
+      {/* Poptávky a sliby bez dalšího kroku. Když nic neleží ladem, zbude z panelu jen nastavení. */}
+      <AttentionPanel items={attention.items} today={attention.today} silenceDays={attention.silenceDays} />
+
+      {members.length > 1 && (
+        <section className="panel" style={{ marginTop: "var(--s5)" }}>
+          <header className={styles.panelHead}>
+            <h2>Tým dnes</h2>
+            <span className={styles.note}>
+              {/* Bez hodin — počet a velikost otevřených úkolů, stejně jako v Týmu. */}
+              podle otevřených úkolů
+            </span>
+          </header>
+          <ul className={styles.list}>
+            {members.map((m) => {
+              const cap = capacityByUser.get(m.userId);
+              return (
+                <li key={m.userId}>
+                  <span className={styles.itemTitle}>
+                    {m.fullName ?? m.email}
+                    {cap?.absentToday && (
+                      <em className={styles.awayTag} title={cap.absentUntil ? `Do ${csDateFromKey(cap.absentUntil)}` : undefined}>
+                        pryč
+                      </em>
+                    )}
+                  </span>
+                  <span className={styles.capBarTrack}>
+                    <span
+                      className={styles.capBarFill}
+                      style={{ width: `${((cap?.loadSize ?? 0) / maxLoad) * 100}%` }}
+                    />
+                  </span>
+                  <span className={styles.itemRight}>{cap?.openCount ?? 0}</span>
+                </li>
+              );
+            })}
+          </ul>
+          <footer className={styles.panelFoot}>
+            <Link href="/tym" className="btn">Zapsat nepřítomnost</Link>
+          </footer>
+        </section>
+      )}
     </div>
   );
 }

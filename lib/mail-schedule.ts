@@ -1,4 +1,3 @@
-import { plural } from "./domain.ts";
 import { isoWeekday } from "./presets.ts";
 import type { MailCounts } from "./mail-buckets.ts";
 
@@ -37,14 +36,6 @@ export function morningPushBody(taskParts: string[], counts: MailCounts | null |
   const posta = counts ? mailPushPart(counts) : null;
   const parts = posta ? [...taskParts, posta] : taskParts;
   return parts.length > 0 ? parts.join(" · ") : null;
-}
-
-/** Řádek o poště na stránce Dnes. `null`, když na odpověď nic nečeká. */
-export function mailLine(c: MailCounts): string | null {
-  if (c.waiting <= 0) return null;
-  const ceka = `${plural(c.waiting, "Čeká", "Čekají", "Čeká")} ${c.waiting} ${plural(c.waiting, "zpráva", "zprávy", "zpráv")}`;
-  if (c.urgent <= 0) return ceka;
-  return c.urgent === c.waiting && c.waiting === 1 ? `${ceka} a spěchá` : `${ceka}, ${c.urgent} ${plural(c.urgent, "spěchá", "spěchají", "spěchá")}`;
 }
 
 /**

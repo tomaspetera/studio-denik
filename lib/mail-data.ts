@@ -65,7 +65,7 @@ import { dateKeyPrague, todayKeyPrague } from "./domain";
  *
  * Z Gmailu se ukládají jen hlavičky (odesílatel, předmět, datum) a stav.
  * Text zprávy se neukládá nikdy. Do AI jde jediná věc: text jedné zprávy,
- * u které majitel schránky klikl na „Udělat úkol“, a jen když návrh úkolu
+ * u které majitel schránky klikl na „Úkol“, a jen když návrh úkolu
  * pomocí AI sám povolil (`ai_consent_at`). Viz `proposeFromMail`.
  *
  * Přílohy té zprávy (PDF a obrázky) jdou k AI jen se zvláštním souhlasem
@@ -542,17 +542,6 @@ function spocitej(zpravy: CountRow[] | null): MailCounts {
       priority: (z.priority as MailPriority | null) ?? null,
     })),
   );
-}
-
-/** Pošta na stránce Dnes: kolik zpráv čeká a kdy se naposledy načetla. `null` bez připojené schránky. */
-export async function loadMailSummary(userId: string): Promise<(MailCounts & { lastSyncAt: string | null }) | null> {
-  const supabase = await supabaseServer();
-  const [{ data: ucet }, { data: zpravy }] = await Promise.all([
-    supabase.from("mail_accounts").select("last_sync_at").eq("user_id", userId).maybeSingle(),
-    supabase.from("mail_messages").select("status, handled_at, priority").eq("user_id", userId),
-  ]);
-  if (!ucet) return null;
-  return { ...spocitej(zpravy), lastSyncAt: (ucet.last_sync_at as string | null) ?? null };
 }
 
 export async function listMail(userId: string): Promise<MailRow[]> {

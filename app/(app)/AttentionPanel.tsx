@@ -53,6 +53,16 @@ export default function AttentionPanel({
 
   const shown = all ? items : items.slice(0, SHOWN);
 
+  // Když nic neleží ladem, není co ukazovat — zbude jen nastavení, po kolika
+  // dnech ticha se klient připomene.
+  if (items.length === 0) {
+    return (
+      <section className="panel" style={{ marginTop: "var(--s5)" }}>
+        <SilenceSetting silenceDays={silenceDays} />
+      </section>
+    );
+  }
+
   return (
     <section className="panel" style={{ marginTop: "var(--s5)" }}>
       <header className={styles.panelHead}>

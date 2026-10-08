@@ -1,0 +1,188 @@
+/* ============================================================================
+   Dnes — jeden seznam „co mám udělat“ (viz TodayBoard.tsx, lib/today.ts).
+   Řádek = název, proč je tady, klient a tlačítka. Nic se nerozbaluje.
+   ============================================================================ */
+
+.wrap { max-width: 920px; margin: 0 auto; }
+
+.head {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--s4);
+  flex-wrap: wrap;
+  margin-bottom: var(--s5);
+}
+.h1 {
+  font-family: var(--ui-d);
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  margin: 0;
+}
+.date0 {
+  font-family: var(--ui-s);
+  font-size: 12.5px;
+  color: var(--faint);
+  margin: 4px 0 0;
+}
+
+/* Tři čísla, na která se člověk ptá jako první — a odkaz rovnou k nim. */
+.chips { display: flex; gap: var(--s2); flex-wrap: wrap; margin-left: auto; }
+.chip {
+  height: 28px;
+  padding: 0 12px;
+  border-radius: var(--r4);
+  border: 1px solid var(--line-2);
+  background: var(--surface);
+  color: var(--ink-2);
+  font-size: 12.5px;
+  font-weight: 600;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  white-space: nowrap;
+}
+.chip:hover { border-color: var(--muted); }
+.chipAlarm { background: var(--alarm-soft); border-color: transparent; color: var(--alarm); }
+.chipNote { background: var(--note-soft); border-color: transparent; color: var(--note); }
+
+.section { margin-bottom: var(--s5); scroll-margin-top: 80px; }
+
+.h2 {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s2);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  margin: 0 0 var(--s2);
+  padding: 0 var(--s1);
+}
+.h2 em {
+  font-style: normal;
+  font-family: var(--mono);
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--faint);
+}
+.h2Alarm { color: var(--alarm); }
+.h2Alarm em { color: var(--alarm); opacity: 0.75; }
+.h2Quiet { color: var(--muted); }
+.h2Note {
+  margin-left: auto;
+  font-family: var(--ui-s);
+  font-size: 11.5px;
+  font-weight: 400;
+  color: var(--faint);
+}
+
+.list { list-style: none; margin: 0; padding: 0; }
+ul.list.list { overflow: hidden; }
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  padding: 10px var(--s4);
+  border-bottom: 1px solid var(--line);
+  transition: background 0.15s, opacity 0.15s;
+}
+.row:last-child { border-bottom: 0; }
+.row:hover { background: var(--raise); }
+.rowBusy { opacity: 0.55; }
+
+.main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.title {
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+.sub {
+  font-family: var(--ui-s);
+  font-size: 12px;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+.err { font-size: 12px; color: var(--alarm); }
+
+.urgent {
+  font-style: normal;
+  font-family: var(--ui-s);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 1px 7px;
+  margin-left: var(--s2);
+  border-radius: var(--r4);
+  background: var(--alarm-soft);
+  color: var(--alarm);
+  vertical-align: 1px;
+}
+
+/* Komu úkol nebo zpráva patří. Barevná tečka je barva klienta. */
+.client {
+  font-style: normal;
+  font-family: var(--ui-s);
+  font-size: 11.5px;
+  color: var(--muted);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 190px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex-shrink: 1;
+}
+.client i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--done);
+  flex-shrink: 0;
+}
+
+.actions { display: flex; align-items: center; gap: var(--s2); flex-shrink: 0; }
+.date { height: 27px; padding: 0 8px; font-size: 12px; width: 150px; }
+
+/* Skupina „Zítra / Tento týden / Bez termínu“ uvnitř „Na tobě“. */
+.group { border-bottom: 1px solid var(--line); }
+.group:last-child { border-bottom: 0; }
+.groupName {
+  display: block;
+  padding: 7px var(--s4) 6px;
+  background: var(--sunk);
+  font-family: var(--ui-s);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.more { margin: var(--s2) var(--s1) 0; font-size: 12.5px; }
+.more a, .foot a { color: var(--accent); text-decoration: none; font-weight: 500; }
+.more a:hover, .foot a:hover { text-decoration: underline; }
+
+.calm { padding: var(--s6) var(--s5); text-align: center; color: var(--muted); font-size: 13.5px; margin-bottom: var(--s5); }
+
+.foot {
+  display: flex;
+  gap: var(--s2);
+  flex-wrap: wrap;
+  margin: var(--s5) var(--s1) 0;
+  font-family: var(--ui-s);
+  font-size: 12.5px;
+  color: var(--faint);
+}
+
+/* Na telefonu jdou tlačítka pod text, ať se název nemačká. */
+@media (max-width: 640px) {
+  .row { flex-wrap: wrap; row-gap: var(--s2); }
+  .main { flex-basis: 100%; }
+  .client { max-width: 45%; }
+  .actions { margin-left: auto; }
+  .chips { margin-left: 0; }
+}

@@ -110,13 +110,22 @@ protože odpověď začne odcházet okamžitě.
 při prvním požadavku. Výchozí je proto `gemini-3.6-flash`. Modely bývají
 i přetížené (503), takže se pokus třikrát opakuje.
 
+**Dnes je jeden seznam.** Stránka Dnes řadí práci podle naléhavosti
+(`lib/today.ts`): co hoří (po termínu a moje dnešní úkoly), pošta čekající na
+odpověď, zbytek „na tobě“ podle termínu a nakonec úkoly, které leží u klienta
+nebo u dodavatele. Každý úkol je tam právě jednou a posun o krok, termín i úkol
+nebo odpověď z e-mailu jdou udělat tlačítkem přímo na řádku — rozbalování úkolu
+kvůli jednomu kliknutí znamenalo, že se kroky neposouvaly a „u koho leží míč“
+přestával platit. V menu jsou nahoře stránky na každý den; Klienti, Poptávky
+a Tým jsou pod „Více“ (na telefonu tam jsou i Tisk a Report).
+
 **U Gemini se platí předem.** Projekt, kterému patří `GEMINI_API_KEY`, má
 v AI Studiu předplacený kredit. Když dojde, každé volání skončí chybou 402
 a appka to řekne česky (`AiNoCredit` v `lib/ai.ts`) — dobíjí se v AI Studiu
 v části Billing.
 
 **Pošta a AI.** Přehled pošty se obejde bez AI a čte z Gmailu jen hlavičky.
-Text zprávy se načte jen na kliknutí („Udělat úkol“, „Návrh odpovědi“) a jen
+Text zprávy se načte jen na kliknutí („Úkol“, „Odpověď“) a jen
 se souhlasem majitele schránky (`mail_accounts.ai_consent_at`); posílá se
 výhradně do Gemini a nikam se neukládá. Z e-mailu vzniká návrh úkolu,
 poptávky nebo odpovědi — vždycky jen návrh, který člověk potvrdí, a odpověď
@@ -167,8 +176,8 @@ jedno zkušební studio (`CRON_TEST_ORG`, den jde podvrhnout přes
 `CRON_TEST_TODAY`) a bez něj neudělá nic.
 
 **Čtení příloh.** Volitelné a zapíná se zvlášť (`mail_accounts.ai_files_at`,
-jen se základním souhlasem). Když je zapnuté, jdou při kliknutí na „Udělat
-úkol“ nebo „Návrh odpovědi“ k AI spolu s textem i přílohy té jedné zprávy;
+jen se základním souhlasem). Když je zapnuté, jdou při kliknutí na „Úkol“
+nebo „Odpověď“ k AI spolu s textem i přílohy té jedné zprávy;
 třídění přílohy nečte nikdy a nic z nich se neukládá. Co k AI smí, rozhoduje
 `lib/mail-files.ts`: jen PDF a obrázky (JPG, PNG, WEBP), typ se ověřuje podle
 prvních bajtů souboru, ne podle toho, co tvrdí odesílatel, nejvýš 4 soubory,
