@@ -262,6 +262,9 @@
   color: var(--muted);
 }
 .attDays { width: 64px; text-align: center; padding-top: 6px; padding-bottom: 6px; }
+/* Samotné nastavení pod přehledem — tichý řádek, ne další panel. */
+.attQuiet { margin: var(--s3) var(--s1) 0; }
+.attQuiet .attDays { width: 48px; height: 28px; padding: 0 6px; font-size: 12.5px; }
 
 /* ---------------------------------------------------------------- */
 /* Podíl míče                                                        */

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { csDate, plural, type DateKey } from "@/lib/domain";
 import type { MailRow } from "@/lib/mail-data";
 import { mailBucket, sortWaiting } from "@/lib/mail-buckets";
+import { initials } from "@/lib/mail-face";
 import { INBOX_ID, LABELS_MAX, clientOfLabel, labelRows, mailSources, sourcesLabel, withChildren, type MailLabel } from "@/lib/mail-labels";
 import type { Category, Client } from "@/lib/tasks";
 import {
@@ -651,6 +652,9 @@ export default function MailBoard({
             const kam = mailBucket(m);
             return (
               <li key={m.id} className={`${styles.item} ${m.handledAt ? styles.itemDone : ""}`}>
+                <span className={`${styles.avatar} ${kam === "urgent" ? styles.avatarUrgent : ""}`} aria-hidden="true">
+                  {initials(m.fromName, m.fromEmail)}
+                </span>
                 <div className={styles.itemMain}>
                   {/* Kliknutím na zprávu se otevře v Gmailu — samostatné tlačítko na to není potřeba. */}
                   <a

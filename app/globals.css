@@ -15,8 +15,8 @@
   /* text */
   --ink: #12171a;
   --ink-2: #404e52;
-  --muted: #6b7b7f;
-  --faint: #96a4a6;
+  --muted: #627276;
+  --faint: #7c8b8e;
 
   /* linky */
   --line: #e1e6e2;
@@ -69,7 +69,7 @@
 @media (prefers-color-scheme: dark) {
   :root {
     --paper: #0a0d0f; --surface: #13181a; --raise: #191f21; --sunk: #0e1214; --sheet: #161b1e;
-    --ink: #e6ebe8; --ink-2: #afbcb9; --muted: #7b8a8d; --faint: #5f6e71;
+    --ink: #e9eeeb; --ink-2: #b6c2bf; --muted: #8b9a9d; --faint: #6c7b7e;
     --line: #212a2c; --line-2: #313d3e;
     --accent: #57b7c8; --accent-ink: #04161a; --accent-soft: #0c2c33;
     --me: #57b7c8;      --me-soft: #0c2c33;
@@ -93,7 +93,7 @@
 /* Ruční přepínač musí přebít systémové nastavení v obou směrech. */
 :root[data-theme="dark"] {
   --paper: #0a0d0f; --surface: #13181a; --raise: #191f21; --sunk: #0e1214; --sheet: #161b1e;
-  --ink: #e6ebe8; --ink-2: #afbcb9; --muted: #7b8a8d; --faint: #5f6e71;
+  --ink: #e9eeeb; --ink-2: #b6c2bf; --muted: #8b9a9d; --faint: #6c7b7e;
   --line: #212a2c; --line-2: #313d3e;
   --accent: #57b7c8; --accent-ink: #04161a; --accent-soft: #0c2c33;
   --me: #57b7c8; --me-soft: #0c2c33; --client: #c49a4d; --client-soft: #2b2312;
@@ -113,7 +113,7 @@
 
 :root[data-theme="light"] {
   --paper: #f0f2ef; --surface: #ffffff; --raise: #f7f9f7; --sunk: #e7ebe7; --sheet: #ffffff;
-  --ink: #12171a; --ink-2: #404e52; --muted: #6b7b7f; --faint: #96a4a6;
+  --ink: #12171a; --ink-2: #404e52; --muted: #627276; --faint: #7c8b8e;
   --line: #e1e6e2; --line-2: #cbd3ce;
   --accent: #0a6e80; --accent-ink: #ffffff; --accent-soft: #e0eff2;
   --me: #0a6e80; --me-soft: #e0eff2; --client: #8a6a1f; --client-soft: #f4eede;

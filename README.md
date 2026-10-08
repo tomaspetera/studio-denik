@@ -110,14 +110,18 @@ protože odpověď začne odcházet okamžitě.
 při prvním požadavku. Výchozí je proto `gemini-3.6-flash`. Modely bývají
 i přetížené (503), takže se pokus třikrát opakuje.
 
-**Dnes je jeden seznam.** Stránka Dnes řadí práci podle naléhavosti
-(`lib/today.ts`): co hoří (po termínu a moje dnešní úkoly), pošta čekající na
-odpověď, zbytek „na tobě“ podle termínu a nakonec úkoly, které leží u klienta
-nebo u dodavatele. Každý úkol je tam právě jednou a posun o krok, termín i úkol
-nebo odpověď z e-mailu jdou udělat tlačítkem přímo na řádku — rozbalování úkolu
-kvůli jednomu kliknutí znamenalo, že se kroky neposouvaly a „u koho leží míč“
-přestával platit. V menu jsou nahoře stránky na každý den; Klienti, Poptávky
-a Tým jsou pod „Více“ (na telefonu tam jsou i Tisk a Report).
+**Dnes je přehled, ne další seznam.** Stránka Dnes řadí práci podle naléhavosti
+(`lib/today.ts`): nahoře čtyři čísla (hoří, na tobě, pošta, u jiných), pod nimi
+vlevo práce — co hoří (po termínu a moje dnešní úkoly) a zbytek „na tobě“ podle
+termínu — a vpravo to, co přichází a co leží jinde: pošta čekající na odpověď
+a úkoly u klienta nebo u dodavatele. Na užší obrazovce jdou karty pod sebe.
+Každý úkol je tam právě jednou. Řádek ukazuje dílky štafety ve stejných barvách
+jako Úkoly, termín je tlačítko (barva říká, jak moc tlačí, kliknutí otevře
+kalendář) a posun o krok i úkol nebo odpověď z e-mailu jdou udělat přímo na
+řádku — rozbalování úkolu kvůli jednomu kliknutí znamenalo, že se kroky
+neposouvaly a „u koho leží míč“ přestával platit. V menu jsou nahoře stránky na
+každý den; Klienti, Poptávky a Tým jsou pod „Více“ (na telefonu tam jsou i Tisk
+a Report).
 
 **U Gemini se platí předem.** Projekt, kterému patří `GEMINI_API_KEY`, má
 v AI Studiu předplacený kredit. Když dojde, každé volání skončí chybou 402

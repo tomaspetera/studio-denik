@@ -44,7 +44,7 @@ export default async function AppLayout({
           <div className={styles.who}>
             <span className={styles.avatar} aria-hidden="true">{ws.initials}</span>
             <span className={styles.whoText}>
-              <span className={styles.whoName}>{ws.email.split("@")[0]}</span>
+              <span className={styles.whoName}>{ws.name}</span>
               <span className={styles.whoMail}>{ws.email}</span>
             </span>
           </div>

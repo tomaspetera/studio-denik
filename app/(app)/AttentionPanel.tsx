@@ -56,11 +56,7 @@ export default function AttentionPanel({
   // Když nic neleží ladem, není co ukazovat — zbude jen nastavení, po kolika
   // dnech ticha se klient připomene.
   if (items.length === 0) {
-    return (
-      <section className="panel" style={{ marginTop: "var(--s5)" }}>
-        <SilenceSetting silenceDays={silenceDays} />
-      </section>
-    );
+    return <SilenceSetting silenceDays={silenceDays} quiet />;
   }
 
   return (
@@ -221,7 +217,7 @@ function StepEditor({
   );
 }
 
-function SilenceSetting({ silenceDays }: { silenceDays: number }) {
+function SilenceSetting({ silenceDays, quiet = false }: { silenceDays: number; quiet?: boolean }) {
   const router = useRouter();
   const [value, setValue] = useState(String(silenceDays));
   const [error, setError] = useState<string | null>(null);
@@ -246,7 +242,7 @@ function SilenceSetting({ silenceDays }: { silenceDays: number }) {
   }
 
   return (
-    <footer className={`${styles.panelFoot} ${styles.attSilence}`}>
+    <footer className={quiet ? `${styles.attSilence} ${styles.attQuiet}` : `${styles.panelFoot} ${styles.attSilence}`}>
       <label htmlFor="silence-days">Klient bez otevřené práce je v tichu po</label>
       <input
         id="silence-days"

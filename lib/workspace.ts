@@ -2,6 +2,7 @@ import "server-only";
 
 import { cache } from "react";
 import { supabaseServer } from "./supabase/server";
+import { initials } from "./mail-face";
 
 /**
  * Veřejná adresa aplikace, pokud je nastavená.
@@ -22,7 +23,7 @@ export function siteUrl(): string {
  * to musí umět rozeznat a poradit, ne spadnout na nesrozumitelné chybě.
  */
 export type Workspace =
-  | { state: "ready"; orgId: string; orgName: string; email: string; initials: string }
+  | { state: "ready"; orgId: string; orgName: string; email: string; /** Jméno z profilu; když chybí, začátek e-mailu. */ name: string; initials: string }
   | { state: "schema-missing"; email: string; detail: string }
   | { state: "error"; email: string; detail: string };
 
@@ -66,11 +67,11 @@ export const getWorkspace = cache(async (): Promise<Workspace | null> => {
       : { state: "error", email, detail: error.message };
   }
 
-  const { data: org, error: orgErr } = await supabase
-    .from("orgs")
-    .select("id, name")
-    .eq("id", orgId)
-    .single();
+  const [{ data: org, error: orgErr }, { data: profil }] = await Promise.all([
+    supabase.from("orgs").select("id, name").eq("id", orgId).single(),
+    // Jméno je jen pro postranní lištu — když se nenačte, poslouží e-mail.
+    supabase.from("profiles").select("full_name, initials").eq("id", user.id).maybeSingle(),
+  ]);
 
   if (orgErr || !org) {
     return {
@@ -81,12 +82,15 @@ export const getWorkspace = cache(async (): Promise<Workspace | null> => {
   }
 
   const local = email.split("@")[0] || "?";
+  const jmeno = ((profil?.full_name as string | null) ?? "").trim();
+  const znacka = ((profil?.initials as string | null) ?? "").trim();
 
   return {
     state: "ready",
     orgId: org.id,
     orgName: org.name,
     email,
-    initials: local.slice(0, 2).toUpperCase(),
+    name: jmeno || local,
+    initials: znacka || initials(jmeno || null, email),
   };
 });

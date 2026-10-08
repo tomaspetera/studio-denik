@@ -11,6 +11,7 @@ import { supabaseServer } from "@/lib/supabase/server";
 import { isMailAiAvailable, listMail, loadMailAccount } from "@/lib/mail-data";
 import { mailBucket, sortWaiting } from "@/lib/mail-buckets";
 import { lastSyncLabel } from "@/lib/mail-schedule";
+import { initials, mailWhen } from "@/lib/mail-face";
 import { buildToday } from "@/lib/today";
 import AttentionPanel from "./AttentionPanel";
 import TodayBoard, { type TodayMail } from "./TodayBoard";
@@ -50,7 +51,7 @@ export default async function DnesPage() {
   const ceka = sortWaiting(zpravy.filter((m) => mailBucket(m) === "urgent" || mailBucket(m) === "reply"));
   const posta: TodayMail | null = ucet
     ? {
-        rows: ceka.slice(0, MAIL_ROWS),
+        rows: ceka.slice(0, MAIL_ROWS).map((m) => ({ ...m, when: mailWhen(m.receivedAt, dnes), initials: initials(m.fromName, m.fromEmail) })),
         waiting: ceka.length,
         urgent: ceka.filter((m) => mailBucket(m) === "urgent").length,
         lastSync: lastSyncLabel(ucet.lastSyncAt),
@@ -59,6 +60,9 @@ export default async function DnesPage() {
         aiAllowed: Boolean(ucet.aiConsentAt),
       }
     : null;
+
+  // Den v týdnu podle Prahy — server běží v jiném pásmu než čtenář.
+  const denVTydnu = new Intl.DateTimeFormat("cs-CZ", { timeZone: "Europe/Prague", weekday: "long" }).format(dnes);
 
   // Bez úkolů a bez čekající pošty není co řadit — místo prázdného seznamu pozvánka.
   const prazdno = tasks.length === 0 && (!posta || posta.rows.length === 0);
@@ -89,7 +93,7 @@ export default async function DnesPage() {
       ) : (
         <TodayBoard
           today={attention.today}
-          dateLabel={csDate(dnes)}
+          dateLabel={`${denVTydnu} ${csDateFromKey(attention.today)}`}
           sections={buildToday(tasks, attention.today, priorityIds)}
           mail={posta}
           clients={klienti}

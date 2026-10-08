@@ -1,4 +1,4 @@
-import { FLOWS, clampStep, dateKeyUTC, stepLabel, type Ball, type TaskKind } from "./domain.ts";
+import { FLOWS, clampStep, dateKeyUTC, daysBetweenKeys, stepLabel, type Ball, type TaskKind } from "./domain.ts";
 import { bucketOf, shortDateLabel, type Bucket } from "./buckets.ts";
 
 /**
@@ -33,6 +33,9 @@ export type TodayInput = {
 
 export type TodayStep = { step: number; label: string };
 
+/** Jak moc termín tlačí — podle toho má štítek s termínem barvu. */
+export type DueTone = "late" | "today" | "soon" | "none";
+
 export type TodayTask = {
   id: string;
   title: string;
@@ -40,6 +43,19 @@ export type TodayTask = {
   sub: string;
   late: boolean;
   dueKey: string | null;
+  /** Termín pro štítek vpravo: „5. 10.“, „dnes“, „zítra“, „Pá 16. 10.“; `null` = bez termínu. */
+  dueLabel: string | null;
+  dueTone: DueTone;
+  /** Kolik dní je úkol po termínu; 0, když není. */
+  lateDays: number;
+  /** U koho úkol leží. */
+  ball: Ball;
+  /** Na kterém kroku štafety úkol stojí (od nuly) a jaké kroky štafeta má. */
+  step: number;
+  steps: readonly { label: string; owner: Ball }[];
+  stepName: string;
+  /** Dodavatel, u kterého úkol právě leží; jinak `null`. */
+  supplierName: string | null;
   clientName: string | null;
   clientColor: string | null;
   /** Další krok štafety — kam úkol posune hlavní tlačítko. */
@@ -56,7 +72,20 @@ export type TodaySections = {
   /** Kolik úkolů „na tobě“ se nevešlo — jsou za odkazem do Úkolů. */
   mineHidden: number;
   waiting: TodayTask[];
-  counts: { late: number; mine: number; waiting: number; done: number };
+  counts: {
+    /** Po termínu — ať leží u kohokoli. */
+    late: number;
+    /** Moje úkoly s termínem dnes. */
+    today: number;
+    /** Všechno, co leží na mně (včetně toho, co hoří). */
+    mine: number;
+    /** Na mně bez termínu — to, co se snadno ztratí. */
+    noDue: number;
+    waiting: number;
+    client: number;
+    supplier: number;
+    done: number;
+  };
 };
 
 /** Kolik úkolů „na tobě“ se na Dnes ukáže — zbytek je za odkazem. */
@@ -93,13 +122,32 @@ function byUrgency(a: Sorted, b: Sorted): number {
   return a.title.localeCompare(b.title, "cs");
 }
 
-function row(t: Sorted, sub: string): TodayTask {
+/** Termín tak krátce, jak to jde: dnes a zítra slovem, tento týden se dnem, jinak jen datum. */
+function dueLabel(t: Sorted, today: string): string | null {
+  if (!t.dueKey) return null;
+  if (t.bucket === "late") return dayLabel(t.dueKey);
+  const zaDni = daysBetweenKeys(today, t.dueKey);
+  if (zaDni === 0) return "dnes";
+  if (zaDni === 1) return "zítra";
+  return zaDni <= 7 ? shortDateLabel(t.dueKey) : dayLabel(t.dueKey);
+}
+
+function row(t: Sorted, sub: string, today: string): TodayTask {
+  const zaDni = t.dueKey ? daysBetweenKeys(today, t.dueKey) : null;
   return {
     id: t.id,
     title: t.title,
     sub,
     late: t.bucket === "late",
     dueKey: t.dueKey,
+    dueLabel: dueLabel(t, today),
+    dueTone: t.bucket === "late" ? "late" : zaDni === 0 ? "today" : t.dueKey ? "soon" : "none",
+    lateDays: t.bucket === "late" && zaDni !== null ? Math.max(1, -zaDni) : 0,
+    ball: t.ball,
+    step: clampStep(t.kind, t.step),
+    steps: FLOWS[t.kind],
+    stepName: t.step_name,
+    supplierName: t.ball === "supplier" ? t.supplier_name : null,
     clientName: t.client_name,
     clientColor: t.client_color,
     ...steps(t),
@@ -131,8 +179,8 @@ export function buildToday(
     .sort(byUrgency)
     .map((t) => {
       const kde = WHERE[t.ball] ? ` · ${WHERE[t.ball]}` : "";
-      if (t.bucket === "today") return row(t, `dnes · ${t.step_name}`);
-      return row(t, `${t.dueKey ? `po termínu od ${dayLabel(t.dueKey)}` : "po termínu"}${kde}`);
+      if (t.bucket === "today") return row(t, `dnes · ${t.step_name}`, today);
+      return row(t, `${t.dueKey ? `po termínu od ${dayLabel(t.dueKey)}` : "po termínu"}${kde}`, today);
     });
 
   const mineAll = open.filter((t) => t.ball === "me" && !isBurning(t));
@@ -143,7 +191,7 @@ export function buildToday(
       .filter((t) => t.bucket === bucket)
       .sort(byUrgency)
       .slice(0, zbyva)
-      .map((t) => row(t, t.dueKey ? `${shortDateLabel(t.dueKey)} · ${t.step_name}` : t.step_name));
+      .map((t) => row(t, t.dueKey ? `${shortDateLabel(t.dueKey)} · ${t.step_name}` : t.step_name, today));
     if (items.length > 0) mine.push({ bucket, items });
     zbyva -= items.length;
   }
@@ -156,7 +204,7 @@ export function buildToday(
       const casti = [t.step_name];
       if (t.ball === "supplier" && t.supplier_name) casti.push(t.supplier_name);
       if (t.dueKey) casti.push(t.dueKey === today ? "termín dnes" : `termín ${dayLabel(t.dueKey)}`);
-      return row(t, casti.join(" · "));
+      return row(t, casti.join(" · "), today);
     });
 
   return {
@@ -166,8 +214,12 @@ export function buildToday(
     waiting,
     counts: {
       late: open.filter((t) => t.bucket === "late").length,
+      today: open.filter((t) => t.bucket === "today" && t.ball === "me").length,
       mine: open.filter((t) => t.ball === "me").length,
+      noDue: open.filter((t) => t.ball === "me" && !t.dueKey).length,
       waiting: open.filter((t) => t.ball === "client" || t.ball === "supplier").length,
+      client: open.filter((t) => t.ball === "client").length,
+      supplier: open.filter((t) => t.ball === "supplier").length,
       done: tasks.length - open.length,
     },
   };

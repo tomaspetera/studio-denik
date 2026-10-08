@@ -204,6 +204,13 @@
   color: var(--ink-2);
   line-height: 1.4;
 }
+/* Tučné slovo ve větě není číslo odpočtu — píše se stejným písmem jako věta. */
+.cd span b {
+  font: inherit;
+  font-weight: 700;
+  letter-spacing: 0;
+  color: var(--ink);
+}
 
 .foot {
   border-top: 1px solid var(--line);

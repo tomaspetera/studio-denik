@@ -232,10 +232,9 @@
   text-overflow: ellipsis;
 }
 
+/* Blok, ne flex — jen tak se dlouhé jméno ukončí třemi tečkami místo useknutí. */
 .rowClient {
-  display: flex;
-  align-items: center;
-  gap: 8px;
+  display: block;
   font-size: 12.5px;
   color: var(--ink-2);
   min-width: 0;
@@ -243,7 +242,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.rowClient i { width: 7px; height: 7px; border-radius: 2px; flex: none; }
+.rowClient i { display: inline-block; width: 7px; height: 7px; border-radius: 2px; margin-right: 8px; vertical-align: 1px; }
 
 .rowDue {
   font-family: var(--mono);

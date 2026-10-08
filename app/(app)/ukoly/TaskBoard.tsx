@@ -431,7 +431,7 @@ function Row({
           </span>
         </span>
 
-        <span className={styles.rowClient}>
+        <span className={styles.rowClient} title={task.client_name ?? undefined}>
           {task.client_name && (
             <>
               <i style={{ background: task.client_color ?? "var(--muted)" }} />

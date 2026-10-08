@@ -7,6 +7,7 @@
  * tlačítko na řádku posune úkol na správný krok jeho štafety.
  */
 import { TODAY_MINE_ROWS, buildToday } from "../lib/today.ts";
+import { initials, mailWhen } from "../lib/mail-face.ts";
 
 let chyby = 0;
 const ok = (s) => console.log("  " + s);
@@ -70,7 +71,16 @@ zkouska("čeká se: popisek", d.waiting[0].sub === "U klienta · termín dnes" &
 // --- Nic se neztratí ani neopakuje ---------------------------------------------------------
 const vse = [...nazvy(d.burning), ...d.mine.flatMap((g) => nazvy(g.items)), ...nazvy(d.waiting)];
 zkouska("každý právě jednou", vse.length === new Set(vse).size && vse.length === 12 && !vse.includes("Hotová práce") && !vse.includes("Interní hotovo"), "dvanáct otevřených úkolů, každý jednou; hotové tu nejsou");
-zkouska("počty", stejne(d.counts, { late: 4, mine: 8, waiting: 4, done: 2 }), "po termínu, na tobě, u jiných a uzavřené");
+zkouska("počty", stejne(d.counts, { late: 4, today: 1, mine: 8, noDue: 1, waiting: 4, client: 2, supplier: 2, done: 2 }), "po termínu, dnešní, na tobě, bez termínu, u jiných a uzavřené");
+
+// --- Termín jako štítek a postup jako dílky ---------------------------------------------------
+const kus = (title) => [...d.burning, ...d.mine.flatMap((g) => g.items), ...d.waiting].find((t) => t.title === title);
+zkouska("termín: po termínu", kus("Tisková zpráva").dueLabel === "5. 10." && kus("Tisková zpráva").dueTone === "late" && kus("Tisková zpráva").lateDays === 3, "datum, červená a počet dní po termínu");
+zkouska("termín: dnes a zítra", kus("Banner na dnešek").dueLabel === "dnes" && kus("Banner na dnešek").dueTone === "today" && kus("Leták na zítřek").dueLabel === "zítra" && kus("Leták na zítřek").dueTone === "soon", "nejbližší dny slovem");
+zkouska("termín: tento týden a dál", kus("Katalog").dueLabel === "Ne 11. 10." && kus("Web").dueLabel === "20. 11.", "do týdne se dnem v týdnu, pak jen datum");
+zkouska("termín: žádný", kus("Grafický manuál").dueLabel === null && kus("Grafický manuál").dueTone === "none" && kus("Grafický manuál").lateDays === 0, "bez termínu");
+zkouska("dílky: klientský úkol", kus("Banner na dnešek").step === 1 && stejne(kus("Banner na dnešek").steps.map((s) => s.owner), ["me", "me", "client", "done"]) && kus("Banner na dnešek").ball === "me", "čtyři kroky, stojí na druhém, míč je u mě");
+zkouska("dílky: tisk", kus("Vizitky v tisku").steps.length === 6 && kus("Vizitky v tisku").step === 3 && kus("Vizitky v tisku").ball === "supplier" && kus("Vizitky v tisku").stepName === "V tisku" && kus("Vizitky v tisku").supplierName === "Indigoprint" && kus("Banner na dnešek").supplierName === null, "šest kroků tiskové štafety, míč u dodavatele a jeho jméno");
 
 // --- Tlačítka na řádku ------------------------------------------------------------------------
 const najdi = (title) => [...d.burning, ...d.mine.flatMap((g) => g.items), ...d.waiting].find((t) => t.title === title);
@@ -86,7 +96,12 @@ zkouska("strop", v.mine.reduce((n, g) => n + g.items.length, 0) === TODAY_MINE_R
 v = buildToday([ukol("B úkol", { due: "2026-10-05" }), ukol("A úkol", { due: "2026-10-05" }), ukol("Hlavní klient", { due: "2026-10-05", client: "ume" })], DNES, new Set(["ume"]));
 zkouska("hlavní klient", stejne(nazvy(v.burning), ["Hlavní klient", "A úkol", "B úkol"]), "při stejném termínu jde první hlavní klient, pak abecedně");
 v = buildToday([], DNES);
-zkouska("prázdno", v.burning.length === 0 && v.mine.length === 0 && v.waiting.length === 0 && v.mineHidden === 0 && stejne(v.counts, { late: 0, mine: 0, waiting: 0, done: 0 }), "bez úkolů nic nespadne");
+zkouska("prázdno", v.burning.length === 0 && v.mine.length === 0 && v.waiting.length === 0 && v.mineHidden === 0 && Object.values(v.counts).every((n) => n === 0), "bez úkolů nic nespadne");
+
+// --- Pošta na řádku: iniciály a čas ----------------------------------------------------------------
+zkouska("iniciály", initials("Jana Nováková", "jana@x.cz") === "JN" && initials("Ing. Petr van Svoboda", "p@x.cz") === "IS" && initials("Tiskárna", "t@x.cz") === "TI" && initials(null, "eva.mala@firma.cz") === "EV" && initials("  ", "@") === "?" && initials("Šárka Žáková", "s@x.cz") === "ŠŽ", "ze jména první a poslední slovo, jinak začátek adresy; s háčky");
+const TED = new Date("2026-10-08T10:30:00Z"); // čtvrtek 12:30 v Praze
+zkouska("čas zprávy", mailWhen("2026-10-08T07:04:00Z", TED) === "9:04" && mailWhen("2026-10-07T21:30:00Z", TED) === "včera" && mailWhen("2026-10-07T22:30:00Z", TED) === "0:30" && mailWhen("2026-10-05T08:00:00Z", TED) === "5. 10." && mailWhen("nesmysl", TED) === "", "dnes hodinou podle Prahy, včera slovem, jinak datem");
 
 // Žádná otevřená spojení, proces doběhne sám.
 console.log(chyby === 0 ? "\nDnes: zařazení úkolů i tlačítka drží." : `\nProblémů: ${chyby}`);
