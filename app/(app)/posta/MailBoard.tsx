@@ -766,9 +766,10 @@ export default function MailBoard({
 }
 
 /**
- * Jedno nastavení schránky: název, stav jednou větou a přepínač. Vysvětlení je
- * u zapnutého nastavení sbalené, ať stránka není stěna textu. U vypnutého je
- * vidět rovnou — než člověk něco zapne, má vědět, s čím souhlasí.
+ * Jedno nastavení schránky: název, stav jednou větou a přepínač — na jednom
+ * řádku. Vysvětlení se u zapnutého nastavení ukáže až na kliknutí, ať stránka
+ * není stěna textu. U vypnutého je vidět rovnou: než člověk něco zapne, má
+ * vědět, s čím souhlasí.
  */
 function Setting({
   title,
@@ -783,23 +784,25 @@ function Setting({
   action: ReactNode;
   children: ReactNode;
 }) {
+  const [open, setOpen] = useState(false);
+
   return (
     <div className={styles.set}>
       <div className={styles.setHead}>
         <div className={styles.setText}>
           <b>{title}</b>
-          <span className={on ? styles.setOn : styles.setOff}>{state}</span>
+          <span className={on ? styles.setOn : styles.setOff}>
+            {state}
+            {on && (
+              <button type="button" className={styles.setWhy} aria-expanded={open} onClick={() => setOpen(!open)}>
+                {open ? "skrýt" : "co to dělá"}
+              </button>
+            )}
+          </span>
         </div>
         {action}
       </div>
-      {on ? (
-        <details className={styles.setMore}>
-          <summary>Co to dělá</summary>
-          {children}
-        </details>
-      ) : (
-        <div className={styles.setBody}>{children}</div>
-      )}
+      {(!on || open) && <div className={styles.setBody}>{children}</div>}
     </div>
   );
 }

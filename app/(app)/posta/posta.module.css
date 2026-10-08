@@ -165,7 +165,7 @@
 .labelInbox { border-bottom: 1px solid var(--line); margin-bottom: var(--s2); padding-bottom: var(--s2); font-weight: 600; }
 
 /* Nastavení jako seznam řádků: název, stav a přepínač. Vysvětlení se rozbaluje. */
-.set { padding: var(--s3) 0; border-top: 1px solid var(--line); }
+.set { padding: 10px 0; border-top: 1px solid var(--line); }
 .sub3 + .set { border-top: 0; padding-top: var(--s2); }
 .setHead { display: flex; align-items: center; gap: var(--s3); flex-wrap: wrap; }
 .setText { flex: 1 1 240px; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
@@ -187,25 +187,29 @@
   vertical-align: 1px;
 }
 .setOff::before { background: var(--line-2); }
-.setMore { margin-top: var(--s2); }
-.setMore summary {
-  cursor: pointer;
-  width: fit-content;
-  font-family: var(--ui-s);
+/* „co to dělá“ — nenápadný odkaz hned za stavem, vysvětlení se rozbalí pod řádkem. */
+.setWhy {
+  margin-left: var(--s2);
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font: inherit;
   font-size: 11.5px;
   color: var(--faint);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
 }
-.setMore summary:hover { color: var(--muted); }
-.setMore .note, .setBody .note { margin-top: var(--s2); }
+.setWhy:hover { color: var(--ink-2); }
+.setBody .note { margin-top: var(--s2); }
 .setBody { margin-top: var(--s1); }
 
 .signature {
   display: flex;
   align-items: center;
   gap: var(--s2);
-  flex-wrap: wrap;
 }
-.signature input { flex: 1 1 220px; max-width: 320px; }
+.signature input { flex: 0 1 220px; min-width: 140px; height: 30px; padding-top: 0; padding-bottom: 0; }
 
 .warn {
   margin: 0 0 var(--s3);
