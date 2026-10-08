@@ -150,7 +150,10 @@ podle Gmailu, ne podle toho, co pošle prohlížeč. Podštítek je v Gmailu
 samostatný štítek („Ultra_Marine/MRL“), proto se s nadřazeným zaškrtne taky.
 Každý vybraný štítek je při načtení další dotaz (`threads?labelIds=…`); vlákna
 ze všech zdrojů se slučují střídavě a do stropu 90, aby plná doručená pošta
-štítky nevytlačila. Štítek, který v Gmailu zanikl, načtení neshodí.
+štítky nevytlačila. Štítek, který v Gmailu zanikl, načtení neshodí. Doručená
+pošta je ve výběru jako jeden ze zdrojů (`INBOX_ID`): prázdný výběr znamená jen
+doručenou, výběr bez ní jen štítky (`mailSources`) — pro toho, kdo má všechnu
+pracovní poštu ve štítcích a nechce, aby appka četla a třídila i soukromou.
 
 **Ranní načítání pošty.** Volitelné a zapíná se zvlášť
 (`mail_accounts.auto_sync_at`). V úterý, ve středu a ve čtvrtek

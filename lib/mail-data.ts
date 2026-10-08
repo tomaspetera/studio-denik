@@ -56,7 +56,7 @@ import {
 } from "./ai";
 import { TRIAGE_BODY_MAX, TRIAGE_JSON_SCHEMA, buildTriagePrompt, finishTriage } from "./mail-triage";
 import { mailCounts, type MailCounts, type MailPriority } from "./mail-buckets";
-import { pickLabels, readLabels, type MailLabel } from "./mail-labels";
+import { mailSources, pickLabels, readLabels, type MailLabel } from "./mail-labels";
 import { listCategories, listClients } from "./tasks";
 import { dateKeyPrague, todayKeyPrague } from "./domain";
 
@@ -277,7 +277,7 @@ async function syncMailboxWith(supabase: Db, orgId: string, userId: string, trid
     .maybeSingle();
   if (!ucet) return { ok: false, message: "Schránka není připojená." };
 
-  // Jen štítky, které si majitel schránky sám vybral; bez výběru jen doručená pošta.
+  // Zdroje, které si majitel schránky sám vybral; bez výběru jen doručená pošta.
   const stitky = readLabels(ucet.labels);
 
   try {
@@ -286,7 +286,7 @@ async function syncMailboxWith(supabase: Db, orgId: string, userId: string, trid
       accessToken,
       OKNO_DNI,
       ucet.email as string,
-      stitky.map((s) => s.id),
+      mailSources(stitky),
     );
 
     const [kontakty, { data: ignorovani }, { data: stavajici }] = await Promise.all([

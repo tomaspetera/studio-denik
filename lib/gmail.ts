@@ -195,9 +195,10 @@ function hlavicka(z: Zprava, jmeno: string): string | null {
 }
 
 /**
- * Doručená pošta za posledních `days` dní, po vláknech. K ní zprávy se štítky
- * `labelIds`, které si majitel schránky sám vybral (`mail-labels.ts`) — pro
- * toho, komu Gmail poštu filtrem přesouvá mimo doručenou.
+ * Pošta za posledních `days` dní, po vláknech: z doručené pošty, ze štítků,
+ * které si majitel schránky sám vybral, nebo z obojího (`sources`, viz
+ * `mailSources` v `mail-labels.ts`). Štítky jsou pro toho, komu Gmail poštu
+ * filtrem přesouvá mimo doručenou.
  *
  * Štítek, který mezitím v Gmailu zanikl, načtení neshodí: vrátí se
  * v `missingLabels` a zbytek pošty se načte bez něj.
@@ -216,7 +217,7 @@ export async function fetchInbox(
   accessToken: string,
   days: number,
   myEmail: string,
-  labelIds: string[] = [],
+  sources: { inbox: boolean; labelIds: string[] } = { inbox: true, labelIds: [] },
   maxThreads = 60,
 ): Promise<{ messages: RawMessage[]; missingLabels: string[] }> {
   const ja = myEmail.trim().toLowerCase();
@@ -228,9 +229,10 @@ export async function fetchInbox(
     return (s.threads ?? []).map((t) => t.id).filter((id): id is string => Boolean(id));
   };
 
-  const zdroje = [await seznam(`threads?q=${encodeURIComponent(`${DOTAZ} ${stari}`)}`)];
+  // Doručená pošta se čte, jen když ji majitel schránky mezi zdroji má (`mailSources`).
+  const zdroje = sources.inbox ? [await seznam(`threads?q=${encodeURIComponent(`${DOTAZ} ${stari}`)}`)] : [];
   const missingLabels: string[] = [];
-  for (const id of labelIds) {
+  for (const id of sources.labelIds) {
     try {
       zdroje.push(await seznam(`threads?labelIds=${encodeURIComponent(id)}&q=${encodeURIComponent(`${DOTAZ_STITEK} ${stari}`)}`));
     } catch (e) {

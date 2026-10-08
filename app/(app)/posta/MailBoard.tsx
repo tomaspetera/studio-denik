@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { csDate, plural, type DateKey } from "@/lib/domain";
 import type { MailRow } from "@/lib/mail-data";
 import { mailBucket, sortWaiting } from "@/lib/mail-buckets";
-import { LABELS_MAX, labelRows, sourcesLabel, withChildren, type MailLabel } from "@/lib/mail-labels";
+import { INBOX_ID, LABELS_MAX, labelRows, mailSources, sourcesLabel, withChildren, type MailLabel } from "@/lib/mail-labels";
 import type { Category, Client } from "@/lib/tasks";
 import {
   disconnectMailAction,
@@ -124,8 +124,17 @@ export default function MailBoard({
     startTransition(async () => {
       const res = await listGmailLabelsAction();
       if (!res.ok) setHlaska(res.message);
-      // Štítek, který mezitím v Gmailu zanikl, z výběru vypadne.
-      else setStitky({ all: res.labels, picked: ulozene.map((l) => l.id).filter((id) => res.labels.some((l) => l.id === id)) });
+      // Štítek, který mezitím v Gmailu zanikl, z výběru vypadne. Doručená pošta
+      // je zaškrtnutá, když se zatím čte — tedy i u schránky bez jakéhokoli výběru.
+      else {
+        setStitky({
+          all: res.labels,
+          picked: [
+            ...(mailSources(ulozene).inbox ? [INBOX_ID] : []),
+            ...ulozene.map((l) => l.id).filter((id) => res.labels.some((l) => l.id === id)),
+          ],
+        });
+      }
     });
   }
 
@@ -134,7 +143,9 @@ export default function MailBoard({
     setStitky((s) => {
       if (!s) return s;
       if (s.picked.includes(id)) return { ...s, picked: s.picked.filter((x) => x !== id) };
-      return { ...s, picked: [...new Set([...s.picked, ...withChildren(s.all, id)])] };
+      // Doručená pošta mezi štítky z Gmailu není — je to zdroj navíc, bez podštítků.
+      const pridat = id === INBOX_ID ? [INBOX_ID] : withChildren(s.all, id);
+      return { ...s, picked: [...new Set([...s.picked, ...pridat])] };
     });
   }
 
@@ -207,6 +218,9 @@ export default function MailBoard({
   const aiPovolena = Boolean(account.aiConsentAt);
   const tridiSe = aiPovolena && Boolean(account.aiAutoAt);
   const ctePrilohy = aiPovolena && Boolean(account.aiFilesAt);
+  // Odkud se pošta načítá: doručená pošta, vybrané štítky, nebo obojí.
+  const zdroje = mailSources(account.labels);
+  const vybraneStitky = account.labels.filter((l) => l.id !== INBOX_ID);
   const zaneprazdnen = pending || ukol.pending || odpoved.pending;
 
   return (
@@ -253,30 +267,34 @@ export default function MailBoard({
             a Sociální sítě. Odpovídá se vždycky v Gmailu — appka umí jen číst.
           </p>
 
-          <h3 className={styles.sub3}>Štítky z Gmailu</h3>
+          <h3 className={styles.sub3}>Odkud se pošta načítá</h3>
           {!stitky ? (
             <>
               <p className={styles.note}>
-                {account.labels.length === 0
+                {vybraneStitky.length === 0
                   ? "Načítá se jen doručená pošta. Když ti Gmail poštu filtrem přesouvá do štítků mimo doručenou, vyber je tady — jinak je appka neuvidí."
-                  : `Navíc k doručené poště se načítá: ${account.labels.map((l) => l.name).join(", ")}.`}
+                  : zdroje.inbox
+                    ? `Načítá se doručená pošta a štítky: ${vybraneStitky.map((l) => l.name).join(", ")}.`
+                    : `Načítají se jen štítky: ${vybraneStitky.map((l) => l.name).join(", ")}. Doručená pošta se nenačítá.`}
               </p>
               <button type="button" className="btn btn-sm" disabled={zaneprazdnen} onClick={() => otevriStitky(account.labels)}>
-                {account.labels.length === 0 ? "Vybrat štítky" : "Změnit štítky"}
+                {vybraneStitky.length === 0 ? "Vybrat štítky" : "Změnit výběr"}
               </button>
-            </>
-          ) : stitky.all.length === 0 ? (
-            <>
-              <p className={styles.note}>V Gmailu nemáš žádné vlastní štítky.</p>
-              <button type="button" className="btn btn-sm btn-ghost" onClick={() => setStitky(null)}>Zavřít</button>
             </>
           ) : (
             <>
               <p className={styles.note}>
-                Zaškrtni štítky, ze kterých se má pošta načítat navíc k doručené. Podštítek je v Gmailu
-                samostatný štítek — s nadřazeným se zaškrtne taky a jde odškrtnout zvlášť.
+                Zaškrtni, odkud se má pošta načítat. Když máš všechnu pracovní poštu ve štítcích, můžeš
+                doručenou poštu odškrtnout — appka pak čte a třídí jen štítky. Podštítek je v Gmailu
+                samostatný štítek: s nadřazeným se zaškrtne taky a jde odškrtnout zvlášť.
               </p>
               <ul className={styles.labelList}>
+                <li className={styles.labelInbox}>
+                  <label>
+                    <input type="checkbox" checked={stitky.picked.includes(INBOX_ID)} onChange={() => prepniStitek(INBOX_ID)} />
+                    <span>Doručená pošta</span>
+                  </label>
+                </li>
                 {labelRows(stitky.all).map((l) => (
                   <li key={l.id} style={{ paddingLeft: l.depth * 22 }}>
                     <label>
@@ -286,20 +304,28 @@ export default function MailBoard({
                   </li>
                 ))}
               </ul>
+              {stitky.all.length === 0 && <p className={styles.note}>V Gmailu nemáš žádné vlastní štítky.</p>}
+              {stitky.picked.length === 0 && (
+                <p className={styles.warn}>Vyber aspoň doručenou poštu nebo jeden štítek — jinak by appka neměla co číst.</p>
+              )}
               {stitky.picked.length > LABELS_MAX && (
-                <p className={styles.warn}>Najednou jde načítat nejvýš {LABELS_MAX} štítků — některé odškrtni.</p>
+                <p className={styles.warn}>Najednou jde načítat nejvýš {LABELS_MAX} zdrojů — některé odškrtni.</p>
               )}
               <div className={styles.row}>
                 <button
                   type="button"
                   className="btn btn-sm btn-primary"
-                  disabled={zaneprazdnen || stitky.picked.length > LABELS_MAX}
+                  disabled={zaneprazdnen || stitky.picked.length === 0 || stitky.picked.length > LABELS_MAX}
                   onClick={() =>
                     run(() => setMailLabelsAction(stitky.picked), () => {
+                      const sDorucenou = stitky.picked.includes(INBOX_ID);
+                      const seStitky = stitky.picked.some((id) => id !== INBOX_ID);
                       setStitky(null);
-                      return stitky.picked.length === 0
-                        ? "Uloženo — načítá se zase jen doručená pošta. Klikni na Obnovit."
-                        : "Štítky jsou uložené. Klikni na Obnovit a pošta se načte i z nich.";
+                      return !seStitky
+                        ? "Uloženo — načítá se jen doručená pošta. Klikni na Obnovit."
+                        : sDorucenou
+                          ? "Uloženo — načítá se doručená pošta i vybrané štítky. Klikni na Obnovit."
+                          : "Uloženo — načítají se jen vybrané štítky, doručená pošta ne. Klikni na Obnovit.";
                     })
                   }
                 >

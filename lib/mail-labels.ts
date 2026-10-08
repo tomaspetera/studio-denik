@@ -20,6 +20,14 @@ export type MailLabel = {
   name: string;
 };
 
+/**
+ * Doručená pošta je jedním ze zdrojů, ze kterých jde vybírat — v Gmailu má
+ * pevný identifikátor. Kdo má všechnu pracovní poštu ve štítcích, může ji
+ * odškrtnout a appka pak čte jen štítky (a netřídí soukromou poštu z doručené).
+ */
+export const INBOX_ID = "INBOX";
+export const INBOX_LABEL: MailLabel = { id: INBOX_ID, name: "Doručená pošta" };
+
 /** Víc štítků už je spíš omyl — a každý znamená další dotaz na Gmail při každém načtení. */
 export const LABELS_MAX = 20;
 
@@ -29,19 +37,31 @@ const ID = /^[A-Za-z0-9_-]{1,100}$/;
  * Výběr štítků tak, jak se uloží: jen štítky, které v Gmailu opravdu jsou
  * (`available`), se jménem z Gmailu, ne z prohlížeče. Neznámé identifikátory
  * se zahodí, opakované taky. Řadí se podle jména, ať je nadřazený štítek před
- * svými podštítky.
+ * svými podštítky; doručená pošta (`INBOX_ID`) je první.
+ *
+ * Jen doručená pošta je výchozí stav a ukládá se jako prázdný výběr — stejně
+ * jako u schránky, kde nikdo nic nevybíral.
  */
 export function pickLabels(ids: unknown, available: MailLabel[]): MailLabel[] {
   if (!Array.isArray(ids)) return [];
   const chteno = new Set(ids.filter((id): id is string => typeof id === "string" && ID.test(id)));
-  const out: MailLabel[] = [];
+  const out: MailLabel[] = chteno.has(INBOX_ID) ? [INBOX_LABEL] : [];
   const podleJmena = [...available].sort((a, b) => a.name.localeCompare(b.name, "cs", { sensitivity: "base" }));
   for (const l of podleJmena) {
-    if (!chteno.has(l.id) || out.some((x) => x.id === l.id)) continue;
-    out.push({ id: l.id, name: l.name });
+    if (l.id === INBOX_ID || !chteno.has(l.id) || out.some((x) => x.id === l.id)) continue;
     if (out.length === LABELS_MAX) break;
+    out.push({ id: l.id, name: l.name });
   }
-  return out;
+  return out.length === 1 && out[0].id === INBOX_ID ? [] : out;
+}
+
+/**
+ * Odkud se má pošta načíst. Bez výběru jen z doručené. S výběrem ze štítků —
+ * a z doručené jen tehdy, když je mezi vybranými i ona.
+ */
+export function mailSources(labels: MailLabel[]): { inbox: boolean; labelIds: string[] } {
+  const labelIds = labels.filter((l) => l.id !== INBOX_ID).map((l) => l.id);
+  return { inbox: labelIds.length === 0 || labels.some((l) => l.id === INBOX_ID), labelIds };
 }
 
 /** Uložený výběr přečtený z databáze — cokoli, co nemá správný tvar, se přeskočí. */
@@ -99,9 +119,11 @@ export function withChildren(labels: MailLabel[], id: string): string[] {
 
 /** Odkud se pošta načítá, jednou větou do nastavení. */
 export function sourcesLabel(labels: MailLabel[]): string {
-  if (labels.length === 0) return "z doručené pošty";
-  const jmena = labels.map((l) => `„${l.name}“`).join(", ");
-  return labels.length === 1 ? `z doručené pošty a ze štítku ${jmena}` : `z doručené pošty a ze štítků ${jmena}`;
+  const stitky = labels.filter((l) => l.id !== INBOX_ID);
+  if (stitky.length === 0) return "z doručené pošty";
+  const jmena = stitky.map((l) => `„${l.name}“`).join(", ");
+  const zeStitku = stitky.length === 1 ? `ze štítku ${jmena}` : `ze štítků ${jmena}`;
+  return mailSources(labels).inbox ? `z doručené pošty a ${zeStitku}` : `jen ${zeStitku}`;
 }
 
 /**

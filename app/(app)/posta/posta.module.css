@@ -159,6 +159,7 @@
   cursor: pointer;
 }
 .labelList span { overflow-wrap: anywhere; }
+.labelInbox { border-bottom: 1px solid var(--line); margin-bottom: var(--s2); padding-bottom: var(--s2); font-weight: 600; }
 
 .signature {
   display: flex;

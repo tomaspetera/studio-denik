@@ -23,7 +23,7 @@ export default function SoukromiPage() {
         <Link href="/prihlaseni" className={styles.back}>← Studio Deník</Link>
 
         <h1 className={styles.h1}>Zásady ochrany soukromí</h1>
-        <p className={styles.meta}>Studio Deník · poslední změna 5. října 2026</p>
+        <p className={styles.meta}>Studio Deník · poslední změna 8. října 2026</p>
 
         <h2>Co je Studio Deník</h2>
         <p>
@@ -49,10 +49,10 @@ export default function SoukromiPage() {
             Odpověď Gmailu obsahuje i krátký úryvek zprávy; aplikace ho nepoužívá a neukládá.
           </li>
           <li>
-            Čte se doručená pošta. Pokud si v nastavení vybereš štítky, čtou se i zprávy s těmito
-            štítky — pro případ, že ti Gmail poštu přesouvá mimo doručenou. Kvůli tomu výběru
-            aplikace načte seznam názvů tvých štítků; uloží jen názvy a identifikátory těch, které
-            vybereš.
+            Čte se doručená pošta. V nastavení si můžeš vybrat štítky, ze kterých se čte taky —
+            pro případ, že ti Gmail poštu přesouvá mimo doručenou — a doručenou poštu můžeš
+            z načítání vyřadit, takže se pak čtou jen vybrané štítky. Kvůli tomu výběru aplikace
+            načte seznam názvů tvých štítků; uloží jen názvy a identifikátory těch, které vybereš.
           </li>
           <li>
             Pošta se načítá ve chvíli, kdy v aplikaci klikneš na „Obnovit“. Pokud si zvlášť zapneš
@@ -192,7 +192,8 @@ export default function SoukromiPage() {
           Studio Deník is a private work tool for a small graphic design studio. If you connect
           Gmail, it requests the read-only scope <code>gmail.readonly</code>. For the mail overview
           it reads only message headers (sender, subject, date) of the inbox and, if the mailbox
-          owner selects Gmail labels, of messages carrying those labels; to offer that choice it reads
+          owner selects Gmail labels, of messages carrying those labels (the owner may also exclude
+          the inbox, so that only the selected labels are read); to offer that choice it reads
           the list of the user’s label names and stores only the names and IDs of the selected ones.
           Mail is loaded when the user clicks
           “Refresh”; if the mailbox owner separately enables scheduled loading, the app also loads

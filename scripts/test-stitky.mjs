@@ -7,8 +7,11 @@
  * (v Gmailu samostatné štítky) se chovají tak, jak člověk čeká.
  */
 import {
+  INBOX_ID,
+  INBOX_LABEL,
   LABELS_MAX,
   labelRows,
+  mailSources,
   mergeThreadIds,
   pickLabels,
   readLabels,
@@ -38,7 +41,7 @@ const GMAIL = [
 // --- Co se uloží ---------------------------------------------------------------------
 let v = pickLabels(["Label_1", "Label_2"], GMAIL);
 zkouska("výběr", stejne(v, [{ id: "Label_1", name: "Ultra_Marine" }, { id: "Label_2", name: "Ultra_Marine/MRL" }]), "vybrané štítky se jménem z Gmailu, nadřazený před podštítkem");
-v = pickLabels(["Label_1", "Label_999", "INBOX", "Label_1"], GMAIL);
+v = pickLabels(["Label_1", "Label_999", "SENT", "Label_1"], GMAIL);
 zkouska("neznámý štítek", stejne(v.map((l) => l.id), ["Label_1"]), "co v Gmailu není (i systémový štítek), se neuloží; opakování taky ne");
 v = pickLabels([{ id: "Label_1", name: "Podvrh" }, 42, null, "Label 1", "a".repeat(200)], GMAIL);
 zkouska("nesmysly z prohlížeče", v.length === 0, "cokoli jiného než identifikátor se zahodí");
@@ -66,9 +69,22 @@ zkouska("podobné jméno", stejne(withChildren([{ id: "a", name: "Ultra" }, { id
 zkouska("neznámý", withChildren(GMAIL, "nic").length === 0, "neznámý identifikátor nevybere nic");
 
 // --- Odkud se načítá ---------------------------------------------------------------------------------
-zkouska("věta: jen doručená", sourcesLabel([]) === "z doručené pošty", "bez výběru jako dosud");
-zkouska("věta: jeden štítek", sourcesLabel([{ id: "Label_1", name: "Ultra_Marine" }]) === "z doručené pošty a ze štítku „Ultra_Marine“", "jeden štítek");
-zkouska("věta: víc štítků", sourcesLabel([{ id: "Label_1", name: "Ultra_Marine" }, { id: "Label_2", name: "Ultra_Marine/MRL" }]) === "z doručené pošty a ze štítků „Ultra_Marine“, „Ultra_Marine/MRL“", "víc štítků");
+zkouska("věta: jen doručená", sourcesLabel([]) === "z doručené pošty" && sourcesLabel([INBOX_LABEL]) === "z doručené pošty", "bez výběru jako dosud");
+zkouska("věta: jen štítek", sourcesLabel([{ id: "Label_1", name: "Ultra_Marine" }]) === "jen ze štítku „Ultra_Marine“", "štítek bez doručené pošty");
+zkouska("věta: jen štítky", sourcesLabel([{ id: "Label_1", name: "Ultra_Marine" }, { id: "Label_2", name: "Ultra_Marine/MRL" }]) === "jen ze štítků „Ultra_Marine“, „Ultra_Marine/MRL“", "víc štítků bez doručené pošty");
+zkouska("věta: obojí", sourcesLabel([INBOX_LABEL, { id: "Label_1", name: "Ultra_Marine" }]) === "z doručené pošty a ze štítku „Ultra_Marine“" && sourcesLabel([INBOX_LABEL, { id: "Label_1", name: "Ultra_Marine" }, { id: "Label_2", name: "Ultra_Marine/MRL" }]) === "z doručené pošty a ze štítků „Ultra_Marine“, „Ultra_Marine/MRL“", "doručená pošta i štítky");
+
+// --- Doručená pošta jako jeden ze zdrojů -----------------------------------------------------------
+zkouska("zdroje: bez výběru", stejne(mailSources([]), { inbox: true, labelIds: [] }), "kdo nic nevybral, čte doručenou poštu");
+zkouska("zdroje: jen štítky", stejne(mailSources([{ id: "Label_1", name: "Ultra_Marine" }, { id: "Label_2", name: "Ultra_Marine/MRL" }]), { inbox: false, labelIds: ["Label_1", "Label_2"] }), "výběr bez doručené pošty ji vynechá — nečte se a netřídí");
+zkouska("zdroje: obojí", stejne(mailSources([INBOX_LABEL, { id: "Label_1", name: "Ultra_Marine" }]), { inbox: true, labelIds: ["Label_1"] }), "doručená pošta se čte, jen když je mezi vybranými");
+zkouska("zdroje: jen doručená", stejne(mailSources([INBOX_LABEL]), { inbox: true, labelIds: [] }), "doručená pošta sama");
+v = pickLabels([INBOX_ID, "Label_2", "Label_1"], GMAIL);
+zkouska("výběr s doručenou", stejne(v, [INBOX_LABEL, { id: "Label_1", name: "Ultra_Marine" }, { id: "Label_2", name: "Ultra_Marine/MRL" }]), "doručená pošta první, pak štítky podle jména");
+zkouska("výběr: jen doručená", pickLabels([INBOX_ID], GMAIL).length === 0 && pickLabels([INBOX_ID, "Label_999"], GMAIL).length === 0, "jen doručená pošta je výchozí stav — uloží se prázdný výběr");
+zkouska("výběr: podvržená doručená", stejne(pickLabels(["Label_1"], [...GMAIL, { id: INBOX_ID, name: "Podvrh" }]), [{ id: "Label_1", name: "Ultra_Marine" }]) && stejne(pickLabels([INBOX_ID, "Label_1"], [...GMAIL, { id: INBOX_ID, name: "Podvrh" }])[0], INBOX_LABEL), "jméno doručené pošty určuje appka, ne seznam z Gmailu");
+zkouska("výběr: strop s doručenou", pickLabels([INBOX_ID, ...mnoho.map((l) => l.id)], mnoho).length === LABELS_MAX, "strop platí i s doručenou poštou — databáze víc nepřijme");
+zkouska("uložená doručená", stejne(readLabels([{ id: "INBOX", name: "Doručená pošta" }, { id: "Label_1", name: "Ultra_Marine" }]), [INBOX_LABEL, { id: "Label_1", name: "Ultra_Marine" }]), "výběr s doručenou poštou se z databáze přečte celý");
 
 // --- Slučování vláken ---------------------------------------------------------------------------------
 zkouska("sloučení", stejne(mergeThreadIds([["a", "b", "c"], ["x", "b"], ["y"]], 90), ["a", "x", "y", "b", "c"]), "střídavě z každého zdroje, stejné vlákno jen jednou");
