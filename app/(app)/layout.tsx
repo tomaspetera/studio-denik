@@ -1,11 +1,11 @@
 import { redirect } from "next/navigation";
-import Link from "next/link";
 import { getWorkspace } from "@/lib/workspace";
 import { signOut } from "../prihlaseni/actions";
 import Nav from "./Nav";
 import ThemeToggle from "./ThemeToggle";
 import GlobalSearch from "./GlobalSearch";
 import PushSetup from "./PushSetup";
+import WriteButton from "./WriteButton";
 import styles from "./shell.module.css";
 
 export const dynamic = "force-dynamic";
@@ -61,10 +61,7 @@ export default async function AppLayout({
             <div className={styles.spacer} />
             <PushSetup />
             <ThemeToggle />
-            <Link href="/ukoly?zapsat=1" className="btn btn-primary">
-              <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" /></svg>
-              <span>Zapsat</span>
-            </Link>
+            <WriteButton />
           </div>
         </header>
         <div className={styles.view}>{children}</div>

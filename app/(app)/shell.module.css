@@ -95,6 +95,25 @@
 .navbtn:hover { background: var(--raise); color: var(--ink); }
 .navOn { background: var(--sunk); color: var(--ink); font-weight: 600; }
 
+/* „Více“ — stránky, na které se chodí zřídka. Na počítači sbalená skupina
+   v postranním panelu; rozbalí se kliknutím, nebo sama, když na některé z nich
+   člověk je. */
+.moreBtn {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  font-size: 13.5px;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+  color: var(--muted);
+}
+.moreList { display: none; flex-direction: column; gap: 1px; }
+.moreOpen .moreList, .moreActive .moreList { display: flex; }
+/* Stránky, které jsou na telefonu pod „Více“, na počítači mají místo nahoře. */
+.navPhone { display: none; }
+
 .foot {
   margin-top: auto;
   display: flex;
@@ -246,6 +265,36 @@
   /* Obě skupiny se rozpustí, aby si všech pět tlačítek dělilo šířku rovným
      dílem — jinak by si je dvě skupiny rozdělily napůl. */
   .nav { display: contents; }
+
+  /* Do lišty se vejdou čtyři stránky a „Více“. Zbytek je v nabídce nad ním —
+     ta se na telefonu otevírá jen kliknutím, ne sama. */
+  .navDesk { display: none; }
+  .navPhone { display: flex; }
+  .nav.more { display: flex; flex: 1 1 0; min-width: 0; position: relative; margin-top: 0; }
+  .moreBtn { flex: 1; width: auto; font-size: 10px; text-align: center; }
+  .moreBtnOn { background: var(--sunk); color: var(--ink); font-weight: 600; }
+  .moreActive .moreList { display: none; }
+  .moreOpen .moreList {
+    display: flex;
+    position: absolute;
+    right: 0;
+    bottom: calc(100% + 10px);
+    min-width: 190px;
+    padding: var(--s1);
+    gap: 1px;
+    background: var(--surface);
+    border: 1px solid var(--line-2);
+    border-radius: var(--r3);
+    box-shadow: var(--sh-3);
+  }
+  .moreList .navbtn {
+    flex: none;
+    flex-direction: row;
+    justify-content: flex-start;
+    gap: 11px;
+    font-size: 13.5px;
+    padding: 10px 12px;
+  }
 
   .navbtn {
     flex: 1 1 0;

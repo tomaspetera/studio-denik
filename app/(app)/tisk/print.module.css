@@ -29,6 +29,36 @@
   gap: var(--s4);
 }
 
+.calm {
+  padding: var(--s6) var(--s5);
+  text-align: center;
+  color: var(--muted);
+  font-size: 13.5px;
+  border: 1px dashed var(--line-2);
+  border-radius: var(--r3);
+  margin: 0;
+}
+
+/* Uzavřené zakázky jsou archiv — sbalené, ať nepřekrývají ty, které běží. */
+.closed { margin-top: var(--s6); }
+.closed summary {
+  cursor: pointer;
+  width: fit-content;
+  padding: var(--s2) var(--s1);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.closed summary:hover { color: var(--ink); }
+.closed summary em {
+  font-style: normal;
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--faint);
+  margin-left: 4px;
+}
+.closed[open] summary { margin-bottom: var(--s3); }
+
 /* ---------------------------------------------------------------- */
 /* Karta zakázky                                                     */
 /* ---------------------------------------------------------------- */

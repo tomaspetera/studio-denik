@@ -21,7 +21,24 @@ export default function PrintBoard({ jobs }: { jobs: PrintJob[] }) {
   const [editing, setEditing] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
-  const late = jobs.filter((j) => j.daysLeft !== null && j.daysLeft < 0).length;
+  // Uzavřené zakázky jsou archiv — nahoře mají být jen ty, které běží.
+  const jeUzavrena = (j: PrintJob) => j.ball === "done" || Boolean(j.handedAt);
+  const bezici = jobs.filter((j) => !jeUzavrena(j));
+  const uzavrene = jobs.filter(jeUzavrena);
+  const late = bezici.filter((j) => j.daysLeft !== null && j.daysLeft < 0).length;
+
+  const karta = (j: PrintJob) => (
+    <Job
+      key={j.taskId}
+      job={j}
+      editing={editing === j.taskId}
+      pending={pending}
+      onEdit={() => setEditing(editing === j.taskId ? null : j.taskId)}
+      onSaved={() => { setEditing(null); router.refresh(); }}
+      onDeliver={() => act(() => confirmDeliveryAction(j.taskId))}
+      onNudge={() => act(() => nudgeAction(j.taskId))}
+    />
+  );
 
   function act(fn: () => Promise<unknown>) {
     startTransition(async () => {
@@ -38,8 +55,9 @@ export default function PrintBoard({ jobs }: { jobs: PrintJob[] }) {
           <p className={styles.sub}>
             {jobs.length === 0
               ? "Žádné tiskové zakázky"
-              : `${jobs.length} ${plural(jobs.length, "zakázka", "zakázky", "zakázek")}` +
-                (late > 0 ? ` · ${late} po termínu` : "")}
+              : `${bezici.length} ${plural(bezici.length, "běžící zakázka", "běžící zakázky", "běžících zakázek")}` +
+                (late > 0 ? ` · ${late} po termínu` : "") +
+                (uzavrene.length > 0 ? ` · ${uzavrene.length} ${plural(uzavrene.length, "uzavřená", "uzavřené", "uzavřených")}` : "")}
           </p>
         </div>
       </header>
@@ -57,20 +75,22 @@ export default function PrintBoard({ jobs }: { jobs: PrintJob[] }) {
           </Link>
         </div>
       ) : (
-        <div className={styles.grid}>
-          {jobs.map((j) => (
-            <Job
-              key={j.taskId}
-              job={j}
-              editing={editing === j.taskId}
-              pending={pending}
-              onEdit={() => setEditing(editing === j.taskId ? null : j.taskId)}
-              onSaved={() => { setEditing(null); router.refresh(); }}
-              onDeliver={() => act(() => confirmDeliveryAction(j.taskId))}
-              onNudge={() => act(() => nudgeAction(j.taskId))}
-            />
-          ))}
-        </div>
+        <>
+          {bezici.length === 0 ? (
+            <p className={styles.calm}>Žádná zakázka teď neběží — všechny jsou předané.</p>
+          ) : (
+            <div className={styles.grid}>{bezici.map(karta)}</div>
+          )}
+
+          {uzavrene.length > 0 && (
+            <details className={styles.closed}>
+              <summary>
+                Uzavřené zakázky <em>{uzavrene.length}</em>
+              </summary>
+              <div className={styles.grid}>{uzavrene.map(karta)}</div>
+            </details>
+          )}
+        </>
       )}
     </div>
   );
