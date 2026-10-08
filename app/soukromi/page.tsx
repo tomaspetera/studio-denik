@@ -62,13 +62,13 @@ export default function SoukromiPage() {
           </li>
           <li>
             Text zprávy aplikace načte jen u jedné konkrétní zprávy, a to ve chvíli, kdy u ní sám
-            klikneš na „Udělat úkol“ nebo „Návrh odpovědi“ a máš zapnutou pomoc umělé inteligence
+            klikneš na „Úkol“ nebo „Odpověď“ a máš zapnutou pomoc umělé inteligence
             (viz níže). Pokud si navíc zapneš automatické třídění, načte při načtení pošty i text
             nových zpráv, které čekají na tvou odpověď.
           </li>
           <li>
             Přílohy aplikace načte jen tehdy, když si jejich čtení zvlášť zapneš, a jen u té jedné
-            zprávy, u které klikneš na „Udělat úkol“ nebo „Návrh odpovědi“. Bez toho je nečte
+            zprávy, u které klikneš na „Úkol“ nebo „Odpověď“. Bez toho je nečte
             nikdy, a automatické třídění je nečte ani potom.
           </li>
           <li>
@@ -105,7 +105,7 @@ export default function SoukromiPage() {
         <p>
           Pomoc umělé inteligence s e-mailem je volitelná funkce. Majitel schránky ji musí
           výslovně povolit a může ji kdykoli vypnout v nastavení pošty. Je-li zapnutá a klikneš
-          u zprávy na „Udělat úkol“ nebo „Návrh odpovědi“, odešle se odesílatel, předmět, datum
+          u zprávy na „Úkol“ nebo „Odpověď“, odešle se odesílatel, předmět, datum
           a text <strong>této jedné zprávy</strong> (bez příloh) ke zpracování službě Google Gemini
           API, která vrátí návrh úkolu, záznamu poptávky nebo odpovědi. U návrhu odpovědi se odešle
           i to, co do okna sám napíšeš jako pokyn. Děje se to jen na tvoje kliknutí. Úkol nebo
@@ -114,7 +114,7 @@ export default function SoukromiPage() {
         </p>
         <p>
           Čtení příloh je další volitelná funkce a zapíná se zvlášť. Je-li zapnutá a klikneš
-          u zprávy na „Udělat úkol“ nebo „Návrh odpovědi“, odešlou se službě Google Gemini API
+          u zprávy na „Úkol“ nebo „Odpověď“, odešlou se službě Google Gemini API
           spolu s textem i přílohy <strong>této jedné zprávy</strong> — jen soubory PDF a obrázky,
           nejvýš čtyři, každý do 5 MB. Jiné typy souborů se neodesílají. Přílohy se nikam
           neukládají; do úkolu nebo poptávky se z nich dostane jen to, co sám potvrdíš. Bez
@@ -206,7 +206,7 @@ export default function SoukromiPage() {
           <strong>By default, no Gmail data is sent to any artificial intelligence service.</strong>{" "}
           Triage is done by fixed rules inside the application. An optional feature, which the
           mailbox owner must explicitly enable and can turn off at any time, lets the user click
-          “Create task” or “Draft reply” on a single message: the sender, subject, date and text of
+          “Task” or “Reply” on a single message: the sender, subject, date and text of
           that one message, plus any instruction the user types for the reply, are then sent to the
           Google Gemini API to propose a task, a sales-lead record or a reply draft. Attachments are
           not included unless the mailbox owner has separately enabled attachment reading; in that

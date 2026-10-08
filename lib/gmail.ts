@@ -282,7 +282,7 @@ export async function fetchInbox(
 
 /**
  * Jedna zpráva celá, včetně textu. Na rozdíl od přehledu pošty tohle Gmail
- * žádá o obsah — volá se proto jen na výslovné kliknutí („Udělat úkol“)
+ * žádá o obsah — volá se proto jen na výslovné kliknutí („Úkol“)
  * a jen když majitel schránky povolil návrh úkolu pomocí AI. Výsledek se
  * nikam neukládá.
  */

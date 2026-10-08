@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { csDate, plural, type DateKey } from "@/lib/domain";
 import type { MailRow } from "@/lib/mail-data";
@@ -92,6 +92,8 @@ export default function MailBoard({
   const [uspech, setUspech] = useState<string | null>(justConnected ? "Schránka je připojená. Načti poštu tlačítkem Obnovit." : null);
   const [odpojit, setOdpojit] = useState(false);
   const [nastaveni, setNastaveni] = useState(false);
+  /** Zpráva, u které je otevřená nabídka s méně častými akcemi. */
+  const [menu, setMenu] = useState<string | null>(null);
   const [podpis, setPodpis] = useState(signature ?? "");
   /** Výběr štítků v nastavení: `null` = zavřený; jinak štítky z Gmailu a co je zaškrtnuté. */
   const [stitky, setStitky] = useState<{ all: MailLabel[]; picked: string[] } | null>(null);
@@ -267,269 +269,268 @@ export default function MailBoard({
             a Sociální sítě. Odpovídá se vždycky v Gmailu — appka umí jen číst.
           </p>
 
-          <h3 className={styles.sub3}>Odkud se pošta načítá</h3>
-          {!stitky ? (
-            <>
-              <p className={styles.note}>
-                {vybraneStitky.length === 0
-                  ? "Načítá se jen doručená pošta. Když ti Gmail poštu filtrem přesouvá do štítků mimo doručenou, vyber je tady — jinak je appka neuvidí."
-                  : zdroje.inbox
-                    ? `Načítá se doručená pošta a štítky: ${vybraneStitky.map((l) => l.name).join(", ")}.`
-                    : `Načítají se jen štítky: ${vybraneStitky.map((l) => l.name).join(", ")}. Doručená pošta se nenačítá.`}
-              </p>
-              <button type="button" className="btn btn-sm" disabled={zaneprazdnen} onClick={() => otevriStitky(account.labels)}>
-                {vybraneStitky.length === 0 ? "Vybrat štítky" : "Změnit výběr"}
-              </button>
-            </>
-          ) : (
-            <>
-              <p className={styles.note}>
-                Zaškrtni, odkud se má pošta načítat. Když máš všechnu pracovní poštu ve štítcích, můžeš
-                doručenou poštu odškrtnout — appka pak čte a třídí jen štítky. Podštítek je v Gmailu
-                samostatný štítek: s nadřazeným se zaškrtne taky a jde odškrtnout zvlášť.
-              </p>
-              <ul className={styles.labelList}>
-                <li className={styles.labelInbox}>
-                  <label>
-                    <input type="checkbox" checked={stitky.picked.includes(INBOX_ID)} onChange={() => prepniStitek(INBOX_ID)} />
-                    <span>Doručená pošta</span>
-                  </label>
-                </li>
-                {labelRows(stitky.all).map((l) => (
-                  <li key={l.id} style={{ paddingLeft: l.depth * 22 }}>
+          <h3 className={styles.sub3}>Načítání</h3>
+
+          <div className={styles.set}>
+            <div className={styles.setHead}>
+              <div className={styles.setText}>
+                <b>Odkud se pošta načítá</b>
+                <span className={styles.setOn}>
+                  {vybraneStitky.length === 0
+                    ? "jen doručená pošta"
+                    : `${zdroje.inbox ? "doručená pošta a štítky" : "jen štítky"}: ${vybraneStitky.map((l) => l.name).join(", ")}`}
+                </span>
+              </div>
+              {!stitky && (
+                <button type="button" className="btn btn-sm" disabled={zaneprazdnen} onClick={() => otevriStitky(account.labels)}>
+                  Změnit
+                </button>
+              )}
+            </div>
+            {stitky && (
+              <div className={styles.setBody}>
+                <p className={styles.note}>
+                  Zaškrtni, odkud se má pošta načítat. Když máš všechnu pracovní poštu ve štítcích, můžeš
+                  doručenou poštu odškrtnout — appka pak čte a třídí jen štítky. Podštítek je v Gmailu
+                  samostatný štítek: s nadřazeným se zaškrtne taky a jde odškrtnout zvlášť.
+                </p>
+                <ul className={styles.labelList}>
+                  <li className={styles.labelInbox}>
                     <label>
-                      <input type="checkbox" checked={stitky.picked.includes(l.id)} onChange={() => prepniStitek(l.id)} />
-                      <span>{l.short}</span>
+                      <input type="checkbox" checked={stitky.picked.includes(INBOX_ID)} onChange={() => prepniStitek(INBOX_ID)} />
+                      <span>Doručená pošta</span>
                     </label>
                   </li>
-                ))}
-              </ul>
-              {stitky.all.length === 0 && <p className={styles.note}>V Gmailu nemáš žádné vlastní štítky.</p>}
-              {stitky.picked.length === 0 && (
-                <p className={styles.warn}>Vyber aspoň doručenou poštu nebo jeden štítek — jinak by appka neměla co číst.</p>
-              )}
-              {stitky.picked.length > LABELS_MAX && (
-                <p className={styles.warn}>Najednou jde načítat nejvýš {LABELS_MAX} zdrojů — některé odškrtni.</p>
-              )}
-              <div className={styles.row}>
-                <button
-                  type="button"
-                  className="btn btn-sm btn-primary"
-                  disabled={zaneprazdnen || stitky.picked.length === 0 || stitky.picked.length > LABELS_MAX}
-                  onClick={() =>
-                    run(() => setMailLabelsAction(stitky.picked), () => {
-                      const sDorucenou = stitky.picked.includes(INBOX_ID);
-                      const seStitky = stitky.picked.some((id) => id !== INBOX_ID);
-                      setStitky(null);
-                      return !seStitky
-                        ? "Uloženo — načítá se jen doručená pošta. Klikni na Obnovit."
-                        : sDorucenou
-                          ? "Uloženo — načítá se doručená pošta i vybrané štítky. Klikni na Obnovit."
-                          : "Uloženo — načítají se jen vybrané štítky, doručená pošta ne. Klikni na Obnovit.";
-                    })
-                  }
-                >
-                  Uložit výběr
-                </button>
-                <button type="button" className="btn btn-sm btn-ghost" onClick={() => setStitky(null)}>Zrušit</button>
+                  {labelRows(stitky.all).map((l) => (
+                    <li key={l.id} style={{ paddingLeft: l.depth * 22 }}>
+                      <label>
+                        <input type="checkbox" checked={stitky.picked.includes(l.id)} onChange={() => prepniStitek(l.id)} />
+                        <span>{l.short}</span>
+                      </label>
+                    </li>
+                  ))}
+                </ul>
+                {stitky.all.length === 0 && <p className={styles.note}>V Gmailu nemáš žádné vlastní štítky.</p>}
+                {stitky.picked.length === 0 && (
+                  <p className={styles.warn}>Vyber aspoň doručenou poštu nebo jeden štítek — jinak by appka neměla co číst.</p>
+                )}
+                {stitky.picked.length > LABELS_MAX && (
+                  <p className={styles.warn}>Najednou jde načítat nejvýš {LABELS_MAX} zdrojů — některé odškrtni.</p>
+                )}
+                <div className={styles.row}>
+                  <button
+                    type="button"
+                    className="btn btn-sm btn-primary"
+                    disabled={zaneprazdnen || stitky.picked.length === 0 || stitky.picked.length > LABELS_MAX}
+                    onClick={() =>
+                      run(() => setMailLabelsAction(stitky.picked), () => {
+                        const sDorucenou = stitky.picked.includes(INBOX_ID);
+                        const seStitky = stitky.picked.some((id) => id !== INBOX_ID);
+                        setStitky(null);
+                        return !seStitky
+                          ? "Uloženo — načítá se jen doručená pošta. Klikni na Obnovit."
+                          : sDorucenou
+                            ? "Uloženo — načítá se doručená pošta i vybrané štítky. Klikni na Obnovit."
+                            : "Uloženo — načítají se jen vybrané štítky, doručená pošta ne. Klikni na Obnovit.";
+                      })
+                    }
+                  >
+                    Uložit výběr
+                  </button>
+                  <button type="button" className="btn btn-sm btn-ghost" onClick={() => setStitky(null)}>Zrušit</button>
+                </div>
               </div>
-            </>
-          )}
+            )}
+          </div>
 
-          <h3 className={styles.sub3}>Ranní načítání pošty</h3>
-          {account.autoSyncAt ? (
-            <>
-              <p className={styles.note}>
-                Zapnuto. Každé úterý, středu a čtvrtek ráno appka poštu načte sama, i když ji nemáš
-                otevřenou — stejně jako tlačítkem Obnovit. Na stránce Dnes a v ranním upozornění
-                pak vidíš, kolik zpráv čeká na odpověď.
-                {tridiSe ? " Nové zprávy přitom rovnou roztřídí." : ""}
-              </p>
-              <button
-                type="button"
-                className="btn btn-sm"
-                disabled={zaneprazdnen}
-                onClick={() => run(() => setMailAutoSyncAction(false), () => "Ranní načítání pošty je vypnuté.")}
-              >
-                Vypnout ranní načítání
-              </button>
-            </>
-          ) : (
-            <>
-              <p className={styles.note}>
-                Vypnuto — pošta se načítá, jen když klikneš na Obnovit. Zapnutím dovolíš, aby ji appka
-                načetla <b>sama každé úterý, středu a čtvrtek ráno</b>, i když ji nemáš otevřenou.
-                Čte přitom totéž co při Obnovit: odesílatele, předmět a datum.
-                {tridiSe
-                  ? " Protože máš zapnuté automatické třídění, nové zprávy přitom rovnou roztřídí."
-                  : " Třídit je bude, jen když si zapneš i automatické třídění."}
-              </p>
+          <Setting
+            title="Ranní načítání"
+            on={Boolean(account.autoSyncAt)}
+            state={account.autoSyncAt ? "zapnuto — úterý, středa a čtvrtek ráno" : "vypnuto"}
+            action={
               <button
                 type="button"
                 className="btn btn-sm"
                 disabled={zaneprazdnen}
                 onClick={() =>
-                  run(() => setMailAutoSyncAction(true), () => "Ranní načítání pošty je zapnuté — v úterý, ve středu a ve čtvrtek ráno.")
+                  account.autoSyncAt
+                    ? run(() => setMailAutoSyncAction(false), () => "Ranní načítání pošty je vypnuté.")
+                    : run(() => setMailAutoSyncAction(true), () => "Ranní načítání pošty je zapnuté — v úterý, ve středu a ve čtvrtek ráno.")
                 }
               >
-                Zapnout ranní načítání
+                {account.autoSyncAt ? "Vypnout" : "Zapnout"}
               </button>
-            </>
-          )}
+            }
+          >
+            {account.autoSyncAt ? (
+              <p className={styles.note}>
+                Každé úterý, středu a čtvrtek ráno appka poštu načte sama, i když ji nemáš otevřenou —
+                stejně jako tlačítkem Obnovit. Na stránce Dnes a v ranním upozornění pak vidíš, kolik
+                zpráv čeká na odpověď.{tridiSe ? " Nové zprávy přitom rovnou roztřídí." : ""}
+              </p>
+            ) : (
+              <p className={styles.note}>
+                Pošta se načítá, jen když klikneš na Obnovit. Zapnutím dovolíš, aby ji appka načetla{" "}
+                <b>sama každé úterý, středu a čtvrtek ráno</b>, i když ji nemáš otevřenou. Čte přitom
+                totéž co při Obnovit: odesílatele, předmět a datum.
+                {tridiSe
+                  ? " Protože máš zapnuté automatické třídění, nové zprávy přitom rovnou roztřídí."
+                  : " Třídit je bude, jen když si zapneš i automatické třídění."}
+              </p>
+            )}
+          </Setting>
 
           {aiAvailable && (
             <>
-              <h3 className={styles.sub3}>Pomoc AI s e-mailem</h3>
-              {aiPovolena ? (
-                <>
-                  <p className={styles.note}>
-                    Zapnuto{aiSince ? ` od ${aiSince}` : ""}. Když u zprávy klikneš na „Udělat úkol“ nebo
-                    „Návrh odpovědi“, její text se pošle do služby Google Gemini a ta z něj navrhne úkol,
-                    poptávku nebo odpověď. Text zprávy se neukládá.
-                  </p>
+              <h3 className={styles.sub3}>Pomoc AI</h3>
+
+              <Setting
+                title="Úkol a odpověď z e-mailu"
+                on={aiPovolena}
+                state={aiPovolena ? `zapnuto${aiSince ? ` od ${aiSince}` : ""}` : "vypnuto"}
+                action={
                   <button
                     type="button"
                     className="btn btn-sm"
                     disabled={zaneprazdnen}
-                    onClick={() => run(() => setMailAiConsentAction(false), () => "Pomoc AI s e-mailem je vypnutá.")}
+                    onClick={() =>
+                      aiPovolena
+                        ? run(() => setMailAiConsentAction(false), () => "Pomoc AI s e-mailem je vypnutá.")
+                        : run(() => setMailAiConsentAction(true), () => "Pomoc AI s e-mailem je zapnutá.")
+                    }
                   >
-                    Vypnout
+                    {aiPovolena ? "Vypnout" : "Zapnout"}
                   </button>
+                }
+              >
+                {aiPovolena ? (
+                  <p className={styles.note}>
+                    Když u zprávy klikneš na „Úkol“ nebo „Odpověď“, její text se pošle do služby Google
+                    Gemini a ta z něj navrhne úkol, poptávku nebo odpověď. Text zprávy se neukládá.
+                    Vypnutím se vypne i třídění a čtení příloh.
+                  </p>
+                ) : (
+                  <p className={styles.note}>
+                    „Úkol“ i „Odpověď“ se nejdřív zeptají. Zapnutím dovolíš, aby se text zprávy, u které
+                    na tlačítko klikneš, poslal do služby Google Gemini a ta z něj navrhla úkol, poptávku
+                    nebo odpověď. Text zprávy se neukládá a nic se neděje samo ani hromadně.
+                  </p>
+                )}
+              </Setting>
 
-                  <h3 className={styles.sub3}>Automatické třídění podle priority</h3>
-                  {tridiSe ? (
-                    <>
-                      <p className={styles.note}>
-                        Zapnuto. Při každém načtení pošty se text nových zpráv, které čekají na tvou
-                        odpověď, pošle do služby Google Gemini. Ta určí, jestli zpráva spěchá, a jednou
-                        větou ji shrne. Ukládá se jen zařazení a shrnutí, text zprávy ne.
-                      </p>
+              {aiPovolena && (
+                <>
+                  <Setting
+                    title="Automatické třídění podle priority"
+                    on={tridiSe}
+                    state={tridiSe ? "zapnuto" : "vypnuto"}
+                    action={
                       <button
                         type="button"
                         className="btn btn-sm"
                         disabled={zaneprazdnen}
                         onClick={() =>
-                          run(() => setMailAutoTriageAction(false), () => "Automatické třídění je vypnuté, zařazení i shrnutí jsou smazaná.")
+                          tridiSe
+                            ? run(() => setMailAutoTriageAction(false), () => "Automatické třídění je vypnuté, zařazení i shrnutí jsou smazaná.")
+                            : run(() => setMailAutoTriageAction(true), () => "Automatické třídění je zapnuté. Klikni na Obnovit a pošta se roztřídí.")
                         }
                       >
-                        Vypnout třídění
+                        {tridiSe ? "Vypnout" : "Zapnout"}
                       </button>
-                    </>
-                  ) : (
-                    <>
+                    }
+                  >
+                    {tridiSe ? (
                       <p className={styles.note}>
-                        Vypnuto. Zapnutím dovolíš, aby se text nových zpráv, které čekají na tvou odpověď,
-                        posílal do služby Google Gemini <b>sám při každém načtení pošty</b> — bez kliknutí
+                        Při každém načtení pošty se text nových zpráv, které čekají na tvou odpověď, pošle
+                        do služby Google Gemini. Ta určí, jestli zpráva spěchá, a jednou větou ji shrne.
+                        Ukládá se jen zařazení a shrnutí, text zprávy ne.
+                      </p>
+                    ) : (
+                      <p className={styles.note}>
+                        Zapnutím dovolíš, aby se text nových zpráv, které čekají na tvou odpověď, posílal
+                        do služby Google Gemini <b>sám při každém načtení pošty</b> — bez kliknutí
                         u jednotlivých zpráv. AI u každé určí, jestli spěchá, čeká na odpověď, nebo je jen
                         pro informaci, a jednou větou ji shrne. Ukládá se jen zařazení a shrnutí; vypnutím
                         se zase smažou.
                       </p>
-                      <button
-                        type="button"
-                        className="btn btn-sm"
-                        disabled={zaneprazdnen}
-                        onClick={() =>
-                          run(() => setMailAutoTriageAction(true), () => "Automatické třídění je zapnuté. Klikni na Obnovit a pošta se roztřídí.")
-                        }
-                      >
-                        Zapnout třídění
-                      </button>
-                    </>
-                  )}
+                    )}
+                  </Setting>
 
-                  <h3 className={styles.sub3}>Čtení příloh</h3>
-                  {ctePrilohy ? (
-                    <>
-                      <p className={styles.note}>
-                        Zapnuto. Když u zprávy klikneš na „Udělat úkol“ nebo „Návrh odpovědi“, pošlou
-                        se do služby Google Gemini spolu s textem i její přílohy — PDF a obrázky
-                        (nejvýš 4 soubory, každý do 5 MB, dohromady asi 20 stran). Nic z nich se
-                        neukládá. Automatické třídění přílohy nečte.
-                      </p>
-                      <button
-                        type="button"
-                        className="btn btn-sm"
-                        disabled={zaneprazdnen}
-                        onClick={() => run(() => setMailFilesAction(false), () => "Čtení příloh je vypnuté.")}
-                      >
-                        Vypnout čtení příloh
-                      </button>
-                    </>
-                  ) : (
-                    <>
-                      <p className={styles.note}>
-                        Vypnuto — AI čte jen text zprávy. Zapnutím dovolíš, aby se u zprávy, na kterou
-                        klikneš, poslaly do služby Google Gemini <b>i její přílohy</b> — PDF a obrázky.
-                        V přílohách bývají faktury a smlouvy, proto se to zapíná zvlášť. Nic z nich
-                        se neukládá a automatické třídění přílohy nečte nikdy.
-                      </p>
+                  <Setting
+                    title="Čtení příloh"
+                    on={ctePrilohy}
+                    state={ctePrilohy ? "zapnuto — PDF a obrázky" : "vypnuto"}
+                    action={
                       <button
                         type="button"
                         className="btn btn-sm"
                         disabled={zaneprazdnen}
                         onClick={() =>
-                          run(() => setMailFilesAction(true), () => "Čtení příloh je zapnuté. Platí pro zprávu, u které klikneš na „Udělat úkol“ nebo „Návrh odpovědi“.")
+                          ctePrilohy
+                            ? run(() => setMailFilesAction(false), () => "Čtení příloh je vypnuté.")
+                            : run(() => setMailFilesAction(true), () => "Čtení příloh je zapnuté. Platí pro zprávu, u které klikneš na „Úkol“ nebo „Odpověď“.")
                         }
                       >
-                        Zapnout čtení příloh
+                        {ctePrilohy ? "Vypnout" : "Zapnout"}
                       </button>
-                    </>
-                  )}
-                </>
-              ) : (
-                <>
-                  <p className={styles.note}>
-                    Vypnuto — „Udělat úkol“ i „Návrh odpovědi“ se nejdřív zeptají. Zapnutím dovolíš, aby
-                    se text zprávy, u které na tlačítko klikneš, poslal do služby Google Gemini a ta
-                    z něj navrhla úkol, poptávku nebo odpověď. Text zprávy se neukládá a nic se neděje
-                    samo ani hromadně.
-                  </p>
-                  <button
-                    type="button"
-                    className="btn btn-sm"
-                    disabled={zaneprazdnen}
-                    onClick={() => run(() => setMailAiConsentAction(true), () => "Pomoc AI s e-mailem je zapnutá.")}
+                    }
                   >
-                    Zapnout
-                  </button>
+                    {ctePrilohy ? (
+                      <p className={styles.note}>
+                        Když u zprávy klikneš na „Úkol“ nebo „Odpověď“, pošlou se do služby Google Gemini
+                        spolu s textem i její přílohy — PDF a obrázky (nejvýš 4 soubory, každý do 5 MB,
+                        dohromady asi 20 stran). Nic z nich se neukládá. Automatické třídění přílohy nečte.
+                      </p>
+                    ) : (
+                      <p className={styles.note}>
+                        AI čte jen text zprávy. Zapnutím dovolíš, aby se u zprávy, na kterou klikneš,
+                        poslaly do služby Google Gemini <b>i její přílohy</b> — PDF a obrázky. V přílohách
+                        bývají faktury a smlouvy, proto se to zapíná zvlášť. Nic z nich se neukládá
+                        a automatické třídění přílohy nečte nikdy.
+                      </p>
+                    )}
+                  </Setting>
                 </>
               )}
 
-              <h3 className={styles.sub3}>Podpis v návrhu odpovědi</h3>
-              <p className={styles.note}>
-                Tímhle jménem appka podepisuje návrh odpovědi. Je to tvoje jméno v appce, takže ho
-                uvidí i kolegové v Týmu.
-              </p>
-              <form
-                className={styles.signature}
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  run(() => setSignatureAction(podpis), () => {
-                    // Server ukládá jméno bez mezer navíc — ať pole ukazuje totéž.
-                    setPodpis(podpis.replace(/\s+/g, " ").trim());
-                    return "Jméno pro podpis je uložené.";
-                  });
-                }}
-              >
-                <input
-                  className="field"
-                  type="text"
-                  aria-label="Jméno pro podpis"
-                  placeholder="Jméno a příjmení"
-                  autoComplete="name"
-                  // Stejný strop jako na serveru (`SIGNATURE_MAX` v `lib/mail-reply.ts`).
-                  maxLength={80}
-                  value={podpis}
-                  onChange={(e) => setPodpis(e.target.value)}
-                />
-                <button
-                  type="submit"
-                  className="btn btn-sm"
-                  disabled={zaneprazdnen || podpis.trim().length < 2 || podpis.trim() === (signature ?? "")}
-                >
-                  Uložit jméno
-                </button>
-              </form>
+              <div className={styles.set}>
+                <div className={styles.setHead}>
+                  <div className={styles.setText}>
+                    <b>Podpis v návrhu odpovědi</b>
+                    <span className={styles.setState}>tvoje jméno v appce — vidí ho i kolegové v Týmu</span>
+                  </div>
+                  <form
+                    className={styles.signature}
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      run(() => setSignatureAction(podpis), () => {
+                        // Server ukládá jméno bez mezer navíc — ať pole ukazuje totéž.
+                        setPodpis(podpis.replace(/\s+/g, " ").trim());
+                        return "Jméno pro podpis je uložené.";
+                      });
+                    }}
+                  >
+                    <input
+                      className="field"
+                      type="text"
+                      aria-label="Jméno pro podpis"
+                      placeholder="Jméno a příjmení"
+                      autoComplete="name"
+                      // Stejný strop jako na serveru (`SIGNATURE_MAX` v `lib/mail-reply.ts`).
+                      maxLength={80}
+                      value={podpis}
+                      onChange={(e) => setPodpis(e.target.value)}
+                    />
+                    <button
+                      type="submit"
+                      className="btn btn-sm"
+                      disabled={zaneprazdnen || podpis.trim().length < 2 || podpis.trim() === (signature ?? "")}
+                    >
+                      Uložit
+                    </button>
+                  </form>
+                </div>
+              </div>
             </>
           )}
 
@@ -582,7 +583,10 @@ export default function MailBoard({
             key={key}
             type="button"
             className={`${styles.chip} ${filtr === key ? styles.chipOn : ""}`}
-            onClick={() => setFiltr(key)}
+            onClick={() => {
+              setFiltr(key);
+              setMenu(null);
+            }}
           >
             {label}
             <span className={styles.chipCount}>{count}</span>
@@ -602,81 +606,159 @@ export default function MailBoard({
         </p>
       ) : (
         <ul className={styles.list}>
-          {videt.map((m) => (
-            <li key={m.id} className={`${styles.item} ${m.handledAt ? styles.itemDone : ""}`}>
-              <div className={styles.itemMain}>
-                <span className={styles.from}>
-                  {m.fromName ?? m.fromEmail}
-                  {mailBucket(m) === "urgent" && <em className={styles.tagUrgent}>spěchá</em>}
-                  {mailBucket(m) === "reply" && <em className={styles.tagWaiting}>čeká na odpověď</em>}
-                  {mailBucket(m) === "fyi" && <em className={styles.tagFyi}>jen pro informaci</em>}
-                  {m.clientName && <em className={styles.tagClient}>{m.clientName}</em>}
-                </span>
-                <span className={styles.subject}>{m.subject ?? "(bez předmětu)"}</span>
-                {m.summary && <span className={styles.summary}>{m.summary}</span>}
-                <span className={styles.meta}>{m.fromEmail} · {kdy(m.receivedAt)}</span>
-              </div>
+          {videt.map((m) => {
+            const kam = mailBucket(m);
+            return (
+              <li key={m.id} className={`${styles.item} ${m.handledAt ? styles.itemDone : ""}`}>
+                <div className={styles.itemMain}>
+                  {/* Kliknutím na zprávu se otevře v Gmailu — samostatné tlačítko na to není potřeba. */}
+                  <a
+                    className={styles.open}
+                    href={gmailThreadUrl(m.threadId, account.email)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    title="Otevřít v Gmailu"
+                  >
+                    <span className={styles.from}>
+                      {m.fromName ?? m.fromEmail}
+                      {kam === "urgent" && <em className={styles.tagUrgent}>spěchá</em>}
+                      {/* Stav je vidět už ze záložky — štítek jen tam, kde jsou zprávy pohromadě. */}
+                      {filtr === "all" && kam === "reply" && <em className={styles.tagWaiting}>čeká na odpověď</em>}
+                      {filtr === "all" && kam === "fyi" && <em className={styles.tagFyi}>jen pro informaci</em>}
+                      {m.clientName && <em className={styles.tagClient}>{m.clientName}</em>}
+                    </span>
+                    <span className={styles.subject}>{m.subject ?? "(bez předmětu)"}</span>
+                  </a>
+                  {m.summary && <span className={styles.summary}>{m.summary}</span>}
+                  <span className={styles.meta}>{m.fromEmail} · {kdy(m.receivedAt)}</span>
+                </div>
 
-              <div className={styles.actions}>
-                <a
-                  className="btn btn-sm"
-                  href={gmailThreadUrl(m.threadId, account.email)}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  Otevřít
-                </a>
-                {!m.handledAt && !m.taskId && (
-                  <button
-                    type="button"
-                    className="btn btn-sm"
-                    disabled={zaneprazdnen}
-                    title={aiAvailable ? "Navrhne úkol z obsahu e-mailu" : undefined}
-                    // S AI se otevře okno s návrhem; bez ní se úkol založí rovnou z předmětu.
-                    onClick={() => (aiAvailable ? ukol.open(m, aiPovolena) : run(() => taskFromMailAction(m.id)))}
-                  >
-                    Udělat úkol
-                  </button>
-                )}
-                {m.taskId && <span className={styles.tagTask}>úkol založen</span>}
-                {aiAvailable && !m.handledAt && (
-                  <button
-                    type="button"
-                    className="btn btn-sm"
-                    disabled={zaneprazdnen}
-                    title="AI napíše koncept odpovědi, odešleš ho sám v Gmailu"
-                    onClick={() => odpoved.open(m, aiPovolena)}
-                  >
-                    Návrh odpovědi
-                  </button>
-                )}
-                <button
-                  type="button"
-                  className="btn btn-sm"
-                  disabled={zaneprazdnen}
-                  onClick={() => run(() => setHandledAction(m.id, !m.handledAt))}
-                >
-                  {m.handledAt ? "Vrátit" : "Vyřízeno"}
-                </button>
-                {!m.handledAt && (
+                <div className={styles.actions}>
+                  {!m.handledAt && !m.taskId && (
+                    <button
+                      type="button"
+                      className="btn btn-sm"
+                      disabled={zaneprazdnen}
+                      title={aiAvailable ? "Navrhne úkol z obsahu e-mailu" : "Založí úkol z předmětu e-mailu"}
+                      // S AI se otevře okno s návrhem; bez ní se úkol založí rovnou z předmětu.
+                      onClick={() => (aiAvailable ? ukol.open(m, aiPovolena) : run(() => taskFromMailAction(m.id)))}
+                    >
+                      Úkol
+                    </button>
+                  )}
+                  {m.taskId && <span className={styles.tagTask}>úkol založen</span>}
+                  {aiAvailable && !m.handledAt && (
+                    <button
+                      type="button"
+                      className="btn btn-sm"
+                      disabled={zaneprazdnen}
+                      title="AI napíše koncept odpovědi, odešleš ho sám v Gmailu"
+                      onClick={() => odpoved.open(m, aiPovolena)}
+                    >
+                      Odpověď
+                    </button>
+                  )}
                   <button
                     type="button"
                     className="btn btn-sm btn-ghost"
                     disabled={zaneprazdnen}
-                    title={`Zprávy od ${m.fromEmail} se už nebudou ukazovat`}
-                    onClick={() => run(() => ignoreSenderAction(m.fromEmail))}
+                    onClick={() => run(() => setHandledAction(m.id, !m.handledAt))}
                   >
-                    Ignorovat
+                    {m.handledAt ? "Vrátit" : "Vyřízeno"}
                   </button>
-                )}
-              </div>
-            </li>
-          ))}
+
+                  {/* Co se dělá zřídka, je za třemi tečkami. */}
+                  <div
+                    className={styles.menu}
+                    onBlur={(e) => {
+                      if (!e.currentTarget.contains(e.relatedTarget)) setMenu(null);
+                    }}
+                  >
+                    <button
+                      type="button"
+                      className="btn btn-sm btn-ghost"
+                      aria-label="Další možnosti"
+                      aria-expanded={menu === m.id}
+                      onClick={() => setMenu(menu === m.id ? null : m.id)}
+                    >
+                      ⋯
+                    </button>
+                    {menu === m.id && (
+                      <div className={styles.menuList} role="menu">
+                        <a
+                          role="menuitem"
+                          href={gmailThreadUrl(m.threadId, account.email)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={() => setMenu(null)}
+                        >
+                          Otevřít v Gmailu
+                        </a>
+                        {!m.handledAt && (
+                          <button
+                            type="button"
+                            role="menuitem"
+                            disabled={zaneprazdnen}
+                            title={`Zprávy od ${m.fromEmail} se už nebudou ukazovat`}
+                            onClick={() => {
+                              setMenu(null);
+                              run(() => ignoreSenderAction(m.fromEmail));
+                            }}
+                          >
+                            Ignorovat odesílatele
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </li>
+            );
+          })}
         </ul>
       )}
 
       <MailTaskDialog task={ukol} clients={clients} categories={categories} today={today} />
       <MailReplyDialog reply={odpoved} account={account.email} />
+    </div>
+  );
+}
+
+/**
+ * Jedno nastavení schránky: název, stav jednou větou a přepínač. Vysvětlení je
+ * u zapnutého nastavení sbalené, ať stránka není stěna textu. U vypnutého je
+ * vidět rovnou — než člověk něco zapne, má vědět, s čím souhlasí.
+ */
+function Setting({
+  title,
+  state,
+  on,
+  action,
+  children,
+}: {
+  title: string;
+  state: string;
+  on: boolean;
+  action: ReactNode;
+  children: ReactNode;
+}) {
+  return (
+    <div className={styles.set}>
+      <div className={styles.setHead}>
+        <div className={styles.setText}>
+          <b>{title}</b>
+          <span className={on ? styles.setOn : styles.setOff}>{state}</span>
+        </div>
+        {action}
+      </div>
+      {on ? (
+        <details className={styles.setMore}>
+          <summary>Co to dělá</summary>
+          {children}
+        </details>
+      ) : (
+        <div className={styles.setBody}>{children}</div>
+      )}
     </div>
   );
 }
