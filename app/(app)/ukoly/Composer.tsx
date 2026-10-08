@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { KIND_LABEL, addDaysKey, daysBetweenKeys, type DateKey, type TaskKind } from "@/lib/domain";
 import type { Category, Client, TaskRow } from "@/lib/tasks";
 import type { TaskTemplate } from "@/lib/templates";
+import { quickDates } from "@/lib/quick-dates";
 import { createTaskAction, updateTaskAction } from "./actions";
 import { createTemplateAction } from "./preset-actions";
 import styles from "./tasks.module.css";
@@ -232,6 +233,21 @@ export default function Composer({
                 value={dueAt}
                 onChange={(e) => setDueAt(e.target.value)}
               />
+              {/* Nejčastější termíny na jedno kliknutí — druhé kliknutí termín zase sundá. */}
+              <div className={styles.quick}>
+                {quickDates(today).map((q) => (
+                  <button
+                    key={q.key}
+                    type="button"
+                    className={`${styles.quickChip} ${dueAt === q.key ? styles.quickOn : ""}`}
+                    aria-pressed={dueAt === q.key}
+                    title={q.hint}
+                    onClick={() => setDueAt(dueAt === q.key ? "" : q.key)}
+                  >
+                    {q.label}
+                  </button>
+                ))}
+              </div>
             </div>
             <div>
               <span className={styles.label}>Velikost</span>

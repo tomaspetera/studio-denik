@@ -7,6 +7,7 @@
  * pro shrnutí, ani kdyby dotaz do databáze vrátil víc, než měl.
  */
 import { aggregateReport, buildReportPrompt, REPORT_SYSTEM } from "../lib/report-core.ts";
+import { itemStatus, reportMailText, reportPushPart } from "../lib/report-text.ts";
 
 let chyby = 0;
 const ok = (s) => console.log("  " + s);
@@ -97,6 +98,24 @@ zkouska("hranice týdne", JSON.stringify(nazvy(d.done)) === JSON.stringify(["Na 
 zkouska("bez kategorie", d.byCategory.length === 1 && d.byCategory[0].category === "Nezařazeno", "úkoly bez kategorie mají vlastní řádek");
 
 zkouska("zadání pro AI", REPORT_SYSTEM.includes("Vycházej jen z dodaných dat") && REPORT_SYSTEM.includes("Žádné oslovení"), "pravidla psaní zůstala");
+
+// --- Report jako text do e-mailu ----------------------------------------------------------------
+const polozka = (title, ball, over = {}) => ({ title, ball, stepName: over.stepName ?? "Dělám", supplierName: over.supplierName ?? null, isLate: over.isLate ?? false });
+const PO_KLIENTECH = [
+  { client: "MR.LETTER", items: [polozka("Banner", "done"), polozka("Katalog", "me"), polozka("Leták", "client"), polozka("Roll-up", "me", { stepName: "Zadáno", isLate: true })] },
+  { client: "UME", items: [polozka("Vizitky", "supplier", { supplierName: "Indigoprint" })] },
+  { client: "Prázdný", items: [] },
+];
+let mail = reportMailText({ rangeText: "5.–11. října 2026", clientName: null, summary: "  Týden patřil katalogu.  ", byClient: PO_KLIENTECH, signature: "Tomáš Petera" });
+zkouska("text: celé studio", mail.startsWith("Dobrý den,\n\nposílám přehled práce za týden 5.–11. října 2026.\n\nTýden patřil katalogu.\n\nMR.LETTER:\n– Banner (hotovo)\n– Katalog (rozpracováno)\n– Leták (čeká na schválení klientem)\n– Roll-up (v plánu, po termínu)\n\nUME:\n– Vizitky (u dodavatele (Indigoprint))"), "oslovení, období, shrnutí a úkoly po značkách se stavem slovy");
+zkouska("text: prázdná skupina", !mail.includes("Prázdný"), "klient bez úkolů v textu není");
+zkouska("text: co čeká", mail.includes("\n\nČeká na schválení klientem:\n– Leták (MR.LETTER)\n\nS pozdravem\nTomáš Petera") && mail.endsWith("Tomáš Petera"), "co čeká na klienta, je zvlášť na konci; pak podpis");
+mail = reportMailText({ rangeText: "5.–11. října 2026", clientName: "MR.LETTER", summary: "", byClient: [PO_KLIENTECH[0]], signature: null });
+zkouska("text: pro klienta", mail.includes("\n\nCo se dělalo:\n– Banner (hotovo)") && !mail.includes("MR.LETTER") && mail.includes("– Leták (čeká na vaše schválení)") && mail.includes("Od vás potřebuji schválit:\n– Leták\n") && mail.endsWith("[podpis]"), "bez jména klienta v nadpisu, vyká se mu a bez podpisu zůstane místo");
+zkouska("text: bez shrnutí", !mail.includes("\n\n\n"), "prázdné shrnutí nenechá prázdný odstavec");
+zkouska("text: prázdný týden", reportMailText({ rangeText: "X", clientName: null, summary: "", byClient: [], signature: "T" }).includes("neuzavřel ani nerozpracoval žádný úkol"), "bez úkolů to text řekne rovnou");
+zkouska("text: stav", itemStatus(polozka("a", "supplier"), true) === "u dodavatele" && itemStatus(polozka("a", "me", { stepName: " zadáno " }), true) === "v plánu", "dodavatel bez jména a krok bez ohledu na velikost písmen");
+zkouska("pátek", reportPushPart("2026-10-09", 3) === "je pátek — pošli report" && reportPushPart("2026-10-08", 3) === null && reportPushPart("2026-10-10", 3) === null && reportPushPart("2026-10-09", 0) === null, "připomenutí jen v pátek a jen když je o čem psát");
 
 // Žádná otevřená spojení, proces doběhne sám.
 console.log(chyby === 0 ? "\nJádro reportu drží." : `\nProblémů: ${chyby}`);

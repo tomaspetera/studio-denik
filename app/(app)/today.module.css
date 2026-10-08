@@ -100,7 +100,12 @@
 .cols { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--s4); align-items: start; }
 .col { display: flex; flex-direction: column; gap: var(--s4); min-width: 0; }
 
-.card { overflow: hidden; scroll-margin-top: 80px; }
+/* Bez `overflow: hidden` — nabídka termínů z karty vyčnívá. Zaoblené rohy si
+   proto drží hlavička, patička a poslední řádek samy. */
+.card { scroll-margin-top: 80px; }
+.card > :first-child { border-radius: calc(var(--r3) - 1px) calc(var(--r3) - 1px) 0 0; }
+.card > :last-child,
+.card > .list:last-child > li:last-child { border-radius: 0 0 calc(var(--r3) - 1px) calc(var(--r3) - 1px); }
 /* Co hoří, má i rámeček do červena — karta je vidět, i když je stránka dlouhá. */
 .cardAlarm { border-color: color-mix(in srgb, var(--alarm) 38%, var(--line)); }
 
@@ -215,6 +220,44 @@
 .where { color: var(--tone); font-weight: 600; }
 .err { font-size: 12px; color: var(--alarm); }
 
+/* Druhý řádek u úkolů, které leží jinde: jak dlouho čekají a připomínka klientovi. */
+.wait {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  column-gap: 10px;
+  row-gap: 2px;
+  font-family: var(--ui-s);
+  font-size: 12.5px;
+  color: var(--muted);
+}
+.waitLong { color: var(--alarm); font-weight: 600; }
+.nudgeBtn {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-weight: 600;
+  color: var(--accent);
+  cursor: pointer;
+}
+.nudgeBtn:hover { text-decoration: underline; text-underline-offset: 3px; }
+.nudgeBtn:disabled { opacity: 0.5; cursor: not-allowed; text-decoration: none; }
+
+/* Okno s připomínkou (NudgeDialog.tsx). */
+.nudgeTask {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0 0 var(--s4);
+  padding: 10px var(--s3);
+  border-radius: var(--r2);
+  background: var(--sunk);
+  font-size: 13.5px;
+}
+.nudgeTask span { font-family: var(--ui-s); font-size: 12.5px; color: var(--muted); }
+.nudgeText { height: auto; padding: 10px 14px; font-size: 14px; line-height: 1.55; resize: vertical; }
+
 /* Komu úkol nebo zpráva patří. Barevná tečka je barva klienta. */
 .client {
   display: block;
@@ -234,42 +277,8 @@
   vertical-align: 1px;
 }
 
-/* Termín je tlačítko: barva říká, jak moc tlačí, kliknutí otevře kalendář. */
-.dueCell { position: relative; display: flex; justify-content: flex-end; }
-.due {
-  height: 25px;
-  padding: 0 8px;
-  border-radius: var(--r1);
-  border: 1px solid transparent;
-  background: transparent;
-  font-family: var(--mono);
-  font-size: 12px;
-  font-variant-numeric: tabular-nums;
-  color: var(--ink-2);
-  white-space: nowrap;
-  cursor: pointer;
-  transition: background 0.15s, border-color 0.15s, color 0.15s;
-}
-.due:hover { background: var(--sunk); border-color: var(--line-2); color: var(--ink); }
-.due:disabled { cursor: not-allowed; opacity: 0.6; }
-.dueLate { background: var(--alarm-soft); color: var(--alarm); font-weight: 700; }
-.dueLate:hover { background: var(--alarm-soft); border-color: var(--alarm); color: var(--alarm); }
-.dueToday { border-color: color-mix(in srgb, var(--alarm) 55%, transparent); color: var(--alarm); font-weight: 700; }
-.dueToday:hover { background: var(--alarm-soft); border-color: var(--alarm); color: var(--alarm); }
-.dueNone { border: 1px dashed var(--line-2); color: var(--muted); font-family: var(--ui-s); }
-.dueNone:hover { border-style: solid; }
-.dueNative {
-  position: absolute;
-  right: 0;
-  bottom: 0;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  border: 0;
-  opacity: 0;
-  pointer-events: none;
-}
-.date { height: 27px; padding: 0 6px; font-size: 12px; width: 132px; }
+/* Termín kreslí DueChip (due.module.css); tady je jen jeho místo v řádku. */
+.dueCell { min-width: 0; }
 
 .actions { display: flex; align-items: center; justify-content: flex-end; gap: 4px; }
 .go { gap: 5px; padding: 0 9px; font-weight: 600; }
@@ -415,6 +424,8 @@
   .pips { grid-area: pips; align-self: start; margin-top: 7px; }
   .main { grid-area: main; }
   .dueCell { grid-area: due; justify-content: flex-start; }
+  /* Termín je na telefonu vlevo — nabídka se proto otevírá doprava. */
+  .dueCell [role="menu"] { left: 0; right: auto; }
   .row .actions { grid-area: acts; }
 
   .mrow {

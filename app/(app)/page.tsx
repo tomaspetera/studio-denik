@@ -13,6 +13,7 @@ import { mailBucket, sortWaiting } from "@/lib/mail-buckets";
 import { lastSyncLabel } from "@/lib/mail-schedule";
 import { initials, mailWhen } from "@/lib/mail-face";
 import { buildToday } from "@/lib/today";
+import { loadWaitingInfo } from "@/lib/waiting-data";
 import AttentionPanel from "./AttentionPanel";
 import TodayBoard, { type TodayMail } from "./TodayBoard";
 import { csDate, csDateFromKey } from "@/lib/domain";
@@ -43,6 +44,16 @@ export default async function DnesPage() {
   ]);
   // Klienti a kategorie jsou potřeba jen v okně s návrhem úkolu z e-mailu.
   const [klienti, kategorie] = ucet ? await Promise.all([listClients(ws.orgId), listCategories(ws.orgId)]) : [[], []];
+
+  // Jak dlouho úkoly leží u klienta a u dodavatele — z historie, jen pro ty, které tam leží.
+  const cekani = await loadWaitingInfo(
+    ws.orgId,
+    tasks.filter((t) => t.ball === "client" || t.ball === "supplier").map((t) => t.id),
+  );
+  const ukoly = tasks.map((t) => {
+    const c = cekani.get(t.id);
+    return c ? { ...t, step_since: c.since, nudged_at: c.nudgedAt } : t;
+  });
 
   const dnes = new Date();
   const capacityByUser = new Map(capacity.map((c) => [c.userId, c]));
@@ -94,7 +105,8 @@ export default async function DnesPage() {
         <TodayBoard
           today={attention.today}
           dateLabel={`${denVTydnu} ${csDateFromKey(attention.today)}`}
-          sections={buildToday(tasks, attention.today, priorityIds)}
+          sections={buildToday(ukoly, attention.today, priorityIds)}
+          signature={ws.fullName}
           mail={posta}
           clients={klienti}
           categories={kategorie}

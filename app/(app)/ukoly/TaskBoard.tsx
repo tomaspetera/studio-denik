@@ -9,14 +9,21 @@ import {
   BALL_SENTENCE,
   FLOWS,
   SIZE_LABEL,
+  dateKeyUTC,
   firstStepForBall,
   type Ball,
   type DateKey,
 } from "@/lib/domain";
+import { shortDateLabel } from "@/lib/buckets";
+import { quickDates, type QuickDate } from "@/lib/quick-dates";
+import { dueChip } from "@/lib/today";
 import type { Category, Client, TaskRow } from "@/lib/tasks";
 import type { TaskTemplate } from "@/lib/templates";
 import type { RecurringRule } from "@/lib/recurring";
 import { moveTaskAction, cycleSizeAction, deleteTaskAction } from "./actions";
+import { setTaskDueDateAction } from "../kalendar/actions";
+import DueChip from "../DueChip";
+import { UndoToast, useUndo } from "../Undo";
 import Composer from "./Composer";
 import PresetsDialog from "./PresetsDialog";
 import CaptureDialog from "./CaptureDialog";
@@ -61,7 +68,11 @@ export default function TaskBoard({
 }) {
   const router = useRouter();
   const [filter, setFilter] = useState<Filter>("all");
+  /** Filtr podle klienta: "" = všichni, "-" = úkoly bez klienta, jinak id klienta. */
+  const [clientFilter, setClientFilter] = useState("");
   const [query, setQuery] = useState("");
+  const undo = useUndo();
+  const quick = useMemo(() => quickDates(today), [today]);
   const [open, setOpen] = useState<string | null>(openTaskId ?? null);
   // Uzavřené se sbalí samy. Jsou hotové — nemají důvod zabírat místo mezi
   // tím, co se ještě řeší. Nadpis skupiny drží počet, takže je vidět,
@@ -122,10 +133,19 @@ export default function TaskBoard({
     const q = query.trim().toLowerCase();
     return tasks.filter((t) => {
       if (filter === "late" ? !t.is_late : filter !== "all" && t.ball !== filter) return false;
+      if (clientFilter && (clientFilter === "-" ? t.client_id !== null : t.client_id !== clientFilter)) return false;
       if (!q) return true;
       return `${t.title} ${t.client_name ?? ""}`.toLowerCase().includes(q);
     });
-  }, [tasks, filter, query]);
+  }, [tasks, filter, clientFilter, query]);
+
+  // Jen klienti, kteří nějaký úkol mají — a i ti z archivu, pokud jim úkol zbyl.
+  const clientOptions = useMemo(() => {
+    const podleId = new Map<string, string>();
+    for (const t of tasks) if (t.client_id) podleId.set(t.client_id, t.client_name ?? "Klient");
+    return [...podleId].map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name, "cs"));
+  }, [tasks]);
+  const bezKlienta = tasks.some((t) => !t.client_id);
 
   const draggingTask = draggingId ? (tasks.find((t) => t.id === draggingId) ?? null) : null;
 
@@ -137,9 +157,31 @@ export default function TaskBoard({
     return base.filter((g) => g.rows.length > 0 || firstStepForBall(draggingTask.kind, g.ball) !== null);
   }, [visible, draggingTask]);
 
-  function move(taskId: string, toStep: number) {
+  /** Posun úkolu. Po kliknutí jde pár vteřin vrátit — `zpet` = false při vracení samotném. */
+  function move(taskId: string, toStep: number, zpet = true) {
+    const t = tasks.find((x) => x.id === taskId);
+    undo.hide();
     startTransition(async () => {
-      await moveTaskAction(taskId, toStep);
+      const res = await moveTaskAction(taskId, toStep);
+      if (res.ok && zpet && t && toStep !== t.step) {
+        undo.show({ text: `${t.title} → ${FLOWS[t.kind][toStep]?.label ?? "posunuto"}`, run: () => move(taskId, t.step, false) });
+      }
+      router.refresh();
+    });
+  }
+
+  /** Termín z řádku. `den` = null termín sundá. */
+  function setDue(t: TaskRow, den: string | null, zpet = true) {
+    const puvodni = t.due_at ? dateKeyUTC(t.due_at) : null;
+    undo.hide();
+    startTransition(async () => {
+      const res = await setTaskDueDateAction(t.id, den ? `${den}T00:00:00.000Z` : null);
+      if (res.ok && zpet) {
+        undo.show({
+          text: `${t.title}: ${den ? `termín ${shortDateLabel(den)}` : "bez termínu"}`,
+          run: () => setDue(t, puvodni, false),
+        });
+      }
       router.refresh();
     });
   }
@@ -236,6 +278,20 @@ export default function TaskBoard({
               <span className={styles.chipCount}>{counts[f.key] ?? 0}</span>
             </button>
           ))}
+          {(clientOptions.length > 1 || (clientOptions.length === 1 && bezKlienta)) && (
+            <select
+              className={`${styles.clientFilter} ${clientFilter ? styles.clientFilterOn : ""}`}
+              value={clientFilter}
+              onChange={(e) => setClientFilter(e.target.value)}
+              aria-label="Filtr podle klienta"
+            >
+              <option value="">Všichni klienti</option>
+              {clientOptions.map((c) => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+              {bezKlienta && <option value="-">Bez klienta</option>}
+            </select>
+          )}
         </div>
       )}
 
@@ -297,6 +353,10 @@ export default function TaskBoard({
                       <Row
                         key={t.id}
                         task={t}
+                        today={today}
+                        quick={quick}
+                        busy={pending}
+                        onDue={(den) => setDue(t, den)}
                         open={open === t.id}
                         onToggle={() => setOpen(open === t.id ? null : t.id)}
                         onMove={move}
@@ -314,6 +374,8 @@ export default function TaskBoard({
           })}
         </div>
       )}
+
+      <UndoToast undo={undo} disabled={pending} />
 
       {composer && (
         <Composer
@@ -363,6 +425,10 @@ export default function TaskBoard({
 
 function Row({
   task,
+  today,
+  quick,
+  busy,
+  onDue,
   open,
   onToggle,
   onMove,
@@ -373,6 +439,10 @@ function Row({
   onDragEnd,
 }: {
   task: TaskRow;
+  today: DateKey;
+  quick: QuickDate[];
+  busy: boolean;
+  onDue: (den: string | null) => void;
   open: boolean;
   onToggle: () => void;
   onMove: (id: string, step: number) => void;
@@ -385,6 +455,9 @@ function Row({
   const flow = FLOWS[task.kind];
   const tone = task.is_late ? "alarm" : task.ball;
   const nextLabel = task.step + 1 < flow.length ? flow[task.step + 1].label : null;
+  const dueKey = task.due_at ? dateKeyUTC(task.due_at) : null;
+  const stitek = dueChip(dueKey, task.is_late, today);
+  const last = flow.length - 1;
 
   // Mazání na dvě kliknutí. Modální okno by tu bylo těžkopádné a `confirm()`
   // v prohlížeči vypadá cize — tohle stačí a dá se to vzít zpět tím, že
@@ -440,9 +513,41 @@ function Row({
           )}
         </span>
 
-        <span className={`${styles.rowDue} ${task.is_late ? styles.late : ""}`}>
-          {formatDue(task.due_at)}
-        </span>
+        {/* U otevřeného úkolu je termín tlačítko a vedle něj fajfka „rovnou hotovo“ —
+            stejně jako na Dnes. Uzavřený úkol má termín jen jako text. */}
+        {task.ball === "done" ? (
+          <span className={styles.rowDue}>{stitek.label ?? ""}</span>
+        ) : (
+          <DueChip
+            taskTitle={task.title}
+            dueKey={dueKey}
+            label={stitek.label}
+            tone={stitek.tone}
+            today={today}
+            quick={quick}
+            disabled={busy}
+            onChange={onDue}
+          />
+        )}
+
+        {task.ball === "done" ? (
+          <span aria-hidden="true" />
+        ) : (
+          <button
+            type="button"
+            className={styles.rowDone}
+            disabled={busy}
+            title={`Rovnou „${flow[last].label}“`}
+            aria-label={`Rovnou ${flow[last].label}: ${task.title}`}
+            onClick={(e) => {
+              e.stopPropagation();
+              onMove(task.id, last);
+            }}
+            onKeyDown={(e) => e.stopPropagation()}
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" /></svg>
+          </button>
+        )}
 
         <span className={styles.rowOwner}>{task.assignee_initials ?? "—"}</span>
       </div>

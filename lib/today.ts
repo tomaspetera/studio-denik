@@ -1,4 +1,5 @@
-import { FLOWS, clampStep, dateKeyUTC, daysBetweenKeys, stepLabel, type Ball, type TaskKind } from "./domain.ts";
+import { FLOWS, clampStep, dateKeyPrague, dateKeyUTC, daysBetweenKeys, stepLabel, type Ball, type TaskKind } from "./domain.ts";
+import { nudgedLabel } from "./nudge.ts";
 import { bucketOf, shortDateLabel, type Bucket } from "./buckets.ts";
 
 /**
@@ -29,6 +30,10 @@ export type TodayInput = {
   client_name: string | null;
   client_color: string | null;
   supplier_name: string | null;
+  /** Od kdy úkol stojí na současném kroku (ISO) — z historie, jen u těch, které čekají jinde. */
+  step_since?: string | null;
+  /** Kdy se v současném čekání naposledy urgovalo (ISO). */
+  nudged_at?: string | null;
 };
 
 export type TodayStep = { step: number; label: string };
@@ -56,6 +61,12 @@ export type TodayTask = {
   stepName: string;
   /** Dodavatel, u kterého úkol právě leží; jinak `null`. */
   supplierName: string | null;
+  /** Kolik dní úkol leží u klienta nebo u dodavatele; `null`, když neleží nebo se to neví. */
+  waitDays: number | null;
+  /** Den, od kterého tam leží — pro text připomínky. */
+  waitSince: string | null;
+  /** „urgováno včera“; `null`, když se v tomhle čekání neurgovalo. */
+  nudged: string | null;
   clientName: string | null;
   clientColor: string | null;
   /** Další krok štafety — kam úkol posune hlavní tlačítko. */
@@ -122,32 +133,43 @@ function byUrgency(a: Sorted, b: Sorted): number {
   return a.title.localeCompare(b.title, "cs");
 }
 
-/** Termín tak krátce, jak to jde: dnes a zítra slovem, tento týden se dnem, jinak jen datum. */
-function dueLabel(t: Sorted, today: string): string | null {
-  if (!t.dueKey) return null;
-  if (t.bucket === "late") return dayLabel(t.dueKey);
-  const zaDni = daysBetweenKeys(today, t.dueKey);
-  if (zaDni === 0) return "dnes";
-  if (zaDni === 1) return "zítra";
-  return zaDni <= 7 ? shortDateLabel(t.dueKey) : dayLabel(t.dueKey);
+/**
+ * Štítek termínu a jeho barva — stejně pro Dnes i pro Úkoly. Termín tak
+ * krátce, jak to jde: dnes a zítra slovem, do týdne se dnem v týdnu, jinak
+ * jen datum.
+ */
+export function dueChip(dueKey: string | null, late: boolean, today: string): { label: string | null; tone: DueTone } {
+  if (!dueKey) return { label: null, tone: "none" };
+  if (late) return { label: dayLabel(dueKey), tone: "late" };
+  const zaDni = daysBetweenKeys(today, dueKey);
+  if (zaDni === 0) return { label: "dnes", tone: "today" };
+  if (zaDni === 1) return { label: "zítra", tone: "soon" };
+  return { label: zaDni > 1 && zaDni <= 7 ? shortDateLabel(dueKey) : dayLabel(dueKey), tone: "soon" };
 }
 
 function row(t: Sorted, sub: string, today: string): TodayTask {
   const zaDni = t.dueKey ? daysBetweenKeys(today, t.dueKey) : null;
+  const stitek = dueChip(t.dueKey, t.bucket === "late", today);
+  // Čekání se počítá podle Prahy — je to okamžik, ne termín zadaný jako den.
+  const ceka = t.ball === "client" || t.ball === "supplier";
+  const odKdy = ceka && t.step_since ? dateKeyPrague(t.step_since) : null;
   return {
     id: t.id,
     title: t.title,
     sub,
     late: t.bucket === "late",
     dueKey: t.dueKey,
-    dueLabel: dueLabel(t, today),
-    dueTone: t.bucket === "late" ? "late" : zaDni === 0 ? "today" : t.dueKey ? "soon" : "none",
+    dueLabel: stitek.label,
+    dueTone: stitek.tone,
     lateDays: t.bucket === "late" && zaDni !== null ? Math.max(1, -zaDni) : 0,
     ball: t.ball,
     step: clampStep(t.kind, t.step),
     steps: FLOWS[t.kind],
     stepName: t.step_name,
     supplierName: t.ball === "supplier" ? t.supplier_name : null,
+    waitDays: odKdy ? Math.max(0, daysBetweenKeys(odKdy, today)) : null,
+    waitSince: odKdy,
+    nudged: ceka && t.nudged_at ? nudgedLabel(dateKeyPrague(t.nudged_at), today) : null,
     clientName: t.client_name,
     clientColor: t.client_color,
     ...steps(t),

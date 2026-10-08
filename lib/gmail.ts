@@ -286,6 +286,21 @@ export async function fetchInbox(
 }
 
 /**
+ * Odesílatelé jednoho vlákna v pořadí zpráv — jen hlavičky „From“. Slouží
+ * tiché kontrole, jestli už poslední slovo ve vlákně není moje. `null`, když
+ * vlákno v Gmailu už není.
+ */
+export async function fetchThreadSenders(accessToken: string, threadId: string): Promise<string[] | null> {
+  try {
+    const vlakno = await gmailGet<Vlakno>(`threads/${threadId}?format=metadata&metadataHeaders=From`, accessToken);
+    return (vlakno.messages ?? []).map((z) => hlavicka(z, "From") ?? "");
+  } catch (e) {
+    if (e instanceof GmailError && !(e instanceof GmailAuthExpired) && e.status === 404) return null;
+    throw e;
+  }
+}
+
+/**
  * Jedna zpráva celá, včetně textu. Na rozdíl od přehledu pošty tohle Gmail
  * žádá o obsah — volá se proto jen na výslovné kliknutí („Úkol“)
  * a jen když majitel schránky povolil návrh úkolu pomocí AI. Výsledek se

@@ -104,7 +104,10 @@ export function matchesIgnored(email: string, patterns: string[]): boolean {
 export type ThreadInfo = {
   /** Vlastní adresa — podle ní se pozná, co jsem poslal já. */
   myEmail: string;
-  /** Adresy odesílatelů ve vlákně, v pořadí, jak zprávy přišly. */
+  /**
+   * Odesílatelé ve vlákně, v pořadí, jak zprávy přišly — holé adresy, nebo celé
+   * hlavičky „From“ tak, jak je vrací Gmail (`Jméno <adresa>`).
+   */
   sendersInOrder: string[];
 };
 
@@ -113,12 +116,17 @@ export type ThreadInfo = {
  * někdo jiný, míč je u mě. Když jsem poslední psal já, čeká se na ně.
  *
  * Záměrně se nekouká na to, kolik zpráv ve vlákně je — jen na poslední.
+ *
+ * Odesílatel se z hlavičky nejdřív vyloupne: Gmail vrací `Jméno <adresa>`
+ * a prosté porovnání s vlastní adresou by nesedělo nikdy — odpovězené vlákno
+ * by pak čekalo na odpověď napořád.
  */
 export function threadStatus(thread: ThreadInfo): MailStatus {
   const ja = thread.myEmail.trim().toLowerCase();
   const posledni = [...thread.sendersInOrder].reverse().find((s) => s.trim());
   if (!posledni) return "info";
-  return posledni.trim().toLowerCase() === ja ? "info" : "waiting";
+  const adresa = parseFrom(posledni)?.email ?? posledni.trim().toLowerCase();
+  return adresa === ja ? "info" : "waiting";
 }
 
 export type RawMessage = {

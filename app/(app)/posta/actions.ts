@@ -1,6 +1,7 @@
 "use server";
 
 import {
+  checkReplies,
   createLeadFromMail,
   createTasksFromMail,
   disconnectMailbox,
@@ -45,6 +46,13 @@ export async function syncMailAction(): Promise<ActionResult & { count?: number;
   const k = await kdo();
   if (!k) return NOT_READY;
   return syncMailbox(k.orgId, k.userId);
+}
+
+/** Tichá kontrola, na které čekající zprávy už jsem v Gmailu odpověděl. Jen hlavičky, bez AI. */
+export async function checkRepliesAction(): Promise<ActionResult & { answered?: number }> {
+  const k = await kdo();
+  if (!k) return NOT_READY;
+  return checkReplies(k.userId);
 }
 
 export async function disconnectMailAction(): Promise<ActionResult> {

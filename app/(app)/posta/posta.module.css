@@ -362,7 +362,9 @@
   color: var(--muted);
   overflow-wrap: anywhere;
 }
-.tagClient { background: var(--sunk); color: var(--muted); }
+.tagClient { background: var(--sunk); color: var(--ink-2); }
+/* Barevný čtvereček = barva klienta, stejná jako u jeho úkolů. */
+.tagClient i { display: inline-block; width: 7px; height: 7px; margin-right: 6px; border-radius: 2px; vertical-align: 0; }
 .tagTask { background: var(--done-soft); color: var(--done); align-self: center; }
 
 .actions { display: flex; gap: var(--s1); flex-wrap: wrap; justify-content: flex-end; align-items: center; flex: none; }

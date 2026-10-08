@@ -670,7 +670,12 @@ export default function MailBoard({
                       {/* Stav je vidět už ze záložky — štítek jen tam, kde jsou zprávy pohromadě. */}
                       {filtr === "all" && kam === "reply" && <em className={styles.tagWaiting}>čeká na odpověď</em>}
                       {filtr === "all" && kam === "fyi" && <em className={styles.tagFyi}>jen pro informaci</em>}
-                      {m.clientName && <em className={styles.tagClient}>{m.clientName}</em>}
+                      {m.clientName && (
+                        <em className={styles.tagClient}>
+                          {m.clientColor && <i style={{ background: m.clientColor }} />}
+                          {m.clientName}
+                        </em>
+                      )}
                     </span>
                     <span className={styles.subject}>{m.subject ?? "(bez předmětu)"}</span>
                   </a>

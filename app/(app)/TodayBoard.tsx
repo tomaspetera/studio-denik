@@ -1,16 +1,23 @@
 "use client";
 
-import { useRef, useState, useTransition } from "react";
+import { useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { MailRow } from "@/lib/mail-data";
 import type { Category, Client } from "@/lib/tasks";
 import type { TodaySections, TodayTask } from "@/lib/today";
 import { plural, type Ball, type DateKey } from "@/lib/domain";
+import { shortDateLabel } from "@/lib/buckets";
+import { quickDates, type QuickDate } from "@/lib/quick-dates";
+import { WAIT_LONG_DAYS, waitLabel } from "@/lib/nudge";
 import { moveTaskAction } from "./ukoly/actions";
 import { setTaskDueDateAction } from "./kalendar/actions";
 import MailTaskDialog, { useMailTask } from "./posta/MailTaskDialog";
 import MailReplyDialog, { gmailThreadUrl, useMailReply } from "./posta/MailReplyDialog";
+import ReplyCheck from "./posta/ReplyCheck";
+import DueChip from "./DueChip";
+import NudgeDialog from "./NudgeDialog";
+import { UndoToast, useUndo } from "./Undo";
 import styles from "./today.module.css";
 
 /** Zpráva na řádku: k údajům z pošty i to, co se počítá na serveru podle Prahy. */
@@ -51,6 +58,7 @@ export default function TodayBoard({
   today,
   dateLabel,
   sections,
+  signature,
   mail,
   clients,
   categories,
@@ -59,6 +67,8 @@ export default function TodayBoard({
   today: DateKey;
   dateLabel: string;
   sections: TodaySections;
+  /** Jméno z profilu — podpis v připomínce klientovi. */
+  signature: string | null;
   /** `null`, když člověk nemá připojenou schránku. */
   mail: TodayMail | null;
   clients: Client[];
@@ -69,21 +79,35 @@ export default function TodayBoard({
   /** Úkol, na kterém se zrovna něco ukládá. */
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<{ id: string; message: string } | null>(null);
+  /** Úkol, ke kterému je otevřené okno s připomínkou klientovi. */
+  const [nudging, setNudging] = useState<TodayTask | null>(null);
 
   const ukol = useMailTask(() => router.refresh());
   const odpoved = useMailReply();
   const zaneprazdnen = pending || ukol.pending || odpoved.pending;
+  const undo = useUndo();
+  const rychle = quickDates(today);
 
-  function zmen(id: string, akce: () => Promise<{ ok: true } | { ok: false; message: string }>) {
+  type Vysledek = { ok: true } | { ok: false; message: string };
+
+  /**
+   * Uloží změnu a nabídne „Zpět“. `zpet` říká, co se stalo a jak to vrátit —
+   * vrácení samo už další „Zpět“ nenabízí.
+   */
+  function zmen(id: string, akce: () => Promise<Vysledek>, zpet?: { text: string; akce: () => Promise<Vysledek> }) {
     setBusy(id);
     setError(null);
+    undo.hide();
     startTransition(async () => {
       const res = await akce();
       if (!res.ok) setError({ id, message: res.message });
+      else if (zpet) undo.show({ text: zpet.text, run: () => zmen(id, zpet.akce) });
       setBusy(null);
       router.refresh();
     });
   }
+
+  const termin = (den: string | null) => (den ? `${den}T00:00:00.000Z` : null);
 
   const { burning, mine, mineHidden, waiting, counts } = sections;
   const mineRows = mine.flatMap((g) => g.items);
@@ -101,8 +125,20 @@ export default function TodayBoard({
       busy={busy === t.id}
       disabled={zaneprazdnen}
       error={error?.id === t.id ? error.message : null}
-      onMove={(step) => zmen(t.id, () => moveTaskAction(t.id, step))}
-      onDue={(den) => zmen(t.id, () => setTaskDueDateAction(t.id, `${den}T00:00:00.000Z`))}
+      quick={rychle}
+      onNudge={() => setNudging(t)}
+      onMove={(step, label) =>
+        zmen(t.id, () => moveTaskAction(t.id, step), {
+          text: `${t.title} → ${label}`,
+          akce: () => moveTaskAction(t.id, t.step),
+        })
+      }
+      onDue={(den) =>
+        zmen(t.id, () => setTaskDueDateAction(t.id, termin(den)), {
+          text: `${t.title}: ${den ? `termín ${shortDateLabel(den)}` : "bez termínu"}`,
+          akce: () => setTaskDueDateAction(t.id, termin(t.dueKey)),
+        })
+      }
     />
   );
 
@@ -237,7 +273,12 @@ export default function TodayBoard({
                         )}
                       </div>
                       <p className={styles.msub}>
-                        {m.clientName && <span className={styles.client}><i />{m.clientName}</span>}
+                        {m.clientName && (
+                          <span className={styles.client}>
+                            <i style={m.clientColor ? { background: m.clientColor } : undefined} />
+                            {m.clientName}
+                          </span>
+                        )}
                         {m.summary ?? m.subject ?? "(bez předmětu)"}
                       </p>
                     </li>
@@ -273,6 +314,22 @@ export default function TodayBoard({
         <Link href="/report">Report</Link>
       </p>
 
+      <UndoToast undo={undo} disabled={zaneprazdnen} />
+      {nudging && (
+        <NudgeDialog
+          key={nudging.id}
+          task={nudging}
+          today={today}
+          signature={signature}
+          account={mail?.email ?? null}
+          onClose={() => setNudging(null)}
+          onDone={() => {
+            setNudging(null);
+            router.refresh();
+          }}
+        />
+      )}
+      {mail && <ReplyCheck waiting={mail.waiting} />}
       <MailTaskDialog task={ukol} clients={clients} categories={categories} today={today} />
       {mail && <MailReplyDialog reply={odpoved} account={mail.email} />}
     </div>
@@ -295,9 +352,8 @@ function Stat({ href, tone, n, label, note, alarm = false }: { href: string; ton
 }
 
 /**
- * Řádek úkolu: dílky štafety, název, komu patří a kde stojí, termín a posun
- * o krok. Termín je tlačítko — kliknutím se otevře kalendář a nové datum se
- * rovnou uloží.
+ * Řádek úkolu: dílky štafety, název, komu patří a kde stojí, termín (viz
+ * `DueChip`) a posun o krok.
  */
 function TaskRow({
   t,
@@ -305,6 +361,8 @@ function TaskRow({
   busy,
   disabled,
   error,
+  quick,
+  onNudge,
   onMove,
   onDue,
 }: {
@@ -313,33 +371,15 @@ function TaskRow({
   busy: boolean;
   disabled: boolean;
   error: string | null;
-  onMove: (step: number) => void;
-  onDue: (den: string) => void;
+  /** Termíny na jedno kliknutí — dnes, zítra, v pátek, příští týden. */
+  quick: QuickDate[];
+  /** Otevře okno s připomínkou klientovi. */
+  onNudge: () => void;
+  onMove: (step: number, label: string) => void;
+  /** `null` = termín z úkolu sundat. */
+  onDue: (den: string | null) => void;
 }) {
-  const kalendar = useRef<HTMLInputElement>(null);
-  /** Prohlížeč neumí otevřít kalendář sám — ukáže se obyčejné pole s datem. */
-  const [rucne, setRucne] = useState(false);
-
-  function otevriKalendar() {
-    const pole = kalendar.current;
-    try {
-      if (pole && typeof pole.showPicker === "function") {
-        pole.showPicker();
-        return;
-      }
-    } catch {
-      // Spadne do ručního pole níž.
-    }
-    setRucne(true);
-  }
-
-  const zmenTermin = (den: string) => {
-    setRucne(false);
-    if (den && den !== t.dueKey) onDue(den);
-  };
-
   const tone = t.late ? "o-alarm" : TONE[t.ball];
-  const dueClass = t.dueTone === "late" ? styles.dueLate : t.dueTone === "today" ? styles.dueToday : t.dueTone === "none" ? styles.dueNone : "";
 
   return (
     <li className={`${styles.row} ${busy ? styles.rowBusy : ""}`}>
@@ -369,47 +409,34 @@ function TaskRow({
           )}
           {t.ball === "me" && <span>{t.stepName}</span>}
         </span>
+        {/* Co leží jinde: jak dlouho, jestli se už urgovalo, a u klienta rovnou připomínka. */}
+        {t.ball !== "me" && (t.waitDays !== null || t.nudged || t.ball === "client") && (
+          <span className={styles.wait}>
+            {t.waitDays !== null && (
+              <span className={t.waitDays >= WAIT_LONG_DAYS ? styles.waitLong : undefined}>čeká {waitLabel(t.waitDays)}</span>
+            )}
+            {t.nudged && <span>{t.nudged}</span>}
+            {t.ball === "client" && (
+              <button type="button" className={styles.nudgeBtn} disabled={disabled} onClick={onNudge}>
+                {t.nudged ? "Urgovat znovu" : "Urgovat"}
+              </button>
+            )}
+          </span>
+        )}
         {error && <span className={styles.err} role="alert">{error}</span>}
       </div>
 
-      <div className={styles.dueCell}>
-        {rucne ? (
-          <input
-            type="date"
-            className={`field ${styles.date}`}
-            aria-label={`Termín úkolu ${t.title}`}
-            defaultValue={t.dueKey ?? ""}
-            autoFocus
-            disabled={disabled}
-            onChange={(e) => zmenTermin(e.target.value)}
-            onBlur={() => setRucne(false)}
-          />
-        ) : (
-          <>
-            <button
-              type="button"
-              className={`${styles.due} ${dueClass}`}
-              disabled={disabled}
-              title={t.dueLabel ? "Změnit termín" : "Dát termín"}
-              aria-label={t.dueLabel ? `Termín ${t.dueLabel}, změnit` : `Dát termín úkolu ${t.title}`}
-              onClick={otevriKalendar}
-            >
-              {t.dueLabel ?? "+ termín"}
-            </button>
-            {/* Neviditelné pole jen kvůli kalendáři prohlížeče — otevírá ho tlačítko nad ním. */}
-            <input
-              ref={kalendar}
-              type="date"
-              className={styles.dueNative}
-              tabIndex={-1}
-              aria-hidden="true"
-              min={today}
-              defaultValue={t.dueKey ?? ""}
-              onChange={(e) => zmenTermin(e.target.value)}
-            />
-          </>
-        )}
-      </div>
+      <DueChip
+        className={styles.dueCell}
+        taskTitle={t.title}
+        dueKey={t.dueKey}
+        label={t.dueLabel}
+        tone={t.dueTone}
+        today={today}
+        quick={quick}
+        disabled={disabled}
+        onChange={onDue}
+      />
 
       <div className={styles.actions}>
         {t.next && (
@@ -418,7 +445,7 @@ function TaskRow({
             className={`btn btn-sm ${styles.go}`}
             disabled={disabled}
             title={`Posunout na „${t.next.label}“`}
-            onClick={() => onMove(t.next!.step)}
+            onClick={() => onMove(t.next!.step, t.next!.label)}
           >
             {t.finish ? <Sipka /> : <Fajfka />}
             {t.next.label}
@@ -431,7 +458,7 @@ function TaskRow({
             disabled={disabled}
             title={`Rovnou „${t.finish.label}“`}
             aria-label={`Rovnou ${t.finish.label}: ${t.title}`}
-            onClick={() => onMove(t.finish!.step)}
+            onClick={() => onMove(t.finish!.step, t.finish!.label)}
           >
             <Fajfka />
           </button>

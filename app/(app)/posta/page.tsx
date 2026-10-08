@@ -4,7 +4,9 @@ import { supabaseServer } from "@/lib/supabase/server";
 import { isGmailConfigured, isMailAiAvailable, listIgnored, listMail, loadMailAccount, loadSignature } from "@/lib/mail-data";
 import { listCategories, listClients } from "@/lib/tasks";
 import { csDateFromKey, dateKeyPrague, todayKeyPrague } from "@/lib/domain";
+import { mailCounts } from "@/lib/mail-buckets";
 import MailBoard from "./MailBoard";
+import ReplyCheck from "./ReplyCheck";
 
 export const dynamic = "force-dynamic";
 // Obnovení tahá vlákna z Gmailu jedno po druhém, což chvíli trvá. Platí i pro
@@ -39,6 +41,8 @@ export default async function PostaPage({
     : [[], [], [], [], null];
 
   return (
+    <>
+    {ucet && <ReplyCheck waiting={mailCounts(zpravy).waiting} />}
     <MailBoard
       configured={isGmailConfigured()}
       account={ucet}
@@ -55,5 +59,6 @@ export default async function PostaPage({
       categories={kategorie}
       today={todayKeyPrague()}
     />
+    </>
   );
 }

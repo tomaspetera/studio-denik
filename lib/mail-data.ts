@@ -14,10 +14,11 @@ import {
   fetchInbox,
   fetchLabels,
   fetchMessage,
+  fetchThreadSenders,
   isGmailConfigured,
   revokeToken,
 } from "./gmail";
-import { triage, type ClientContact, type MailStatus } from "./mail-rules";
+import { threadStatus, triage, type ClientContact, type MailStatus } from "./mail-rules";
 import { prepareBody, type MailAttachment, type PreparedBody } from "./mail-body";
 import {
   checkBytes,
@@ -105,6 +106,8 @@ export type MailRow = {
   status: MailStatus;
   clientId: string | null;
   clientName: string | null;
+  /** Barva klienta — stejná jako u jeho úkolů. */
+  clientColor: string | null;
   handledAt: string | null;
   taskId: string | null;
   /** Zařazení od AI. `null` = zpráva tříděním neprošla (nebo je vypnuté). */
@@ -562,7 +565,7 @@ export async function listMail(userId: string): Promise<MailRow[]> {
   const supabase = await supabaseServer();
   const { data } = await supabase
     .from("mail_messages")
-    .select("id, gmail_id, thread_id, from_email, from_name, subject, received_at, status, client_id, handled_at, task_id, priority, summary, clients(name)")
+    .select("id, gmail_id, thread_id, from_email, from_name, subject, received_at, status, client_id, handled_at, task_id, priority, summary, clients(name, color)")
     .eq("user_id", userId)
     .order("received_at", { ascending: false });
 
@@ -570,8 +573,10 @@ export async function listMail(userId: string): Promise<MailRow[]> {
     id: string; gmail_id: string; thread_id: string; from_email: string; from_name: string | null;
     subject: string | null; received_at: string; status: MailStatus; client_id: string | null;
     handled_at: string | null; task_id: string | null; priority: MailPriority | null; summary: string | null;
-    clients: { name: string } | { name: string }[] | null;
+    clients: Klient | Klient[] | null;
   };
+  type Klient = { name: string; color: string | null };
+  const klient = (r: Row): Klient | null => (Array.isArray(r.clients) ? (r.clients[0] ?? null) : r.clients);
 
   return ((data ?? []) as unknown as Row[]).map((r) => ({
     id: r.id,
@@ -583,12 +588,69 @@ export async function listMail(userId: string): Promise<MailRow[]> {
     receivedAt: r.received_at,
     status: r.status,
     clientId: r.client_id,
-    clientName: Array.isArray(r.clients) ? (r.clients[0]?.name ?? null) : (r.clients?.name ?? null),
+    clientName: klient(r)?.name ?? null,
+    clientColor: klient(r)?.color ?? null,
     handledAt: r.handled_at,
     taskId: r.task_id,
     priority: r.priority,
     summary: r.summary,
   }));
+}
+
+/** Kolik čekajících vláken tichá kontrola nejvýš projde. */
+const KONTROLA_VLAKEN = 20;
+/** Kolik vláken se v Gmailu ověřuje souběžně. */
+const KONTROLA_SOUBEZNE = 4;
+
+/**
+ * Tichá kontrola odpovědí. U zpráv, které čekají na odpověď, se v Gmailu
+ * podívá, jestli už poslední slovo ve vlákně není moje — a takové zprávy
+ * přestanou čekat, bez klikání na „Vyřízeno“ a bez čekání na další načtení.
+ *
+ * Čtou se jen hlavičky „From“ vláken, která v appce už jsou. Nic nového se
+ * nenačítá, nic se neposílá do AI a text zpráv se nečte.
+ */
+export async function checkReplies(userId: string): Promise<ActionResult & { answered?: number }> {
+  const supabase = await supabaseServer();
+  const [{ data: ucet }, { data: cekajici }] = await Promise.all([
+    supabase.from("mail_accounts").select("email, token_enc").eq("user_id", userId).maybeSingle(),
+    supabase
+      .from("mail_messages")
+      .select("id, thread_id")
+      .eq("user_id", userId)
+      .eq("status", "waiting")
+      .is("handled_at", null)
+      .order("received_at", { ascending: false })
+      .limit(KONTROLA_VLAKEN),
+  ]);
+  const fronta = cekajici ?? [];
+  if (!ucet || fronta.length === 0) return { ok: true, answered: 0 };
+
+  try {
+    const accessToken = await accessTokenFrom(decryptToken(ucet.token_enc as string, klicProSifrovani()));
+    const odpovezene: string[] = [];
+    let dalsi = 0;
+    const pracuj = async () => {
+      while (dalsi < fronta.length) {
+        const m = fronta[dalsi++];
+        const odesilatele = await fetchThreadSenders(accessToken, m.thread_id as string);
+        // Vlákno, které v Gmailu už není, uklidí až běžné načtení pošty.
+        if (odesilatele && threadStatus({ myEmail: ucet.email as string, sendersInOrder: odesilatele }) === "info") {
+          odpovezene.push(m.id as string);
+        }
+      }
+    };
+    await Promise.all(Array.from({ length: Math.min(KONTROLA_SOUBEZNE, fronta.length) }, pracuj));
+
+    if (odpovezene.length > 0) {
+      const { error } = await supabase.from("mail_messages").update({ status: "info" }).eq("user_id", userId).in("id", odpovezene);
+      if (error) return { ok: false, message: error.message };
+      revalidatePath("/", "layout");
+    }
+    return { ok: true, answered: odpovezene.length };
+  } catch (e) {
+    return { ok: false, message: chybaText(e) };
+  }
 }
 
 export async function setHandled(id: string, handled: boolean): Promise<ActionResult> {

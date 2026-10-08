@@ -123,6 +123,27 @@ neposouvaly a „u koho leží míč“ přestával platit. V menu jsou nahoře 
 každý den; Klienti, Poptávky a Tým jsou pod „Více“ (na telefonu tam jsou i Tisk
 a Report).
 
+**Jedno kliknutí, a jde vrátit.** Termín je na Dnes i v Úkolech stejná součástka
+(`app/(app)/DueChip.tsx`): kliknutí nabídne dnes, zítra, pátek a příští týden
+(`lib/quick-dates.ts`), kalendář je až další možnost. Posun úkolu i termín se
+ukládají hned, bez potvrzení — místo dotazu „opravdu?“ se po změně na pár vteřin
+ukáže „Zpět“ (`app/(app)/Undo.tsx`).
+
+**Co leží u klienta.** U úkolů, které čekají jinde, Dnes ukazuje, kolik dní tam
+leží — počítá se z historie úkolu (`task_events`), žádný sloupec navíc. U klienta
+jde „Urgovat“: okno připraví text připomínky (`lib/nudge.ts`, bez AI), appka ho
+jen zkopíruje a do historie úkolu zapíše, že se urgovalo. Neposílá nic.
+
+**Odpovězená pošta se uklidí sama.** Vlákno, kde je poslední slovo moje, na
+odpověď nečeká — pozná se to při každém načtení pošty a navíc při otevření Dnes
+a Pošty (`posta/ReplyCheck.tsx`, nejvýš jednou za deset minut): to se appka
+zeptá Gmailu jen na odesílatele ve vláknech, která čekají. Bez AI, bez načítání
+nové pošty; `/soukromi` to říká.
+
+**Report do e-mailu.** Vedle PDF a odkazu jde report zkopírovat jako obyčejný
+text (`lib/report-text.ts`) — po klientech, u každého úkolu stav slovy a na
+konci zvlášť to, co čeká na schválení. V pátek ho připomene ranní upozornění.
+
 **U Gemini se platí předem.** Projekt, kterému patří `GEMINI_API_KEY`, má
 v AI Studiu předplacený kredit. Když dojde, každé volání skončí chybou 402
 a appka to řekne česky (`AiNoCredit` v `lib/ai.ts`) — dobíjí se v AI Studiu

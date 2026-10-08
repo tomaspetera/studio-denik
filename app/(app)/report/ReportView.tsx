@@ -6,6 +6,7 @@ import { BALL_LABEL, closedTasksPhrase, tasksWord, type Ball } from "@/lib/domai
 import type { Provider } from "@/lib/ai";
 import type { StoredReport } from "@/lib/report";
 import { ERROR_MARK } from "@/lib/stream-marks";
+import { reportMailText } from "@/lib/report-text";
 import { saveEditAction, publishAction } from "./actions";
 import styles from "./report.module.css";
 
@@ -41,6 +42,7 @@ export default function ReportView({
   stored,
   providers,
   org,
+  signature,
   siteUrl,
 }: {
   /** Klient, na kterého je report zúžený. `null` = celé studio. */
@@ -51,6 +53,8 @@ export default function ReportView({
   stored: StoredReport | null;
   providers: Provider[];
   org: { name: string; email: string };
+  /** Jméno z profilu — podpis v textu do e-mailu. */
+  signature: string | null;
   siteUrl: string;
 }) {
   const router = useRouter();
@@ -59,6 +63,7 @@ export default function ReportView({
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(stored?.edited_summary ?? stored?.ai_summary ?? "");
   const [copied, setCopied] = useState(false);
+  const [textCopied, setTextCopied] = useState(false);
   const [streaming, setStreaming] = useState(false);
   const [live, setLive] = useState("");
   const [pending, startTransition] = useTransition();
@@ -147,6 +152,27 @@ export default function ReportView({
   }
 
   /**
+   * Report jako obyčejný text do e-mailu — totéž co arch níž, jen bez grafiky.
+   * Jde zkopírovat i bez vygenerovaného shrnutí; pak je v něm jen seznam práce.
+   */
+  async function copyText() {
+    const mail = reportMailText({
+      rangeText: data.rangeText,
+      clientName: client?.name ?? null,
+      summary: text,
+      byClient: data.byClient,
+      signature,
+    });
+    try {
+      await navigator.clipboard.writeText(mail);
+      setTextCopied(true);
+      setTimeout(() => setTextCopied(false), 2500);
+    } catch {
+      setError("Text se nepodařilo zkopírovat — prohlížeč zápis do schránky nepovolil.");
+    }
+  }
+
+  /**
    * PDF necháme vytisknout prohlížeč. Tiskový styl schová celé rozhraní
    * a zůstane jen arch — výsledek je tedy totožný s tím, co je vidět
    * na obrazovce, a nemusíme dokument kreslit podruhé v knihovně.
@@ -215,6 +241,16 @@ export default function ReportView({
             </svg>
             <span>{streaming ? "Píšu…" : text ? "Přegenerovat" : "Vygenerovat"}</span>
           </button>
+
+          {!streaming && data.byClient.length > 0 && (
+            <button type="button" className="btn" onClick={copyText} title="Zkopíruje report jako text — stačí ho vložit do e-mailu">
+              <svg viewBox="0 0 24 24">
+                <rect x="9" y="9" width="11" height="11" rx="2" />
+                <path d="M5 15V6a2 2 0 012-2h9" />
+              </svg>
+              <span>{textCopied ? "Zkopírováno" : "Text do e-mailu"}</span>
+            </button>
+          )}
 
           {text && !streaming && (
             <button type="button" className="btn" onClick={toPdf} title="Otevře tiskový dialog — vyber „Uložit jako PDF“">

@@ -23,7 +23,7 @@ export function siteUrl(): string {
  * to musí umět rozeznat a poradit, ne spadnout na nesrozumitelné chybě.
  */
 export type Workspace =
-  | { state: "ready"; orgId: string; orgName: string; email: string; /** Jméno z profilu; když chybí, začátek e-mailu. */ name: string; initials: string }
+  | { state: "ready"; orgId: string; orgName: string; email: string; /** Jméno z profilu; když chybí, začátek e-mailu. */ name: string; /** Jméno z profilu, nebo `null` — do podpisu se začátek e-mailu nehodí. */ fullName: string | null; initials: string }
   | { state: "schema-missing"; email: string; detail: string }
   | { state: "error"; email: string; detail: string };
 
@@ -91,6 +91,7 @@ export const getWorkspace = cache(async (): Promise<Workspace | null> => {
     orgName: org.name,
     email,
     name: jmeno || local,
+    fullName: jmeno || null,
     initials: znacka || initials(jmeno || null, email),
   };
 });

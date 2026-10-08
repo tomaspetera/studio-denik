@@ -67,6 +67,9 @@ zkouska("já poslední", threadStatus({ myEmail: JA, sendersInOrder: ["jana@firm
 zkouska("jen oni", threadStatus({ myEmail: JA, sendersInOrder: ["jana@firma.cz"] }) === "waiting", "nová zpráva bez odpovědi");
 zkouska("velikost ve vlákně", threadStatus({ myEmail: JA, sendersInOrder: ["jana@firma.cz", JA.toUpperCase()] }) === "info", "velikost písmen nerozhoduje");
 zkouska("prázdné vlákno", threadStatus({ myEmail: JA, sendersInOrder: [] }) === "info", "bez zpráv se nic nečeká");
+// Gmail vrací celou hlavičku „From“, ne holou adresu — tak to chodí z `fetchInbox`.
+zkouska("hlavička: já poslední", threadStatus({ myEmail: JA, sendersInOrder: ["Jana Nováková <jana@firma.cz>", `Tomáš Petera <${JA}>`] }) === "info" && threadStatus({ myEmail: JA, sendersInOrder: ["jana@firma.cz", `"Petera, Tomáš" <${JA.toUpperCase()}>`] }) === "info", "odpověď se pozná i z hlavičky se jménem");
+zkouska("hlavička: oni poslední", threadStatus({ myEmail: JA, sendersInOrder: [`Tomáš Petera <${JA}>`, "Jana Nováková <jana@firma.cz>"] }) === "waiting" && threadStatus({ myEmail: JA, sendersInOrder: [`Kolega <kolega+${JA}>`] }) === "waiting", "cizí hlavička čeká — ani když vlastní adresu obsahuje jako část");
 
 // --- Celé třídění ------------------------------------------------------------------
 const ctx = { myEmail: JA, contacts: kontakty, ignored: ignorovani };

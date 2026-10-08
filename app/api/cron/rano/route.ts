@@ -5,6 +5,7 @@ import { loadAttention } from "@/lib/attention-data";
 import { actionableCount, isValidDateKey } from "@/lib/attention";
 import { syncMailboxesForCron } from "@/lib/mail-data";
 import { isMailAutoDay, morningPushBody } from "@/lib/mail-schedule";
+import { reportPushPart } from "@/lib/report-text";
 
 /**
  * Ranní souhrn — jednou denně, přes Vercel Cron (viz vercel.json).
@@ -20,6 +21,8 @@ import { isMailAutoDay, morningPushBody } from "@/lib/mail-schedule";
  * schránkám, jejichž majitel si ranní načítání zapnul (`lib/mail-schedule.ts`,
  * `syncMailboxesForCron`). Kolik zpráv čeká, se pak dozví jen on sám: pošta
  * je soukromá, do upozornění kolegům nepatří.
+ *
+ * V pátek souhrn připomene i týdenní report (`reportPushPart`).
  */
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -121,6 +124,9 @@ export async function GET(request: Request) {
     if (dueTomorrow > 0) parts.push(`zítra ${dueTomorrow}`);
     if (overdue > 0) parts.push(`po termínu ${overdue}`);
     if (attention > 0) parts.push(`chce pozornost ${attention}`);
+    // V pátek i report — posílá se na konci týdne a snadno se na něj zapomene.
+    const report = reportPushPart(today, rows.length);
+    if (report) parts.push(report);
 
     // Bez úkolů má smysl pokračovat jen tehdy, když někomu čeká pošta.
     if (parts.length === 0 && !posta?.counts.size) continue;

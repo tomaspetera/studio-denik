@@ -1,0 +1,93 @@
+/* Termín úkolu jako tlačítko s nabídkou (viz DueChip.tsx). Barva říká, jak
+   moc termín tlačí: po termínu plná červená, dnes červený rámeček, jinak klid. */
+
+.cell { position: relative; display: flex; justify-content: flex-end; }
+.cell:focus { outline: none; }
+
+.due {
+  height: 25px;
+  padding: 0 8px;
+  border-radius: var(--r1);
+  border: 1px solid transparent;
+  background: transparent;
+  font-family: var(--mono);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-2);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+.due:hover { background: var(--sunk); border-color: var(--line-2); color: var(--ink); }
+.due:disabled { cursor: not-allowed; opacity: 0.6; }
+.late { background: var(--alarm-soft); color: var(--alarm); font-weight: 700; }
+.late:hover { background: var(--alarm-soft); border-color: var(--alarm); color: var(--alarm); }
+.today { border-color: color-mix(in srgb, var(--alarm) 55%, transparent); color: var(--alarm); font-weight: 700; }
+.today:hover { background: var(--alarm-soft); border-color: var(--alarm); color: var(--alarm); }
+.none { border: 1px dashed var(--line-2); color: var(--muted); font-family: var(--ui-s); }
+.none:hover { border-style: solid; }
+
+.native {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  border: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+.date { height: 27px; padding: 0 6px; font-size: 12px; width: 132px; }
+
+/* Nabídka: čtyři nejčastější termíny na jedno kliknutí, kalendář až pod čarou. */
+.menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  z-index: 30;
+  min-width: 208px;
+  padding: var(--s1);
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  border: 1px solid var(--line-2);
+  border-radius: var(--r2);
+  box-shadow: var(--sh-3);
+  cursor: default;
+  animation: enter 0.14s var(--ease);
+}
+.menu button {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s4);
+  width: 100%;
+  padding: 7px 10px;
+  border: 0;
+  border-radius: var(--r1);
+  background: transparent;
+  font-size: 13.5px;
+  font-weight: 500;
+  text-align: left;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.menu button:hover, .menu button:focus-visible { background: var(--raise); }
+.menu em {
+  font-style: normal;
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--muted);
+}
+.menu .on { background: var(--accent-soft); color: var(--accent); font-weight: 700; }
+.menu .on em { color: var(--accent); }
+.menu button:not([role="menuitemradio"]) { color: var(--ink-2); }
+.menu [role="menuitemradio"] + button:not([role="menuitemradio"]) {
+  margin-top: var(--s1);
+  border-top: 1px solid var(--line);
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+  padding-top: 9px;
+}
+.menu .off { color: var(--muted); }

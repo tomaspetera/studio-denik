@@ -59,7 +59,13 @@ export default function SoukromiPage() {
             Pošta se načítá ve chvíli, kdy v aplikaci klikneš na „Obnovit“. Pokud si zvlášť zapneš
             ranní načítání, načte ji aplikace také sama v úterý, ve středu a ve čtvrtek ráno,
             i když ji nemáš otevřenou — čte přitom totéž, tedy hlavičky zpráv. V ostatní dny a bez
-            zapnutého ranního načítání se sama nenačítá.
+            zapnutého ranního načítání se nová pošta sama nenačítá.
+          </li>
+          <li>
+            Když aplikaci otevřeš a nějaké zprávy v ní čekají na odpověď, zeptá se Gmailu (nejvýš
+            jednou za deset minut), jestli jsi na ně mezitím neodpověděl — čte přitom jen odesílatele
+            zpráv ve vláknech, která už v aplikaci jsou. Odpovězené zprávy pak přestanou čekat.
+            Nová pošta se tím nenačítá a nic se neposílá umělé inteligenci.
           </li>
           <li>
             Text zprávy aplikace načte jen u jedné konkrétní zprávy, a to ve chvíli, kdy u ní sám
@@ -199,7 +205,10 @@ export default function SoukromiPage() {
           together with the client the user assigns to a label.
           Mail is loaded when the user clicks
           “Refresh”; if the mailbox owner separately enables scheduled loading, the app also loads
-          the headers on its own on Tuesday, Wednesday and Thursday mornings. It never sends, deletes
+          the headers on its own on Tuesday, Wednesday and Thursday mornings. When the app is opened
+          and messages are waiting for a reply, it also checks (at most once every ten minutes) the
+          senders in those already-listed threads to see whether the user has replied; no new mail is
+          loaded by that check and nothing is sent to AI. It never sends, deletes
           or modifies mail. It stores sender, subject, date, a status label, message/thread IDs and the matching
           client, but never the message text or attachments. The Gmail access token is stored
           encrypted and is only available to the server.

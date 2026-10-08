@@ -74,6 +74,7 @@ export default async function ReportPage({
       stored={stored}
       providers={availableProviders()}
       org={{ name: ws.orgName, email: ws.email }}
+      signature={ws.fullName}
       siteUrl={siteUrl()}
     />
   );
