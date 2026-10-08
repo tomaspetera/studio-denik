@@ -25,6 +25,16 @@ const HLAVNI: Item[] = [
     icon: <path d="M3 12h4l3 8 4-16 3 8h4" />,
   },
   {
+    href: "/tyden",
+    label: "Týden",
+    icon: (
+      <>
+        <rect x="3" y="4" width="18" height="16" rx="2" />
+        <path d="M9 4v16M15 4v16" />
+      </>
+    ),
+  },
+  {
     href: "/ukoly",
     label: "Úkoly",
     bar: true,

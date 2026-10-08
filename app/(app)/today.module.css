@@ -217,6 +217,18 @@
 .meta > .client { flex-shrink: 1; min-width: 0; }
 .meta > * + *::before { content: "·"; margin: 0 7px; color: var(--faint); font-weight: 400; }
 .lateTxt { font-weight: 700; color: var(--alarm); }
+/* Úkol, který si člověk na dnešek sám naplánoval (Můj týden). */
+.planned { font-weight: 700; color: var(--accent); }
+.headLink {
+  margin-left: auto;
+  font-family: var(--ui-s);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent);
+  text-decoration: none;
+  white-space: nowrap;
+}
+.headLink:hover { text-decoration: underline; text-underline-offset: 3px; }
 .where { color: var(--tone); font-weight: 600; }
 .err { font-size: 12px; color: var(--alarm); }
 

@@ -14,6 +14,7 @@ import { lastSyncLabel } from "@/lib/mail-schedule";
 import { initials, mailWhen } from "@/lib/mail-face";
 import { buildToday } from "@/lib/today";
 import { loadWaitingInfo } from "@/lib/waiting-data";
+import { loadPlans } from "@/lib/week-data";
 import AttentionPanel from "./AttentionPanel";
 import TodayBoard, { type TodayMail } from "./TodayBoard";
 import { csDate, csDateFromKey } from "@/lib/domain";
@@ -32,8 +33,9 @@ export default async function DnesPage() {
 
   const supabase = await supabaseServer();
   const { data: { user } } = await supabase.auth.getUser();
-  const [tasks, { members }, capacity, attention, priorityIds, ucet, zpravy] = await Promise.all([
+  const [tasks, plany, { members }, capacity, attention, priorityIds, ucet, zpravy] = await Promise.all([
     listTasks(ws.orgId),
+    loadPlans(ws.orgId),
     loadTeam(ws.orgId),
     loadCapacity(ws.orgId),
     loadAttention(supabase, ws.orgId),
@@ -52,7 +54,7 @@ export default async function DnesPage() {
   );
   const ukoly = tasks.map((t) => {
     const c = cekani.get(t.id);
-    return c ? { ...t, step_since: c.since, nudged_at: c.nudgedAt } : t;
+    return { ...t, step_since: c?.since ?? null, nudged_at: c?.nudgedAt ?? null, planned_for: plany.get(t.id) ?? null };
   });
 
   const dnes = new Date();

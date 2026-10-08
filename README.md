@@ -140,6 +140,14 @@ a Pošty (`posta/ReplyCheck.tsx`, nejvýš jednou za deset minut): to se appka
 zeptá Gmailu jen na odesílatele ve vláknech, která čekají. Bez AI, bez načítání
 nové pošty; `/soukromi` to říká.
 
+**Můj týden.** Termín říká, dokdy má být úkol hotový; stránka Týden k tomu
+přidává, na který den si ho člověk zařadil (`tasks.planned_for`, jen den, čte
+se přímo z tabulky — pohled `tasks_view` ho nevrací). Plánuje se jen vlastní
+práce, přetažením nebo tlačítkem „Kdy“. Co se nestihlo, se samo přenese na
+dnešek a je tak označené (`lib/week.ts`); na Dnes je naplánované v „Na tobě“
+první. Bez sloupce (před migrací 0025) se stránky nerozbijí — plán je prostě
+prázdný a pokus o zařazení to řekne.
+
 **Report do e-mailu.** Vedle PDF a odkazu jde report zkopírovat jako obyčejný
 text (`lib/report-text.ts`) — po klientech, u každého úkolu stav slovy a na
 konci zvlášť to, co čeká na schválení. V pátek ho připomene ranní upozornění.

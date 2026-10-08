@@ -170,7 +170,15 @@ export default function TodayBoard({
           tone="o-me"
           n={mineCount}
           label="na tobě"
-          note={mineCount === 0 ? "nic dalšího nečeká" : counts.noDue > 0 ? `${counts.noDue} bez termínu` : "všechno má termín"}
+          note={
+            mineCount === 0
+              ? "nic dalšího nečeká"
+              : counts.planned > 0
+                ? `${counts.planned} v plánu na dnes`
+                : counts.noDue > 0
+                  ? `${counts.noDue} bez termínu`
+                  : "všechno má termín"
+          }
         />
         {mail && (
           <Stat
@@ -216,7 +224,7 @@ export default function TodayBoard({
                 <header className={styles.cardHead}>
                   <h2>Na tobě</h2>
                   <em className={styles.count}>{mineCount}</em>
-                  <span className={styles.hint}>od nejbližšího termínu</span>
+                  <Link href="/tyden" className={styles.headLink}>Naplánovat týden</Link>
                 </header>
                 <ul className={styles.list}>{mineRows.map(radek)}</ul>
                 {mineHidden > 0 && (
@@ -392,6 +400,7 @@ function TaskRow({
       <div className={styles.main}>
         <span className={styles.title}>{t.title}</span>
         <span className={styles.meta}>
+          {t.plannedToday && <b className={styles.planned}>v plánu na dnes</b>}
           {t.lateDays > 0 && (
             <b className={styles.lateTxt}>{t.lateDays} {plural(t.lateDays, "den", "dny", "dní")} po termínu</b>
           )}

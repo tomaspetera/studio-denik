@@ -34,6 +34,8 @@ export type TodayInput = {
   step_since?: string | null;
   /** Kdy se v současném čekání naposledy urgovalo (ISO). */
   nudged_at?: string | null;
+  /** Den "RRRR-MM-DD", na který si úkol člověk naplánoval (Můj týden). */
+  planned_for?: string | null;
 };
 
 export type TodayStep = { step: number; label: string };
@@ -67,6 +69,8 @@ export type TodayTask = {
   waitSince: string | null;
   /** „urgováno včera“; `null`, když se v tomhle čekání neurgovalo. */
   nudged: string | null;
+  /** Naplánováno na dnešek (Můj týden) — včetně toho, co se nestihlo dřív a přeneslo se. */
+  plannedToday: boolean;
   clientName: string | null;
   clientColor: string | null;
   /** Další krok štafety — kam úkol posune hlavní tlačítko. */
@@ -92,6 +96,8 @@ export type TodaySections = {
     mine: number;
     /** Na mně bez termínu — to, co se snadno ztratí. */
     noDue: number;
+    /** Na mně a naplánováno na dnešek. */
+    planned: number;
     waiting: number;
     client: number;
     supplier: number;
@@ -147,6 +153,11 @@ export function dueChip(dueKey: string | null, late: boolean, today: string): { 
   return { label: zaDni > 1 && zaDni <= 7 ? shortDateLabel(dueKey) : dayLabel(dueKey), tone: "soon" };
 }
 
+/** Vlastní úkol naplánovaný na dnešek nebo dřív — co se nestihlo, platí pro dnešek. */
+function naDnes(t: TodayInput, today: string): boolean {
+  return t.ball === "me" && Boolean(t.planned_for) && (t.planned_for as string) <= today;
+}
+
 function row(t: Sorted, sub: string, today: string): TodayTask {
   const zaDni = t.dueKey ? daysBetweenKeys(today, t.dueKey) : null;
   const stitek = dueChip(t.dueKey, t.bucket === "late", today);
@@ -170,6 +181,7 @@ function row(t: Sorted, sub: string, today: string): TodayTask {
     waitDays: odKdy ? Math.max(0, daysBetweenKeys(odKdy, today)) : null,
     waitSince: odKdy,
     nudged: ceka && t.nudged_at ? nudgedLabel(dateKeyPrague(t.nudged_at), today) : null,
+    plannedToday: naDnes(t, today),
     clientName: t.client_name,
     clientColor: t.client_color,
     ...steps(t),
@@ -208,9 +220,19 @@ export function buildToday(
   const mineAll = open.filter((t) => t.ball === "me" && !isBurning(t));
   let zbyva = Math.max(0, mineRows);
   const mine: TodayGroup[] = [];
+
+  // Co si člověk naplánoval na dnešek, jde první — ať má termín kdykoli.
+  const planovane = mineAll
+    .filter((t) => naDnes(t, today))
+    .sort(byUrgency)
+    .slice(0, zbyva)
+    .map((t) => row(t, t.dueKey ? `${shortDateLabel(t.dueKey)} · ${t.step_name}` : t.step_name, today));
+  if (planovane.length > 0) mine.push({ bucket: "today", items: planovane });
+  zbyva -= planovane.length;
+
   for (const bucket of MINE_BUCKETS) {
     const items = mineAll
-      .filter((t) => t.bucket === bucket)
+      .filter((t) => t.bucket === bucket && !naDnes(t, today))
       .sort(byUrgency)
       .slice(0, zbyva)
       .map((t) => row(t, t.dueKey ? `${shortDateLabel(t.dueKey)} · ${t.step_name}` : t.step_name, today));
@@ -239,6 +261,7 @@ export function buildToday(
       today: open.filter((t) => t.bucket === "today" && t.ball === "me").length,
       mine: open.filter((t) => t.ball === "me").length,
       noDue: open.filter((t) => t.ball === "me" && !t.dueKey).length,
+      planned: open.filter((t) => naDnes(t, today)).length,
       waiting: open.filter((t) => t.ball === "client" || t.ball === "supplier").length,
       client: open.filter((t) => t.ball === "client").length,
       supplier: open.filter((t) => t.ball === "supplier").length,

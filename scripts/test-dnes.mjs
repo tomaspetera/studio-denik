@@ -73,7 +73,7 @@ zkouska("čeká se: popisek", d.waiting[0].sub === "U klienta · termín dnes" &
 // --- Nic se neztratí ani neopakuje ---------------------------------------------------------
 const vse = [...nazvy(d.burning), ...d.mine.flatMap((g) => nazvy(g.items)), ...nazvy(d.waiting)];
 zkouska("každý právě jednou", vse.length === new Set(vse).size && vse.length === 12 && !vse.includes("Hotová práce") && !vse.includes("Interní hotovo"), "dvanáct otevřených úkolů, každý jednou; hotové tu nejsou");
-zkouska("počty", stejne(d.counts, { late: 4, today: 1, mine: 8, noDue: 1, waiting: 4, client: 2, supplier: 2, done: 2 }), "po termínu, dnešní, na tobě, bez termínu, u jiných a uzavřené");
+zkouska("počty", stejne(d.counts, { late: 4, today: 1, mine: 8, noDue: 1, planned: 0, waiting: 4, client: 2, supplier: 2, done: 2 }), "po termínu, dnešní, na tobě, bez termínu, u jiných a uzavřené");
 
 // --- Termín jako štítek a postup jako dílky ---------------------------------------------------
 const kus = (title) => [...d.burning, ...d.mine.flatMap((g) => g.items), ...d.waiting].find((t) => t.title === title);
