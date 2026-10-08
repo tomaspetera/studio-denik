@@ -86,11 +86,11 @@ export async function listGmailLabelsAction(): Promise<MailLabelsResult> {
   return listGmailLabels(k.userId);
 }
 
-/** Uložení výběru štítků, ze kterých se pošta načítá navíc k doručené. */
-export async function setMailLabelsAction(ids: string[]): Promise<MailLabelsResult> {
+/** Uložení výběru zdrojů pošty a toho, kterému klientovi který štítek patří. */
+export async function setMailLabelsAction(ids: string[], clients: Record<string, string>): Promise<MailLabelsResult> {
   const k = await kdo();
   if (!k) return NOT_READY;
-  return setMailLabels(k.userId, ids);
+  return setMailLabels(k.orgId, k.userId, ids, clients);
 }
 
 /** Zapnutí nebo vypnutí ranního načítání pošty bez kliknutí — zvláštní souhlas. */

@@ -8,7 +8,8 @@
  *
  * Dvě otázky, na které pravidla odpovídají:
  *  1) Čeká zpráva na mou odpověď? → poslední zpráva ve vlákně je od nich.
- *  2) Komu patří? → adresa odesílatele proti kontaktům klientů.
+ *  2) Komu patří? → štítek, kterému majitel schránky přiřadil klienta;
+ *     jinak adresa odesílatele proti kontaktům klientů.
  */
 
 export type MailStatus = "waiting" | "info";
@@ -129,6 +130,8 @@ export type RawMessage = {
   receivedAt: string;
   /** Odesílatelé celého vlákna v pořadí — z Gmailu se dotahují zvlášť. */
   threadSenders: string[];
+  /** Štítky Gmailu, pod kterými se vlákno našlo (jen ty, které si majitel schránky vybral). */
+  labelIds?: string[];
 };
 
 export type TriagedMessage = {
@@ -146,6 +149,13 @@ export type TriageContext = {
   myEmail: string;
   contacts: ClientContact[];
   ignored: string[];
+  /**
+   * Klient podle štítku, pod kterým zpráva v Gmailu leží (`labelClient`
+   * v `mail-labels.ts`). Má přednost před adresou odesílatele: štítek je
+   * výslovné pravidlo majitele schránky, adresa jen odhad — tentýž člověk
+   * může psát kvůli dvěma značkám.
+   */
+  labelClient?: (labelIds: string[]) => string | null;
 };
 
 /**
@@ -174,7 +184,7 @@ export function triage(messages: RawMessage[], ctx: TriageContext): TriagedMessa
       subject: (m.subject ?? "").replace(/\s+/g, " ").trim().slice(0, 300) || null,
       receivedAt: m.receivedAt,
       status: threadStatus({ myEmail: ctx.myEmail, sendersInOrder: m.threadSenders }),
-      clientId: matchClient(sender.email, ctx.contacts),
+      clientId: ctx.labelClient?.(m.labelIds ?? []) ?? matchClient(sender.email, ctx.contacts),
     });
   }
 

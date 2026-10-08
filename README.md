@@ -163,6 +163,11 @@ ze všech zdrojů se slučují střídavě a do stropu 90, aby plná doručená 
 pošta je ve výběru jako jeden ze zdrojů (`INBOX_ID`): prázdný výběr znamená jen
 doručenou, výběr bez ní jen štítky (`mailSources`) — pro toho, kdo má všechnu
 pracovní poštu ve štítcích a nechce, aby appka četla a třídila i soukromou.
+Štítku jde přiřadit klient (`clientId` u položky v `mail_accounts.labels`):
+zpráva nalezená pod tím štítkem se pak označí jako jeho, a to přednostně před
+adresou odesílatele — štítek je výslovné pravidlo, adresa jen odhad
+(`labelClient`, podštítek má přednost před nadřazeným). Hodí se, když jsou
+„klienti“ ve skutečnosti značky jedné firmy a píšou kvůli nim titíž lidé.
 
 **Ranní načítání pošty.** Volitelné a zapíná se zvlášť
 (`mail_accounts.auto_sync_at`). V úterý, ve středu a ve čtvrtek

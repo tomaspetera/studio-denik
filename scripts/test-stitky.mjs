@@ -10,6 +10,7 @@ import {
   INBOX_ID,
   INBOX_LABEL,
   LABELS_MAX,
+  labelClient,
   labelRows,
   mailSources,
   mergeThreadIds,
@@ -85,6 +86,26 @@ zkouska("výběr: jen doručená", pickLabels([INBOX_ID], GMAIL).length === 0 &&
 zkouska("výběr: podvržená doručená", stejne(pickLabels(["Label_1"], [...GMAIL, { id: INBOX_ID, name: "Podvrh" }]), [{ id: "Label_1", name: "Ultra_Marine" }]) && stejne(pickLabels([INBOX_ID, "Label_1"], [...GMAIL, { id: INBOX_ID, name: "Podvrh" }])[0], INBOX_LABEL), "jméno doručené pošty určuje appka, ne seznam z Gmailu");
 zkouska("výběr: strop s doručenou", pickLabels([INBOX_ID, ...mnoho.map((l) => l.id)], mnoho).length === LABELS_MAX, "strop platí i s doručenou poštou — databáze víc nepřijme");
 zkouska("uložená doručená", stejne(readLabels([{ id: "INBOX", name: "Doručená pošta" }, { id: "Label_1", name: "Ultra_Marine" }]), [INBOX_LABEL, { id: "Label_1", name: "Ultra_Marine" }]), "výběr s doručenou poštou se z databáze přečte celý");
+
+// --- Klient u štítku ------------------------------------------------------------------------------------
+const MRL_K = "11111111-1111-4111-8111-111111111111";
+const UME_K = "22222222-2222-4222-8222-222222222222";
+const PLATNI = new Set([MRL_K, UME_K]);
+v = pickLabels(["Label_1", "Label_2", "Label_3"], GMAIL, { Label_1: UME_K, Label_2: MRL_K, Label_3: "" }, PLATNI);
+zkouska("klient: uložení", stejne(v, [{ id: "Label_1", name: "Ultra_Marine", clientId: UME_K }, { id: "Label_2", name: "Ultra_Marine/MRL", clientId: MRL_K }, { id: "Label_3", name: "Ultra_Marine/Tiskarna UME" }]), "štítek si nese klienta; bez výběru zůstane bez něj");
+v = pickLabels(["Label_1", "Label_2"], GMAIL, { Label_1: "33333333-3333-4333-8333-333333333333", Label_2: 42, Label_9: MRL_K }, PLATNI);
+zkouska("klient: cizí nebo smazaný", v.every((l) => !("clientId" in l)), "klient, který ve studiu není, se neuloží — ani nesmysl, ani klient u nevybraného štítku");
+v = pickLabels([INBOX_ID, "Label_1"], GMAIL, { INBOX: UME_K, Label_1: UME_K }, PLATNI);
+zkouska("klient: doručená pošta", !("clientId" in v[0]) && v[1].clientId === UME_K, "doručená pošta klienta mít nemůže — chodí do ní všechno");
+zkouska("klient: bez mapy", pickLabels(["Label_1"], GMAIL, null, PLATNI).every((l) => !("clientId" in l)) && pickLabels(["Label_1"], GMAIL, "nesmysl", PLATNI).length === 1, "bez přiřazení se nic nemění");
+zkouska("klient: z databáze", stejne(readLabels([{ id: "Label_2", name: "Ultra_Marine/MRL", clientId: MRL_K }, { id: "Label_1", name: "Ultra_Marine", clientId: "neni-uuid" }, { id: "INBOX", name: "Doručená pošta", clientId: MRL_K }]), [{ id: "Label_2", name: "Ultra_Marine/MRL", clientId: MRL_K }, { id: "Label_1", name: "Ultra_Marine" }, { id: "INBOX", name: "Doručená pošta" }]), "klient se přečte jen ve správném tvaru a nikdy u doručené pošty");
+const ULOZENE = [{ id: "Label_1", name: "Ultra_Marine", clientId: UME_K }, { id: "Label_2", name: "Ultra_Marine/MRL", clientId: MRL_K }, { id: "Label_3", name: "Ultra_Marine/Tiskarna UME" }];
+zkouska("komu: jeden štítek", labelClient(ULOZENE, ["Label_2"]) === MRL_K && labelClient(ULOZENE, ["Label_1"]) === UME_K, "klient štítku, pod kterým zpráva leží");
+zkouska("komu: podštítek vyhrává", labelClient(ULOZENE, ["Label_1", "Label_2"]) === MRL_K && labelClient(ULOZENE, ["Label_2", "Label_1"]) === MRL_K, "zpráva pod nadřazeným štítkem i podštítkem patří klientovi podštítku, ať jdou v jakémkoli pořadí");
+zkouska("komu: dědí nadřazený", labelClient(ULOZENE, ["Label_3"]) === UME_K, "podštítek bez klienta patří tomu, komu nadřazený štítek");
+zkouska("komu: nejbližší předek", labelClient([{ id: "a", name: "A", clientId: UME_K }, { id: "b", name: "A/B", clientId: MRL_K }, { id: "c", name: "A/B/C" }], ["c"]) === MRL_K, "dědí se od nejbližšího nadřazeného, ne od nejvyššího");
+zkouska("komu: bez předka", labelClient([{ id: "x", name: "Ultra", clientId: UME_K }, { id: "y", name: "Ultra_Marine" }], ["y"]) === null && labelClient([{ id: "y", name: "WEDOS" }], ["y"]) === null, "štítek, který jen stejně začíná, nadřazený není — klienta určí adresa");
+zkouska("komu: nic", labelClient(ULOZENE, []) === null && labelClient([], ["Label_1"]) === null && labelClient(ULOZENE, ["Label_999"]) === null, "bez štítků nebo bez přiřazení žádný klient");
 
 // --- Slučování vláken ---------------------------------------------------------------------------------
 zkouska("sloučení", stejne(mergeThreadIds([["a", "b", "c"], ["x", "b"], ["y"]], 90), ["a", "x", "y", "b", "c"]), "střídavě z každého zdroje, stejné vlákno jen jednou");

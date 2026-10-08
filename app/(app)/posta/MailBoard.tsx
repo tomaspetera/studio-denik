@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { csDate, plural, type DateKey } from "@/lib/domain";
 import type { MailRow } from "@/lib/mail-data";
 import { mailBucket, sortWaiting } from "@/lib/mail-buckets";
-import { INBOX_ID, LABELS_MAX, labelRows, mailSources, sourcesLabel, withChildren, type MailLabel } from "@/lib/mail-labels";
+import { INBOX_ID, LABELS_MAX, clientOfLabel, labelRows, mailSources, sourcesLabel, withChildren, type MailLabel } from "@/lib/mail-labels";
 import type { Category, Client } from "@/lib/tasks";
 import {
   disconnectMailAction,
@@ -96,7 +96,7 @@ export default function MailBoard({
   const [menu, setMenu] = useState<string | null>(null);
   const [podpis, setPodpis] = useState(signature ?? "");
   /** Výběr štítků v nastavení: `null` = zavřený; jinak štítky z Gmailu a co je zaškrtnuté. */
-  const [stitky, setStitky] = useState<{ all: MailLabel[]; picked: string[] } | null>(null);
+  const [stitky, setStitky] = useState<{ all: MailLabel[]; picked: string[]; clients: Record<string, string> } | null>(null);
   const [pending, startTransition] = useTransition();
 
   const ukol = useMailTask((zprava) => {
@@ -135,6 +135,12 @@ export default function MailBoard({
             ...(mailSources(ulozene).inbox ? [INBOX_ID] : []),
             ...ulozene.map((l) => l.id).filter((id) => res.labels.some((l) => l.id === id)),
           ],
+          // Kterému klientovi který štítek patří — jen u klientů, kteří ve studiu ještě jsou.
+          clients: Object.fromEntries(
+            ulozene
+              .filter((l) => l.clientId && clients.some((c) => c.id === l.clientId))
+              .map((l) => [l.id, l.clientId as string]),
+          ),
         });
       }
     });
@@ -278,7 +284,12 @@ export default function MailBoard({
                 <span className={styles.setOn}>
                   {vybraneStitky.length === 0
                     ? "jen doručená pošta"
-                    : `${zdroje.inbox ? "doručená pošta a štítky" : "jen štítky"}: ${vybraneStitky.map((l) => l.name).join(", ")}`}
+                    : `${zdroje.inbox ? "doručená pošta a štítky" : "jen štítky"}: ${vybraneStitky
+                        .map((l) => {
+                          const klient = clients.find((c) => c.id === clientOfLabel(account.labels, l))?.name;
+                          return klient ? `${l.name} → ${klient}` : l.name;
+                        })
+                        .join(", ")}`}
                 </span>
               </div>
               {!stitky && (
@@ -292,7 +303,9 @@ export default function MailBoard({
                 <p className={styles.note}>
                   Zaškrtni, odkud se má pošta načítat. Když máš všechnu pracovní poštu ve štítcích, můžeš
                   doručenou poštu odškrtnout — appka pak čte a třídí jen štítky. Podštítek je v Gmailu
-                  samostatný štítek: s nadřazeným se zaškrtne taky a jde odškrtnout zvlášť.
+                  samostatný štítek: s nadřazeným se zaškrtne taky a jde odškrtnout zvlášť. U štítku
+                  můžeš vybrat klienta — pošta z něj se pak označí jako jeho, ať ji poslal kdokoli.
+                  Podštítek bez klienta přebírá klienta nadřazeného štítku.
                 </p>
                 <ul className={styles.labelList}>
                   <li className={styles.labelInbox}>
@@ -302,11 +315,39 @@ export default function MailBoard({
                     </label>
                   </li>
                   {labelRows(stitky.all).map((l) => (
-                    <li key={l.id} style={{ paddingLeft: l.depth * 22 }}>
+                    <li key={l.id} className={styles.labelRow} style={{ paddingLeft: l.depth * 22 }}>
                       <label>
                         <input type="checkbox" checked={stitky.picked.includes(l.id)} onChange={() => prepniStitek(l.id)} />
                         <span>{l.short}</span>
                       </label>
+                      {/* Komu pošta z tohohle štítku patří — má přednost před adresou odesílatele. */}
+                      {stitky.picked.includes(l.id) && clients.length > 0 && (
+                        <select
+                          className={`field ${styles.labelClient}`}
+                          aria-label={`Klient pro štítek ${l.name}`}
+                          value={stitky.clients[l.id] ?? ""}
+                          onChange={(e) => {
+                            const klient = e.target.value;
+                            setStitky((s) => {
+                              if (!s) return s;
+                              const dalsi = { ...s.clients };
+                              if (klient) dalsi[l.id] = klient;
+                              else delete dalsi[l.id];
+                              return { ...s, clients: dalsi };
+                            });
+                          }}
+                        >
+                          {/* Podštítek bez vlastního klienta přebírá klienta nadřazeného štítku. */}
+                          <option value="">
+                            {stitky.all.some((p) => stitky.picked.includes(p.id) && stitky.clients[p.id] && l.name.startsWith(`${p.name}/`))
+                              ? "jako nadřazený štítek"
+                              : "klient podle adresy"}
+                          </option>
+                          {clients.map((c) => (
+                            <option key={c.id} value={c.id}>{c.name}</option>
+                          ))}
+                        </select>
+                      )}
                     </li>
                   ))}
                 </ul>
@@ -323,7 +364,7 @@ export default function MailBoard({
                     className="btn btn-sm btn-primary"
                     disabled={zaneprazdnen || stitky.picked.length === 0 || stitky.picked.length > LABELS_MAX}
                     onClick={() =>
-                      run(() => setMailLabelsAction(stitky.picked), () => {
+                      run(() => setMailLabelsAction(stitky.picked, stitky.clients), () => {
                         const sDorucenou = stitky.picked.includes(INBOX_ID);
                         const seStitky = stitky.picked.some((id) => id !== INBOX_ID);
                         setStitky(null);

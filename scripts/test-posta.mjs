@@ -95,6 +95,25 @@ zkouska("prázdný vstup", triage([], ctx).length === 0, "nic na vstupu, nic na 
 const bezPredmetu = triage([{ ...zpravy[0], subject: "   " }], ctx);
 zkouska("prázdný předmět", bezPredmetu[0].subject === null, "samé mezery = žádný předmět");
 
+// --- Klient podle štítku v Gmailu ------------------------------------------------------
+// Kdo si poštu třídí do štítků podle značek, tím řekl, čí zpráva je. Štítek je
+// výslovné pravidlo, adresa jen odhad — proto má štítek přednost.
+const podleStitku = (ids) => (ids.includes("L_mrl") ? "mrl" : null);
+const seStitky = triage(
+  [
+    { ...zpravy[0], gmailId: "s1", labelIds: ["L_mrl"] },
+    { ...zpravy[0], gmailId: "s2", labelIds: ["L_jiny"] },
+    { ...zpravy[0], gmailId: "s3" },
+    { gmailId: "s4", threadId: "t9", from: "Cizí <nekdo@neznama.cz>", subject: "Dotaz", receivedAt: "2026-10-03T12:00:00Z", threadSenders: ["nekdo@neznama.cz"], labelIds: ["L_mrl"] },
+  ],
+  { ...ctx, labelClient: podleStitku },
+);
+const klient = (id) => seStitky.find((x) => x.gmailId === id).clientId;
+zkouska("štítek má přednost", klient("s1") === "mrl", "zpráva od kontaktu jiného klienta, ale pod štítkem značky → značka");
+zkouska("štítek bez klienta", klient("s2") === "ume" && klient("s3") === "ume", "bez přiřazeného štítku rozhoduje adresa, jako dosud");
+zkouska("neznámý odesílatel", klient("s4") === "mrl", "koho appka podle adresy nezná, toho zařadí štítek");
+zkouska("bez pravidla", triage([{ ...zpravy[0], labelIds: ["L_mrl"] }], ctx)[0].clientId === "ume", "schránka bez přiřazených štítků se chová jako dřív");
+
 // Žádná otevřená spojení, proces doběhne sám. `process.exit()` hned po zápisu
 // do roury na Windows občas spadne v knihovně libuv a vrátí chybný kód.
 console.log(chyby === 0 ? "\nPravidla třídění pošty drží." : `\nProblémů: ${chyby}`);

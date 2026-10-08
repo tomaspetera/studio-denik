@@ -18,6 +18,12 @@ export type MailLabel = {
   id: string;
   /** Celé jméno i s nadřazenými štítky, třeba „Ultra_Marine/MRL“. */
   name: string;
+  /**
+   * Klient, kterému pošta z tohohle štítku patří. Kdo si v Gmailu třídí poštu
+   * do štítků podle značek, tím appce řekne, čí zpráva je — bez ohledu na to,
+   * z jaké adresy přišla. Když chybí, klient se pozná podle adresy odesílatele.
+   */
+  clientId?: string;
 };
 
 /**
@@ -32,6 +38,7 @@ export const INBOX_LABEL: MailLabel = { id: INBOX_ID, name: "Doručená pošta" 
 export const LABELS_MAX = 20;
 
 const ID = /^[A-Za-z0-9_-]{1,100}$/;
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
  * Výběr štítků tak, jak se uloží: jen štítky, které v Gmailu opravdu jsou
@@ -41,8 +48,18 @@ const ID = /^[A-Za-z0-9_-]{1,100}$/;
  *
  * Jen doručená pošta je výchozí stav a ukládá se jako prázdný výběr — stejně
  * jako u schránky, kde nikdo nic nevybíral.
+ *
+ * `clients` říká, kterému klientovi který štítek patří (`{ idŠtítku: idKlienta }`).
+ * Uloží se jen klient, který ve studiu opravdu je (`validClientIds`); doručená
+ * pošta klienta mít nemůže — do ní chodí všechno.
  */
-export function pickLabels(ids: unknown, available: MailLabel[]): MailLabel[] {
+export function pickLabels(
+  ids: unknown,
+  available: MailLabel[],
+  clients: unknown = null,
+  validClientIds: ReadonlySet<string> = new Set(),
+): MailLabel[] {
+  const komu = clients && typeof clients === "object" ? (clients as Record<string, unknown>) : {};
   if (!Array.isArray(ids)) return [];
   const chteno = new Set(ids.filter((id): id is string => typeof id === "string" && ID.test(id)));
   const out: MailLabel[] = chteno.has(INBOX_ID) ? [INBOX_LABEL] : [];
@@ -50,9 +67,42 @@ export function pickLabels(ids: unknown, available: MailLabel[]): MailLabel[] {
   for (const l of podleJmena) {
     if (l.id === INBOX_ID || !chteno.has(l.id) || out.some((x) => x.id === l.id)) continue;
     if (out.length === LABELS_MAX) break;
-    out.push({ id: l.id, name: l.name });
+    const clientId = komu[l.id];
+    out.push(
+      typeof clientId === "string" && validClientIds.has(clientId)
+        ? { id: l.id, name: l.name, clientId }
+        : { id: l.id, name: l.name },
+    );
   }
   return out.length === 1 && out[0].id === INBOX_ID ? [] : out;
+}
+
+/**
+ * Klient štítku: jeho vlastní, a když žádného nemá, klient nejbližšího
+ * nadřazeného štítku. Podštítek „Ultra_Marine/Tiskarna UME“ bez klienta tak
+ * patří tomu, komu patří „Ultra_Marine“ — nemusí se vyplňovat u každého zvlášť.
+ */
+export function clientOfLabel(labels: MailLabel[], label: MailLabel): string | null {
+  if (label.clientId) return label.clientId;
+  const predci = labels
+    .filter((p) => p.clientId && label.name.startsWith(`${p.name}/`))
+    .sort((a, b) => b.name.length - a.name.length);
+  return predci[0]?.clientId ?? null;
+}
+
+/**
+ * Komu patří zpráva nalezená pod štítky `labelIds`. Když je pod víc štítky,
+ * rozhodne ten nejkonkrétnější — podštítek („Ultra_Marine/MRL“) má přednost
+ * před nadřazeným („Ultra_Marine“). `null`, když klienta nemá žádný z nich
+ * ani jejich nadřazené štítky.
+ */
+export function labelClient(labels: MailLabel[], labelIds: readonly string[]): string | null {
+  const kandidati = labels
+    .filter((l) => labelIds.includes(l.id))
+    .map((l) => ({ name: l.name, clientId: clientOfLabel(labels, l) }))
+    .filter((l) => l.clientId)
+    .sort((a, b) => b.name.split("/").length - a.name.split("/").length || b.name.length - a.name.length);
+  return kandidati[0]?.clientId ?? null;
 }
 
 /**
@@ -70,10 +120,12 @@ export function readLabels(value: unknown): MailLabel[] {
   const out: MailLabel[] = [];
   for (const v of value) {
     if (!v || typeof v !== "object") continue;
-    const { id, name } = v as Record<string, unknown>;
+    const { id, name, clientId } = v as Record<string, unknown>;
     if (typeof id !== "string" || !ID.test(id) || typeof name !== "string" || !name.trim()) continue;
     if (out.some((x) => x.id === id)) continue;
-    out.push({ id, name: name.slice(0, 200) });
+    const stitek: MailLabel = { id, name: name.slice(0, 200) };
+    if (id !== INBOX_ID && typeof clientId === "string" && UUID.test(clientId)) stitek.clientId = clientId;
+    out.push(stitek);
     if (out.length === LABELS_MAX) break;
   }
   return out;

@@ -232,9 +232,13 @@ export async function fetchInbox(
   // Doručená pošta se čte, jen když ji majitel schránky mezi zdroji má (`mailSources`).
   const zdroje = sources.inbox ? [await seznam(`threads?q=${encodeURIComponent(`${DOTAZ} ${stari}`)}`)] : [];
   const missingLabels: string[] = [];
+  // Pod kterými štítky se vlákno našlo — podle toho se pak pozná, komu patří.
+  const stitkyVlakna = new Map<string, string[]>();
   for (const id of sources.labelIds) {
     try {
-      zdroje.push(await seznam(`threads?labelIds=${encodeURIComponent(id)}&q=${encodeURIComponent(`${DOTAZ_STITEK} ${stari}`)}`));
+      const vlakna = await seznam(`threads?labelIds=${encodeURIComponent(id)}&q=${encodeURIComponent(`${DOTAZ_STITEK} ${stari}`)}`);
+      for (const v of vlakna) stitkyVlakna.set(v, [...(stitkyVlakna.get(v) ?? []), id]);
+      zdroje.push(vlakna);
     } catch (e) {
       // Neznámý štítek Gmail odmítne (400 nebo 404). Vypršelé přihlášení a jiné
       // chyby ale platí pro celou schránku — ty se nepolykají.
@@ -274,6 +278,7 @@ export async function fetchInbox(
       subject: hlavicka(posledni, "Subject") ?? hlavicka(zpravy[0], "Subject"),
       receivedAt: kdy.toISOString(),
       threadSenders: zpravy.map((z) => hlavicka(z, "From") ?? ""),
+      labelIds: stitkyVlakna.get(idVlakna) ?? [],
     });
   }
 

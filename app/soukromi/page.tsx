@@ -52,7 +52,8 @@ export default function SoukromiPage() {
             Čte se doručená pošta. V nastavení si můžeš vybrat štítky, ze kterých se čte taky —
             pro případ, že ti Gmail poštu přesouvá mimo doručenou — a doručenou poštu můžeš
             z načítání vyřadit, takže se pak čtou jen vybrané štítky. Kvůli tomu výběru aplikace
-            načte seznam názvů tvých štítků; uloží jen názvy a identifikátory těch, které vybereš.
+            načte seznam názvů tvých štítků; uloží jen názvy a identifikátory těch, které vybereš,
+            a klienta, kterého ke štítku přiřadíš.
           </li>
           <li>
             Pošta se načítá ve chvíli, kdy v aplikaci klikneš na „Obnovit“. Pokud si zvlášť zapneš
@@ -194,7 +195,8 @@ export default function SoukromiPage() {
           it reads only message headers (sender, subject, date) of the inbox and, if the mailbox
           owner selects Gmail labels, of messages carrying those labels (the owner may also exclude
           the inbox, so that only the selected labels are read); to offer that choice it reads
-          the list of the user’s label names and stores only the names and IDs of the selected ones.
+          the list of the user’s label names and stores only the names and IDs of the selected ones,
+          together with the client the user assigns to a label.
           Mail is loaded when the user clicks
           “Refresh”; if the mailbox owner separately enables scheduled loading, the app also loads
           the headers on its own on Tuesday, Wednesday and Thursday mornings. It never sends, deletes

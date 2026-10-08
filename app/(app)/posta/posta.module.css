@@ -159,6 +159,9 @@
   cursor: pointer;
 }
 .labelList span { overflow-wrap: anywhere; }
+.labelRow { display: flex; align-items: center; gap: var(--s3); flex-wrap: wrap; }
+.labelRow label { flex: 1 1 160px; min-width: 0; }
+.labelClient { height: 28px; padding: 0 8px; font-size: 12px; width: auto; max-width: 220px; }
 .labelInbox { border-bottom: 1px solid var(--line); margin-bottom: var(--s2); padding-bottom: var(--s2); font-weight: 600; }
 
 /* Nastavení jako seznam řádků: název, stav a přepínač. Vysvětlení se rozbaluje. */

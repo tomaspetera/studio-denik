@@ -56,7 +56,7 @@ import {
 } from "./ai";
 import { TRIAGE_BODY_MAX, TRIAGE_JSON_SCHEMA, buildTriagePrompt, finishTriage } from "./mail-triage";
 import { mailCounts, type MailCounts, type MailPriority } from "./mail-buckets";
-import { mailSources, pickLabels, readLabels, type MailLabel } from "./mail-labels";
+import { labelClient, mailSources, pickLabels, readLabels, type MailLabel } from "./mail-labels";
 import { listCategories, listClients } from "./tasks";
 import { dateKeyPrague, todayKeyPrague } from "./domain";
 
@@ -233,6 +233,12 @@ export async function disconnectMailbox(userId: string): Promise<ActionResult> {
   return { ok: true };
 }
 
+/** Klienti studia, kterým jde něco přiřadit — bez archivovaných. */
+async function aktivniKlienti(supabase: Db, orgId: string): Promise<Set<string>> {
+  const { data } = await supabase.from("clients").select("id").eq("org_id", orgId).eq("archived", false);
+  return new Set((data ?? []).map((k) => k.id as string));
+}
+
 /** Adresy, podle kterých se pozná, komu zpráva patří: z karty klienta i z kontaktů. */
 async function nactiKontakty(supabase: Db, orgId: string): Promise<ClientContact[]> {
   const [{ data: klienti }, { data: kontakty }] = await Promise.all([
@@ -289,16 +295,24 @@ async function syncMailboxWith(supabase: Db, orgId: string, userId: string, trid
       mailSources(stitky),
     );
 
-    const [kontakty, { data: ignorovani }, { data: stavajici }] = await Promise.all([
+    const [kontakty, { data: ignorovani }, { data: stavajici }, platniKlienti] = await Promise.all([
       nactiKontakty(supabase, orgId),
       supabase.from("mail_ignored").select("pattern").eq("user_id", userId),
       supabase.from("mail_messages").select("gmail_id, handled_at, task_id").eq("user_id", userId),
+      aktivniKlienti(supabase, orgId),
     ]);
+
+    // Klient přiřazený ke štítku platí, jen dokud ve studiu je — smazaný nebo
+    // archivovaný by zprávu při ukládání shodil (nebo ji přiřadil nikomu).
+    const stitkySKlientem = stitky.map((s) =>
+      s.clientId && !platniKlienti.has(s.clientId) ? { id: s.id, name: s.name } : s,
+    );
 
     const zpravy = triage(syrove, {
       myEmail: ucet.email as string,
       contacts: kontakty,
       ignored: (ignorovani ?? []).map((i) => i.pattern as string),
+      labelClient: (ids) => labelClient(stitkySKlientem, ids),
     });
 
     // Ruční zásahy („vyřízeno“, vzniklý úkol) se při obnovení nesmí ztratit.
@@ -775,13 +789,17 @@ export async function listGmailLabels(userId: string): Promise<MailLabelsResult>
  * Uložení výběru štítků, ze kterých se pošta načítá navíc k doručené.
  * Z prohlížeče přijdou jen identifikátory; jména a to, že štítek opravdu
  * existuje, se bere z Gmailu. Ukládá se jen vybrané, ne celý seznam štítků.
+ *
+ * `clients` přiřazuje štítku klienta (`{ idŠtítku: idKlienta }`) — pošta z toho
+ * štítku se pak při načtení označí jako jeho. Uloží se jen klient z tohohle
+ * studia, který není v archivu.
  */
-export async function setMailLabels(userId: string, ids: unknown): Promise<MailLabelsResult> {
+export async function setMailLabels(orgId: string, userId: string, ids: unknown, clients: unknown = null): Promise<MailLabelsResult> {
   const dostupne = await listGmailLabels(userId);
   if (!dostupne.ok) return dostupne;
 
-  const labels = pickLabels(ids, dostupne.labels);
   const supabase = await supabaseServer();
+  const labels = pickLabels(ids, dostupne.labels, clients, await aktivniKlienti(supabase, orgId));
   const { data, error } = await supabase.from("mail_accounts").update({ labels }).eq("user_id", userId).select("id");
   if (error) return { ok: false, message: error.message };
   if (!data?.length) return { ok: false, message: "Schránka není připojená." };
