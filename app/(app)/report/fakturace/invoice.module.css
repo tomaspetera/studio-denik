@@ -1,0 +1,77 @@
+/* Podklad pro fakturaci (viz InvoiceView.tsx, lib/invoice.ts) — co se za měsíc
+   uzavřelo, po klientech. Stejný jazyk karet jako Dnes a Můj týden. */
+
+.wrap { max-width: 860px; margin: 0 auto; width: 100%; }
+
+.head {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--s4);
+  flex-wrap: wrap;
+  margin-bottom: var(--s5);
+}
+.h1 {
+  font-family: var(--ui-d);
+  font-size: 26px;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  line-height: 1.2;
+  margin: 0;
+}
+.sub { font-family: var(--ui-s); font-size: 12.5px; color: var(--muted); margin: 4px 0 0; }
+.tools { display: flex; gap: var(--s2); margin-left: auto; flex-wrap: wrap; }
+
+.error {
+  margin: 0 0 var(--s4);
+  padding: 10px var(--s4);
+  border-radius: var(--r2);
+  background: var(--alarm-soft);
+  color: var(--alarm);
+  font-size: 13px;
+}
+
+.group { margin-bottom: var(--s4); }
+.groupHead {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px var(--s4);
+  border-bottom: 1px solid var(--line);
+  background: var(--grad-raise);
+  border-radius: calc(var(--r3) - 1px) calc(var(--r3) - 1px) 0 0;
+}
+.groupHead i { width: 9px; height: 9px; border-radius: 3px; background: var(--muted); flex: none; }
+.groupHead h2 { font-size: 14.5px; font-weight: 700; margin: 0; min-width: 0; overflow-wrap: anywhere; }
+.groupHead em { font-style: normal; font-family: var(--mono); font-size: 12px; color: var(--muted); white-space: nowrap; }
+.groupHead button { margin-left: auto; flex: none; }
+
+.list { list-style: none; margin: 0; padding: 0; }
+.list li {
+  display: grid;
+  grid-template-columns: 62px minmax(0, 1fr) auto;
+  align-items: baseline;
+  column-gap: var(--s3);
+  padding: 9px var(--s4);
+  border-bottom: 1px solid var(--line);
+}
+.list li:last-child { border-bottom: 0; }
+.date { font-family: var(--mono); font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.title { font-size: 14px; font-weight: 500; color: inherit; text-decoration: none; overflow-wrap: anywhere; }
+.title:hover { text-decoration: underline; text-underline-offset: 3px; }
+.size { font-family: var(--ui-s); font-size: 12px; color: var(--muted); white-space: nowrap; }
+
+.empty { margin: 0; padding: var(--s6) var(--s5); text-align: center; color: var(--muted); font-size: 14px; }
+
+.foot {
+  margin: var(--s5) var(--s1) 0;
+  font-family: var(--ui-s);
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--muted);
+}
+.foot a { color: var(--accent); font-weight: 600; text-decoration: none; }
+.foot a:hover { text-decoration: underline; text-underline-offset: 3px; }
+
+@media print {
+  .tools, .groupHead button, .foot { display: none; }
+}

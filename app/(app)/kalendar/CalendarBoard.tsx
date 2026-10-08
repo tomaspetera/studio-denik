@@ -12,6 +12,8 @@ import {
   type DateKey,
 } from "@/lib/domain";
 import type { CalendarEvent, CalendarTone } from "@/lib/calendar";
+import { planTarget } from "@/lib/week";
+import { planTaskAction } from "../tyden/actions";
 import type { Client } from "@/lib/tasks";
 import {
   setTaskDueDateAction,
@@ -24,12 +26,13 @@ import styles from "./calendar.module.css";
 
 const KIND_LABEL = {
   due: "Termín",
+  plan: "V plánu",
   agreed: "Domluveno",
   print: "Slíbeno tiskárnou",
   reminder: "Připomínka",
   absence: "Nepřítomnost",
 } as const;
-const KIND_ORDER = { due: 0, reminder: 1, agreed: 2, print: 3, absence: 4 } as const;
+const KIND_ORDER = { due: 0, plan: 1, reminder: 2, agreed: 3, print: 4, absence: 5 } as const;
 
 function toneLabel(tone: CalendarTone): string {
   if (tone === "alarm") return "po termínu";
@@ -110,6 +113,14 @@ export default function CalendarBoard({
     });
   }
 
+  /** Přetažení plánu (čárkovaná položka) — mění den z „Můj týden“, termín zůstává. */
+  function movePlan(taskId: string, toKey: DateKey) {
+    startTransition(async () => {
+      await planTaskAction(taskId, planTarget(toKey, today));
+      router.refresh();
+    });
+  }
+
   return (
     <div className={styles.wrap}>
       <header className={styles.head}>
@@ -184,7 +195,9 @@ export default function CalendarBoard({
                 e.preventDefault();
                 setDragOverDay(null);
                 const taskId = e.dataTransfer.getData("text/task-id");
+                const planId = e.dataTransfer.getData("text/plan-task-id");
                 if (taskId) moveTask(taskId, key);
+                else if (planId) movePlan(planId, key);
               }}
             >
               <span className={styles.cellNum}>{dayNum}</span>
@@ -192,15 +205,22 @@ export default function CalendarBoard({
                 {dayEvents.slice(0, 3).map((ev) => (
                   <span
                     key={ev.id}
-                    className={`${styles.item} o-${ev.tone} ${ev.done ? styles.itemDone : ""}`}
-                    draggable={ev.kind === "due"}
+                    className={`${styles.item} o-${ev.tone} ${ev.done ? styles.itemDone : ""} ${ev.kind === "plan" ? styles.itemPlan : ""}`}
+                    draggable={ev.kind === "due" || ev.kind === "plan"}
                     onDragStart={(e) => {
                       e.stopPropagation();
                       if (!ev.taskId) return;
-                      e.dataTransfer.setData("text/task-id", ev.taskId);
+                      // Termín a plán jsou dvě různé věci — každá se přetahuje pod svým klíčem.
+                      e.dataTransfer.setData(ev.kind === "plan" ? "text/plan-task-id" : "text/task-id", ev.taskId);
                       e.dataTransfer.effectAllowed = "move";
                     }}
-                    title={ev.kind === "due" ? `${ev.title} — přetažením změníš termín` : ev.title}
+                    title={
+                      ev.kind === "due"
+                        ? `${ev.title} — přetažením změníš termín`
+                        : ev.kind === "plan"
+                          ? `${ev.title} — v plánu na tenhle den; přetažením ho změníš`
+                          : ev.title
+                    }
                   >
                     {ev.title}
                   </span>
@@ -219,7 +239,8 @@ export default function CalendarBoard({
         <span><i className="o-note" />Připomínka</span>
         <span><i className="o-flat" />Nepřítomnost</span>
         <span><i className="o-alarm" />Po termínu</span>
-        <span className={styles.legendHint}>Termín (plná barva) jde přetáhnout na jiný den.</span>
+        <span><i className={`o-me ${styles.legendPlan}`} />V plánu (Můj týden)</span>
+        <span className={styles.legendHint}>Termín i plán jde přetáhnout na jiný den.</span>
       </p>
 
       {selectedDay && (

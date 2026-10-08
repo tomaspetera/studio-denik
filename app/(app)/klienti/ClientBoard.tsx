@@ -9,6 +9,7 @@ import type { ClientRow } from "@/lib/clients";
 import type { ClientContact } from "@/lib/client-contacts";
 import type { TimelineEntry } from "@/lib/client-timeline";
 import {
+  applyBrandMovesAction,
   createClientAction,
   updateClientAction,
   lookupAresAction,
@@ -23,6 +24,7 @@ import {
   updateClientNoteAction,
   deleteClientNoteAction,
 } from "./actions";
+import type { MoveSuggestion } from "@/lib/brand-match";
 import styles from "./clients.module.css";
 
 const TIMELINE_LABEL: Record<TimelineEntry["kind"], string> = {
@@ -44,12 +46,15 @@ const RELATIONSHIP_PRESETS = ["Stálý klient", "Jednorázová zakázka", "Nový
 export default function ClientBoard({
   clients,
   contactsByClient,
+  moves,
   siteUrl,
   today,
   highlightId,
 }: {
   clients: ClientRow[];
   contactsByClient: Record<string, ClientContact[]>;
+  /** Úkoly, které mají jméno klienta v názvu a patří jinam — návrh k potvrzení. */
+  moves: MoveSuggestion[];
   siteUrl: string;
   /** Dnešek podle Prahy, počítaný na serveru — prohlížeč by ho mohl mít v jiném pásmu. */
   today: DateKey;
@@ -224,6 +229,18 @@ export default function ClientBoard({
                     </dd>
                   </div>
                 </dl>
+
+                {(() => {
+                  const navrh = moves.find((m) => m.clientId === c.id);
+                  return navrh ? (
+                    <MoveOffer
+                      name={c.name}
+                      tasks={navrh.tasks}
+                      disabled={pending}
+                      onApply={() => run(() => applyBrandMovesAction(c.id))}
+                    />
+                  ) : null;
+                })()}
 
                 {c.next_step_at && (
                   <p
@@ -1020,6 +1037,57 @@ function NoteForm({
         </button>
         <button type="button" className="btn btn-ghost btn-sm" onClick={onCancel}>Zrušit</button>
       </div>
+    </div>
+  );
+}
+
+/**
+ * Nabídka přeřadit ke klientovi úkoly, které mají jeho jméno v názvu a patří
+ * jinam (typicky značka, která se teprve teď stala klientem). Nejdřív ukáže,
+ * o které úkoly jde — přeřadí se až po potvrzení.
+ */
+function MoveOffer({
+  name,
+  tasks,
+  disabled,
+  onApply,
+}: {
+  name: string;
+  tasks: { id: string; title: string }[];
+  disabled: boolean;
+  onApply: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const n = tasks.length;
+  const kolik = n === 1 ? "1 úkol má" : n >= 2 && n <= 4 ? `${n} úkoly mají` : `${n} úkolů má`;
+
+  return (
+    <div className={styles.moveOffer}>
+      <p>
+        {kolik} „{name}“ v názvu a patří jinam.{" "}
+        {!open && (
+          <button type="button" className={styles.moveLink} onClick={() => setOpen(true)}>
+            Ukázat
+          </button>
+        )}
+      </p>
+      {open && (
+        <>
+          <ul>
+            {tasks.map((t) => (
+              <li key={t.id}>{t.title}</li>
+            ))}
+          </ul>
+          <div className={styles.moveActs}>
+            <button type="button" className="btn btn-sm btn-primary" disabled={disabled} onClick={onApply}>
+              Přiřadit sem
+            </button>
+            <button type="button" className="btn btn-sm btn-ghost" onClick={() => setOpen(false)}>
+              Nechat
+            </button>
+          </div>
+        </>
+      )}
     </div>
   );
 }

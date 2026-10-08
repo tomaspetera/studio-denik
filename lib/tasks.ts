@@ -294,7 +294,7 @@ export async function createTask(input: NewTask): Promise<ActionResult> {
     category_id: input.categoryId ?? null,
     supplier_id: input.supplierId ?? null,
     due_at: input.dueAt ?? null,
-    note: input.note ?? null,
+    note: input.note?.trim() || null,
     created_by: user?.id ?? null,
     assignee_id: user?.id ?? null,
   });

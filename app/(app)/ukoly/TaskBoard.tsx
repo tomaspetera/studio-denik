@@ -17,6 +17,7 @@ import {
 import { shortDateLabel } from "@/lib/buckets";
 import { quickDates, type QuickDate } from "@/lib/quick-dates";
 import { dueChip } from "@/lib/today";
+import { noteParts } from "@/lib/links";
 import type { Category, Client, TaskRow } from "@/lib/tasks";
 import type { TaskTemplate } from "@/lib/templates";
 import type { RecurringRule } from "@/lib/recurring";
@@ -375,6 +376,16 @@ export default function TaskBoard({
         </div>
       )}
 
+      {/* Záloha: obyčejné odkazy na soubor, prohlížeč ho rovnou stáhne. */}
+      {tasks.length > 0 && (
+        <p className={styles.backup}>
+          Záloha pro Excel:{" "}
+          <a href="/api/export?co=ukoly" download>stáhnout úkoly</a>
+          {" · "}
+          <a href="/api/export?co=klienti" download>stáhnout klienty</a>
+        </p>
+      )}
+
       <UndoToast undo={undo} disabled={pending} />
 
       {composer && (
@@ -501,6 +512,7 @@ function Row({
           <span className={styles.rowSub}>
             {task.step_name}
             {task.supplier_name ? ` · ${task.supplier_name}` : ""}
+            {task.note ? " · poznámka" : ""}
           </span>
         </span>
 
@@ -639,6 +651,21 @@ function Row({
                 {formatReplyDate(task.client_reply_at)}:
               </b>
               {" "}„{task.client_reply}“
+            </p>
+          )}
+
+          {/* Poznámka je obyčejný text; adresy v ní jdou rozkliknout (podklady, e-mail v Gmailu). */}
+          {task.note && (
+            <p className={styles.taskNote}>
+              {noteParts(task.note).map((c, i) =>
+                c.kind === "link" ? (
+                  <a key={i} href={c.url} target="_blank" rel="noopener noreferrer" title={c.url}>
+                    {c.label}
+                  </a>
+                ) : (
+                  <span key={i}>{c.text}</span>
+                ),
+              )}
             </p>
           )}
 

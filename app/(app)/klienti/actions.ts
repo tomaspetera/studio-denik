@@ -21,6 +21,14 @@ import {
 import { listClientTimeline, type TimelineEntry } from "@/lib/client-timeline";
 import { getWorkspace } from "@/lib/workspace";
 import { lookupAres, type AresResult } from "@/lib/ares";
+import { applyBrandMoves } from "@/lib/brand-data";
+
+/** Přeřadí ke klientovi úkoly, které mají jeho jméno v názvu. Které to jsou, počítá server. */
+export async function applyBrandMovesAction(clientId: string): Promise<{ ok: true; moved: number } | { ok: false; message: string }> {
+  const ws = await getWorkspace();
+  if (!ws || ws.state !== "ready") return { ok: false, message: "Pracovní prostor není připravený." };
+  return applyBrandMoves(ws.orgId, clientId);
+}
 
 /**
  * Dohledání v ARESu běží na serveru, ne v prohlížeči.

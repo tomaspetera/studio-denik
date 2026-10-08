@@ -148,6 +148,22 @@ dnešek a je tak označené (`lib/week.ts`); na Dnes je naplánované v „Na to
 první. Bez sloupce (před migrací 0025) se stránky nerozbijí — plán je prostě
 prázdný a pokus o zařazení to řekne.
 
+**Značky jako klienti.** Kdo dělá pro jednu firmu víc značek, založí je jako
+klienty — pak mají vlastní barvu, filtr i oddíl v reportu. Dvě pomůcky
+(`lib/brand-match.ts`, bez AI): v nastavení pošty jde u štítku Gmailu zvolit
+„založit klienta“ (jméno ze štítku, zakládá server až při uložení), a stránka
+Klienti nabídne přeřadit úkoly, které mají jméno klienta v názvu a patří jinam.
+Nic se nepřeřazuje samo; které úkoly to jsou, počítá server.
+
+**Poznámka u úkolu.** Obyčejný text; adresy `http(s)` v něm jdou rozkliknout
+(`lib/links.ts`). Úkol založený z e-mailu si do poznámky uloží odkaz na tu
+zprávu v Gmailu — `/soukromi` to říká.
+
+**Podklad pro fakturaci a záloha.** `/report/fakturace` ukáže, co se za měsíc
+uzavřelo, po klientech, s textem ke zkopírování (`lib/invoice.ts`; ceny ani
+hodiny appka neeviduje). `/api/export?co=ukoly|klienti` vrátí přihlášenému
+člověku data jeho studia jako CSV pro Excel (`lib/csv.ts`).
+
 **Report do e-mailu.** Vedle PDF a odkazu jde report zkopírovat jako obyčejný
 text (`lib/report-text.ts`) — po klientech, u každého úkolu stav slovy a na
 konci zvlášť to, co čeká na schválení. V pátek ho připomene ranní upozornění.

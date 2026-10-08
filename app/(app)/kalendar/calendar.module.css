@@ -200,6 +200,13 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
+/* Plán není termín: jen obrys, ať se s termíny neplete. */
+.itemPlan {
+  padding: 0 5px;
+  background: transparent;
+  border: 1px dashed color-mix(in srgb, var(--tone) 65%, transparent);
+  font-weight: 500;
+}
 .item[draggable="true"] { cursor: grab; }
 .item[draggable="true"]:active { cursor: grabbing; }
 .itemDone { opacity: 0.55; text-decoration: line-through; }
@@ -227,6 +234,7 @@
 }
 .legend span { display: inline-flex; align-items: center; gap: 6px; }
 .legend i { width: 8px; height: 8px; border-radius: 3px; background: var(--tone); flex: none; }
+.legend i.legendPlan { background: transparent; border: 1px dashed var(--tone); }
 .legendHint { margin-left: auto; color: var(--faint); }
 
 /* ---------------------------------------------------------------- */

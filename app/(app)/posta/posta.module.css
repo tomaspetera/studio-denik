@@ -277,6 +277,20 @@
 .item:hover { background: var(--grad-raise); }
 .itemDone .itemMain, .itemDone .avatar { opacity: 0.55; }
 
+/* Tlačítko, které vypadá jako odkaz v textu. */
+.linkBtn {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-weight: 600;
+  color: var(--accent);
+  text-align: left;
+  cursor: pointer;
+}
+.linkBtn:hover { text-decoration: underline; text-underline-offset: 3px; }
+.linkBtn:disabled { opacity: 0.5; cursor: not-allowed; }
+
 /* Kolečko s iniciálami — podle něj se v seznamu pozná, kdo píše, dřív než se čte jméno. */
 .avatar {
   width: 36px;

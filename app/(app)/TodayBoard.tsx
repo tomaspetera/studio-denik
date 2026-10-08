@@ -13,7 +13,8 @@ import { WAIT_LONG_DAYS, waitLabel } from "@/lib/nudge";
 import { moveTaskAction } from "./ukoly/actions";
 import { setTaskDueDateAction } from "./kalendar/actions";
 import MailTaskDialog, { useMailTask } from "./posta/MailTaskDialog";
-import MailReplyDialog, { gmailThreadUrl, useMailReply } from "./posta/MailReplyDialog";
+import MailReplyDialog, { useMailReply } from "./posta/MailReplyDialog";
+import { gmailThreadUrl } from "@/lib/links";
 import ReplyCheck from "./posta/ReplyCheck";
 import DueChip from "./DueChip";
 import NudgeDialog from "./NudgeDialog";
@@ -344,6 +345,77 @@ export default function TodayBoard({
   );
 }
 
+/** U koho úkol na daném kroku leží — slovy, do nabídky kroků. */
+const OWNER: Record<Ball, string> = { me: "na tobě", client: "u klienta", supplier: "u dodavatele", done: "uzavřeno" };
+
+/**
+ * Dílky štafety jako tlačítko: ukazují, kde úkol stojí, a kliknutím nabídnou
+ * všechny kroky najednou. Úkol tak jde poslat klientovi nebo uzavřít jedním
+ * kliknutím i ze „Zadáno“, bez procházení krok po kroku.
+ */
+function StepPips({
+  t,
+  tone,
+  disabled,
+  onMove,
+}: {
+  t: TodayTask;
+  tone: string;
+  disabled: boolean;
+  onMove: (step: number, label: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    // `tabIndex` kvůli prohlížečům, které tlačítku po kliknutí nedají fokus.
+    <div
+      className={styles.pipsCell}
+      tabIndex={-1}
+      onBlur={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget)) setOpen(false);
+      }}
+      onKeyDown={(e) => e.key === "Escape" && setOpen(false)}
+    >
+      <button
+        type="button"
+        className={`${styles.pips} ${tone}`}
+        disabled={disabled}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-label={`${t.title}: ${t.stepName}, krok ${t.step + 1} z ${t.steps.length}. Změnit krok`}
+        title={`${t.stepName} — krok ${t.step + 1} z ${t.steps.length}. Kliknutím změníš krok.`}
+        onClick={() => setOpen(!open)}
+      >
+        {t.steps.map((s, i) => (
+          <i key={s.label} className={i < t.step ? styles.pipOn : i === t.step ? styles.pipAt : undefined} />
+        ))}
+      </button>
+
+      {open && (
+        <div className={styles.stepMenu} role="menu">
+          {t.steps.map((s, i) => (
+            <button
+              key={s.label}
+              type="button"
+              role="menuitemradio"
+              aria-checked={i === t.step}
+              className={`${TONE[s.owner]} ${i === t.step ? styles.stepOn : ""}`}
+              onClick={() => {
+                setOpen(false);
+                if (i !== t.step) onMove(i, s.label);
+              }}
+            >
+              <i aria-hidden="true" />
+              <span>{s.label}</span>
+              <em>{OWNER[s.owner]}</em>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 /** Dlaždice s číslem. Nula je klidná — bez barvy, ať nekřičí, že je něco v pořádku. */
 function Stat({ href, tone, n, label, note, alarm = false }: { href: string; tone: string; n: number; label: string; note: string; alarm?: boolean }) {
   const obsah = (
@@ -391,11 +463,7 @@ function TaskRow({
 
   return (
     <li className={`${styles.row} ${busy ? styles.rowBusy : ""}`}>
-      <span className={`${styles.pips} ${tone}`} title={`${t.stepName} — krok ${t.step + 1} z ${t.steps.length}`} aria-hidden="true">
-        {t.steps.map((s, i) => (
-          <i key={s.label} className={i < t.step ? styles.pipOn : i === t.step ? styles.pipAt : undefined} />
-        ))}
-      </span>
+      <StepPips t={t} tone={tone} disabled={disabled} onMove={onMove} />
 
       <div className={styles.main}>
         <span className={styles.title}>{t.title}</span>

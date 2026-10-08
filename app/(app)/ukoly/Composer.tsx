@@ -48,6 +48,7 @@ export default function Composer({
   const [categoryId, setCategoryId] = useState<string>("");
   const [dueAt, setDueAt] = useState<string>(toDateInput(task?.due_at ?? null) || presetDate || "");
   const [size, setSize] = useState(task?.size ?? 2);
+  const [note, setNote] = useState(task?.note ?? "");
   const [templateId, setTemplateId] = useState("");
   const [saveTemplate, setSaveTemplate] = useState(false);
   // Úkol už je zapsaný, jen se nepovedlo uložit šablonu — formulář se pak
@@ -83,6 +84,7 @@ export default function Composer({
         categoryId: categoryId || null,
         dueAt: dueAt ? new Date(dueAt).toISOString() : null,
         size,
+        note: note.trim() || null,
       };
 
       const res = task
@@ -270,6 +272,19 @@ export default function Composer({
             Velikost je nepovinná — ovlivňuje jen procenta v reportu. Když ji
             necháš být, počítá se každý úkol stejně.
           </p>
+
+          <label className={styles.label} htmlFor="t-note" style={{ marginTop: "var(--s5)" }}>
+            Poznámka a odkazy na podklady
+          </label>
+          <textarea
+            id="t-note"
+            className={`field ${styles.noteField}`}
+            rows={3}
+            value={note}
+            maxLength={4000}
+            onChange={(e) => setNote(e.target.value)}
+            placeholder="Co je potřeba vědět, odkaz na podklady na Disku nebo ve WeTransferu…"
+          />
 
           {!editing && !taskSavedNote && (
             <label className={styles.check}>

@@ -185,7 +185,66 @@
 .rowBusy { opacity: 0.5; pointer-events: none; }
 
 /* Dílky štafety — kolik kroků úkol má a na kterém stojí. Barva = u koho leží. */
-.pips { display: flex; align-items: center; gap: 2px; }
+.pipsCell { position: relative; }
+.pipsCell:focus { outline: none; }
+/* Dílky jsou tlačítko — kliknutím se nabídnou všechny kroky. */
+.pips {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  width: 100%;
+  padding: 9px 0;
+  border: 0;
+  border-radius: var(--r1);
+  background: none;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.pips:hover, .pips[aria-expanded="true"] { background: var(--sunk); box-shadow: 0 0 0 4px var(--sunk); }
+.pips:disabled { cursor: default; }
+
+.stepMenu {
+  position: absolute;
+  left: 0;
+  top: calc(100% + 6px);
+  z-index: 30;
+  min-width: 216px;
+  padding: var(--s1);
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  border: 1px solid var(--line-2);
+  border-radius: var(--r2);
+  box-shadow: var(--sh-3);
+  animation: enter 0.14s var(--ease);
+}
+.stepMenu button {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  padding: 7px 10px;
+  border: 0;
+  border-radius: var(--r1);
+  background: transparent;
+  font-size: 13.5px;
+  font-weight: 500;
+  text-align: left;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.stepMenu button:hover, .stepMenu button:focus-visible { background: var(--raise); }
+.stepMenu button > i { width: 8px; height: 8px; border-radius: 50%; background: var(--tone); flex: none; }
+.stepMenu em {
+  margin-left: auto;
+  padding-left: var(--s4);
+  font-style: normal;
+  font-family: var(--ui-s);
+  font-size: 11.5px;
+  color: var(--muted);
+}
+.stepMenu .stepOn { background: var(--tone-soft); color: var(--tone); font-weight: 700; }
+.stepMenu .stepOn em { color: var(--tone); }
 .pips i {
   flex: 1;
   height: 5px;
@@ -433,7 +492,7 @@
       ".    due  acts";
     row-gap: var(--s2);
   }
-  .pips { grid-area: pips; align-self: start; margin-top: 7px; }
+  .pipsCell { grid-area: pips; align-self: start; }
   .main { grid-area: main; }
   .dueCell { grid-area: due; justify-content: flex-start; }
   /* Termín je na telefonu vlevo — nabídka se proto otevírá doprava. */

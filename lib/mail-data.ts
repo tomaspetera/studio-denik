@@ -57,7 +57,10 @@ import {
 } from "./ai";
 import { TRIAGE_BODY_MAX, TRIAGE_JSON_SCHEMA, buildTriagePrompt, finishTriage } from "./mail-triage";
 import { mailCounts, type MailCounts, type MailPriority } from "./mail-buckets";
-import { labelClient, mailSources, pickLabels, readLabels, type MailLabel } from "./mail-labels";
+import { withMailLink } from "./links";
+import { labelClientName, normalizeName, planLabelClients } from "./brand-match";
+import { CLIENT_COLORS } from "./domain";
+import { LABELS_MAX, labelClient, mailSources, pickLabels, readLabels, type MailLabel } from "./mail-labels";
 import { listCategories, listClients } from "./tasks";
 import { dateKeyPrague, todayKeyPrague } from "./domain";
 
@@ -597,6 +600,12 @@ export async function listMail(userId: string): Promise<MailRow[]> {
   }));
 }
 
+/** Adresa připojené schránky — podle ní se v Gmailu vybírá účet. */
+async function adresaSchranky(supabase: Db, userId: string): Promise<string | null> {
+  const { data } = await supabase.from("mail_accounts").select("email").eq("user_id", userId).maybeSingle();
+  return (data?.email as string | null) ?? null;
+}
+
 /** Kolik čekajících vláken tichá kontrola nejvýš projde. */
 const KONTROLA_VLAKEN = 20;
 /** Kolik vláken se v Gmailu ověřuje souběžně. */
@@ -694,12 +703,13 @@ export async function taskFromMail(orgId: string, userId: string, mailId: string
   const supabase = await supabaseServer();
   const { data: zprava } = await supabase
     .from("mail_messages")
-    .select("subject, from_name, from_email, client_id, task_id")
+    .select("subject, from_name, from_email, client_id, task_id, thread_id")
     .eq("id", mailId)
     .maybeSingle();
   if (!zprava) return { ok: false, message: "Zpráva se nenašla." };
   // Dvojí kliknutí nesmí založit úkol dvakrát.
   if (zprava.task_id) return { ok: false, message: "Z téhle zprávy už úkol vznikl." };
+  const schranka = await adresaSchranky(supabase, userId);
 
   const kdo = (zprava.from_name as string | null)?.trim() || (zprava.from_email as string);
   const predmet = (zprava.subject as string | null)?.trim();
@@ -721,6 +731,8 @@ export async function taskFromMail(orgId: string, userId: string, mailId: string
       assignee_id: userId,
       created_by: userId,
       due_at: `${zaDvaDny.toISOString().slice(0, 10)}T00:00:00.000Z`,
+      // Odkaz na zprávu, ze které úkol vznikl — ať jde otevřít i za měsíc.
+      note: schranka ? withMailLink(null, zprava.thread_id as string, schranka) : null,
     })
     .select("id")
     .single();
@@ -828,7 +840,9 @@ export async function setMailFiles(userId: string, on: boolean): Promise<ActionR
   return { ok: true };
 }
 
-export type MailLabelsResult = { ok: true; labels: MailLabel[] } | { ok: false; message: string };
+export type MailLabelsResult =
+  | { ok: true; labels: MailLabel[]; /** Jména klientů, kteří při uložení nově vznikli ze štítků. */ created?: string[] }
+  | { ok: false; message: string };
 
 /**
  * Štítky, které má majitel schránky v Gmailu — pro výběr v nastavení. Čte se
@@ -856,18 +870,53 @@ export async function listGmailLabels(userId: string): Promise<MailLabelsResult>
  * štítku se pak při načtení označí jako jeho. Uloží se jen klient z tohohle
  * studia, který není v archivu.
  */
-export async function setMailLabels(orgId: string, userId: string, ids: unknown, clients: unknown = null): Promise<MailLabelsResult> {
+export async function setMailLabels(
+  orgId: string,
+  userId: string,
+  ids: unknown,
+  clients: unknown = null,
+  /** Štítky, ke kterým se má klient teprve založit — jménem štítku z Gmailu, ne z prohlížeče. */
+  create: unknown = null,
+): Promise<MailLabelsResult> {
   const dostupne = await listGmailLabels(userId);
   if (!dostupne.ok) return dostupne;
 
   const supabase = await supabaseServer();
-  const labels = pickLabels(ids, dostupne.labels, clients, await aktivniKlienti(supabase, orgId));
+
+  const komu: Record<string, unknown> = clients && typeof clients === "object" ? { ...(clients as Record<string, unknown>) } : {};
+  const created: string[] = [];
+  const zalozit = new Set(Array.isArray(create) ? create.filter((x): x is string => typeof x === "string") : []);
+  const vybrane = new Set(Array.isArray(ids) ? ids.filter((x): x is string => typeof x === "string") : []);
+  const kZalozeni = dostupne.labels.filter((l) => zalozit.has(l.id) && vybrane.has(l.id)).slice(0, LABELS_MAX);
+
+  if (kZalozeni.length > 0) {
+    const { data: stavajici } = await supabase.from("clients").select("id, name, color").eq("org_id", orgId).eq("archived", false);
+    const plan = planLabelClients(kZalozeni, (stavajici ?? []) as { id: string; name: string; color: string }[], CLIENT_COLORS);
+    for (const [labelId, clientId] of Object.entries(plan.reuse)) komu[labelId] = clientId;
+
+    if (plan.create.length > 0) {
+      const { data: nove, error: chyba } = await supabase
+        .from("clients")
+        .insert(plan.create.map((c) => ({ org_id: orgId, name: c.name, color: c.color })))
+        .select("id, name");
+      if (chyba) return { ok: false, message: chyba.message };
+      // Štítek → nový klient podle jména; dva štítky se stejným posledním jménem sdílí jednoho.
+      for (const l of kZalozeni) {
+        if (komu[l.id]) continue;
+        const novy = (nove ?? []).find((n) => normalizeName(n.name as string) === normalizeName(labelClientName(l.name)));
+        if (novy) komu[l.id] = novy.id as string;
+      }
+      created.push(...(nove ?? []).map((n) => n.name as string));
+    }
+  }
+
+  const labels = pickLabels(ids, dostupne.labels, komu, await aktivniKlienti(supabase, orgId));
   const { data, error } = await supabase.from("mail_accounts").update({ labels }).eq("user_id", userId).select("id");
   if (error) return { ok: false, message: error.message };
   if (!data?.length) return { ok: false, message: "Schránka není připojená." };
 
   revalidatePath("/", "layout");
-  return { ok: true, labels };
+  return { ok: true, labels, created };
 }
 
 /**
@@ -1347,7 +1396,7 @@ export async function createTasksFromMail(
   const supabase = await supabaseServer();
   const { data: zprava } = await supabase
     .from("mail_messages")
-    .select("task_id")
+    .select("task_id, thread_id")
     .eq("id", mailId)
     .eq("user_id", userId)
     .maybeSingle();
@@ -1357,6 +1406,21 @@ export async function createTasksFromMail(
 
   const zalozeno = await createProposedTasks(orgId, input);
   if (!zalozeno.ok) return zalozeno;
+
+  // Ke každému založenému úkolu odkaz na zprávu, ze které vznikl. Když se
+  // nepovede, úkoly zůstanou — odkaz je jen pohodlí navíc.
+  const schranka = await adresaSchranky(supabase, userId);
+  if (schranka && zalozeno.ids.length > 0) {
+    const { data: nove } = await supabase.from("tasks").select("id, note").in("id", zalozeno.ids);
+    await Promise.all(
+      (nove ?? []).map((u) =>
+        supabase
+          .from("tasks")
+          .update({ note: withMailLink(u.note as string | null, zprava.thread_id as string, schranka) })
+          .eq("id", u.id as string),
+      ),
+    );
+  }
 
   await supabase
     .from("mail_messages")

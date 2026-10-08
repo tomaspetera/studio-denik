@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { BALL_LABEL, closedTasksPhrase, tasksWord, type Ball } from "@/lib/domain";
 import type { Provider } from "@/lib/ai";
 import type { StoredReport } from "@/lib/report";
@@ -241,6 +242,10 @@ export default function ReportView({
             </svg>
             <span>{streaming ? "Píšu…" : text ? "Přegenerovat" : "Vygenerovat"}</span>
           </button>
+
+          <Link href="/report/fakturace" className="btn" title="Co se za měsíc uzavřelo, po klientech — podklad pro fakturu">
+            Fakturace
+          </Link>
 
           {!streaming && data.byClient.length > 0 && (
             <button type="button" className="btn" onClick={copyText} title="Zkopíruje report jako text — stačí ho vložit do e-mailu">

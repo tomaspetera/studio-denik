@@ -31,6 +31,7 @@ export async function updateTaskAction(form: {
   categoryId: string | null;
   dueAt: string | null;
   size: number;
+  note?: string | null;
 }): Promise<ActionResult> {
   return updateTask(form);
 }
@@ -42,6 +43,7 @@ export async function createTaskAction(form: {
   categoryId: string | null;
   dueAt: string | null;
   size: number;
+  note?: string | null;
 }): Promise<ActionResult> {
   const ws = await getWorkspace();
   if (!ws || ws.state !== "ready") {
@@ -56,5 +58,6 @@ export async function createTaskAction(form: {
     categoryId: form.categoryId,
     dueAt: form.dueAt,
     size: form.size,
+    note: form.note,
   });
 }

@@ -6,6 +6,7 @@ import { csDate, plural, type DateKey } from "@/lib/domain";
 import type { MailRow } from "@/lib/mail-data";
 import { mailBucket, sortWaiting } from "@/lib/mail-buckets";
 import { initials } from "@/lib/mail-face";
+import { labelClientName } from "@/lib/brand-match";
 import { INBOX_ID, LABELS_MAX, clientOfLabel, labelRows, mailSources, sourcesLabel, withChildren, type MailLabel } from "@/lib/mail-labels";
 import type { Category, Client } from "@/lib/tasks";
 import {
@@ -34,6 +35,9 @@ const CHYBY: Record<string, string> = {
   stav: "Připojení se nepodařilo ověřit. Zkus to prosím znovu.",
   access_denied: "Souhlas nebyl udělen, schránka se nepřipojila.",
 };
+
+/** Hodnota ve výběru klienta u štítku: klient se teprve založí. */
+const NOVY_KLIENT = "__novy__";
 
 function kdy(iso: string): string {
   const d = new Date(iso);
@@ -97,7 +101,8 @@ export default function MailBoard({
   const [menu, setMenu] = useState<string | null>(null);
   const [podpis, setPodpis] = useState(signature ?? "");
   /** Výběr štítků v nastavení: `null` = zavřený; jinak štítky z Gmailu a co je zaškrtnuté. */
-  const [stitky, setStitky] = useState<{ all: MailLabel[]; picked: string[]; clients: Record<string, string> } | null>(null);
+  // `create` = štítky, ke kterým se klient při uložení teprve založí (podle jména štítku).
+  const [stitky, setStitky] = useState<{ all: MailLabel[]; picked: string[]; clients: Record<string, string>; create: string[] } | null>(null);
   const [pending, startTransition] = useTransition();
 
   const ukol = useMailTask((zprava) => {
@@ -107,7 +112,7 @@ export default function MailBoard({
   });
   const odpoved = useMailReply();
 
-  type Vysledek = { ok: boolean; message?: string; count?: number; sorted?: number; note?: string };
+  type Vysledek = { ok: boolean; message?: string; count?: number; sorted?: number; note?: string; created?: string[] };
 
   function run(fn: () => Promise<Vysledek>, poUspechu?: (r: Vysledek) => string | null) {
     setHlaska(null);
@@ -142,6 +147,7 @@ export default function MailBoard({
               .filter((l) => l.clientId && clients.some((c) => c.id === l.clientId))
               .map((l) => [l.id, l.clientId as string]),
           ),
+          create: [],
         });
       }
     });
@@ -322,19 +328,23 @@ export default function MailBoard({
                         <span>{l.short}</span>
                       </label>
                       {/* Komu pošta z tohohle štítku patří — má přednost před adresou odesílatele. */}
-                      {stitky.picked.includes(l.id) && clients.length > 0 && (
+                      {stitky.picked.includes(l.id) && (
                         <select
                           className={`field ${styles.labelClient}`}
                           aria-label={`Klient pro štítek ${l.name}`}
-                          value={stitky.clients[l.id] ?? ""}
+                          value={stitky.create.includes(l.id) ? NOVY_KLIENT : (stitky.clients[l.id] ?? "")}
                           onChange={(e) => {
                             const klient = e.target.value;
                             setStitky((s) => {
                               if (!s) return s;
                               const dalsi = { ...s.clients };
-                              if (klient) dalsi[l.id] = klient;
+                              const create = s.create.filter((id) => id !== l.id);
+                              if (klient === NOVY_KLIENT) {
+                                delete dalsi[l.id];
+                                create.push(l.id);
+                              } else if (klient) dalsi[l.id] = klient;
                               else delete dalsi[l.id];
-                              return { ...s, clients: dalsi };
+                              return { ...s, clients: dalsi, create };
                             });
                           }}
                         >
@@ -347,6 +357,10 @@ export default function MailBoard({
                           {clients.map((c) => (
                             <option key={c.id} value={c.id}>{c.name}</option>
                           ))}
+                          {/* Značka, která ještě klientem není: založí se při uložení, jménem štítku. */}
+                          {!clients.some((c) => c.name.toLowerCase() === labelClientName(l.name).toLowerCase()) && (
+                            <option value={NOVY_KLIENT}>+ založit klienta „{labelClientName(l.name)}“</option>
+                          )}
                         </select>
                       )}
                     </li>
@@ -359,16 +373,49 @@ export default function MailBoard({
                 {stitky.picked.length > LABELS_MAX && (
                   <p className={styles.warn}>Najednou jde načítat nejvýš {LABELS_MAX} zdrojů — některé odškrtni.</p>
                 )}
+                {/* Značky jedním kliknutím: každý vybraný štítek bez klienta si ho založí. Před uložením jde u každého změnit. */}
+                {(() => {
+                  const bezKlienta = stitky.all.filter(
+                    (l) =>
+                      stitky.picked.includes(l.id) &&
+                      !stitky.clients[l.id] &&
+                      !stitky.create.includes(l.id) &&
+                      !clients.some((c) => c.name.toLowerCase() === labelClientName(l.name).toLowerCase()),
+                  );
+                  return bezKlienta.length > 0 ? (
+                    <p className={styles.note}>
+                      <button
+                        type="button"
+                        className={styles.linkBtn}
+                        disabled={zaneprazdnen}
+                        onClick={() => setStitky((s) => (s ? { ...s, create: [...s.create, ...bezKlienta.map((l) => l.id)] } : s))}
+                      >
+                        Založit klienty pro štítky bez klienta ({bezKlienta.map((l) => labelClientName(l.name)).join(", ")})
+                      </button>{" "}
+                      — značka pak má vlastní barvu, filtr v Úkolech i oddíl v reportu.
+                    </p>
+                  ) : null;
+                })()}
+                {stitky.create.length > 0 && (
+                  <p className={styles.note}>
+                    Při uložení se založí:{" "}
+                    <b>{stitky.all.filter((l) => stitky.create.includes(l.id)).map((l) => labelClientName(l.name)).join(", ")}</b>.
+                    Jméno a barvu pak změníš v Klientech.
+                  </p>
+                )}
                 <div className={styles.row}>
                   <button
                     type="button"
                     className="btn btn-sm btn-primary"
                     disabled={zaneprazdnen || stitky.picked.length === 0 || stitky.picked.length > LABELS_MAX}
                     onClick={() =>
-                      run(() => setMailLabelsAction(stitky.picked, stitky.clients), () => {
+                      run(() => setMailLabelsAction(stitky.picked, stitky.clients, stitky.create), (res) => {
                         const sDorucenou = stitky.picked.includes(INBOX_ID);
                         const seStitky = stitky.picked.some((id) => id !== INBOX_ID);
                         setStitky(null);
+                        if (res.created?.length) {
+                          return `Uloženo. Založení klienti: ${res.created.join(", ")}. Úkoly, které mají značku v názvu, jim přiřadíš v Klientech. Klikni na Obnovit.`;
+                        }
                         return !seStitky
                           ? "Uloženo — načítá se jen doručená pošta. Klikni na Obnovit."
                           : sDorucenou

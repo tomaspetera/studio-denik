@@ -1,7 +1,8 @@
 import "server-only";
 
 import { supabaseServer } from "./supabase/server";
-import { dateKeyUTC, addDaysKey, type Ball, type DateKey } from "./domain";
+import { dateKeyUTC, addDaysKey, todayKeyPrague, type Ball, type DateKey } from "./domain";
+import { loadPlans } from "./week-data";
 import { listReminders } from "./reminders";
 import { listAbsences } from "./absences";
 
@@ -26,7 +27,8 @@ export type CalendarEvent = {
   /** `null` u všeho, co nepochází z připomínky. */
   reminderId: string | null;
   dateKey: DateKey;
-  kind: "due" | "agreed" | "print" | "reminder" | "absence";
+  /** "plan" = den, na který si úkol člověk naplánoval (Můj týden) — není to termín. */
+  kind: "due" | "plan" | "agreed" | "print" | "reminder" | "absence";
   title: string;
   note: string | null;
   /** Jen u připomínky se dá v kalendáři měnit — u úkolu se klient mění v Úkolech. */
@@ -48,7 +50,7 @@ export async function getCalendarToken(orgId: string): Promise<string | null> {
 export async function listCalendarEvents(orgId: string): Promise<CalendarEvent[]> {
   const supabase = await supabaseServer();
 
-  const [{ data: tasks }, { data: jobs }, reminders, absences] = await Promise.all([
+  const [{ data: tasks }, { data: jobs }, reminders, absences, plany] = await Promise.all([
     supabase
       .from("tasks_view")
       .select("id,title,due_at,agreed_at,agreed_note,ball,is_late,client_name,client_color,step_name")
@@ -59,7 +61,9 @@ export async function listCalendarEvents(orgId: string): Promise<CalendarEvent[]
       .eq("org_id", orgId),
     listReminders(orgId),
     listAbsences(orgId),
+    loadPlans(orgId),
   ]);
+  const dnes = todayKeyPrague();
 
   // Jen na dohledání jména k nepřítomnosti — organizace je malá.
   const { data: profiles } = absences.length
@@ -98,6 +102,28 @@ export async function listCalendarEvents(orgId: string): Promise<CalendarEvent[]
         tone: t.is_late ? "alarm" : t.ball,
         stepName: t.step_name,
         done: t.ball === "done",
+      });
+    }
+    // Den, na který si úkol člověk naplánoval. Jen vlastní otevřená práce;
+    // co se nestihlo, je u dneška — stejně jako na stránce Týden. Když plán
+    // padne na stejný den jako termín, stačí v buňce jednou: termín.
+    const plan = t.ball === "me" ? plany.get(t.id) : undefined;
+    const denPlanu = plan ? (plan < dnes ? dnes : plan) : null;
+    if (denPlanu && (!t.due_at || dateKeyUTC(t.due_at) !== denPlanu)) {
+      events.push({
+        id: `plan-${t.id}`,
+        taskId: t.id,
+        reminderId: null,
+        dateKey: denPlanu,
+        kind: "plan",
+        title: t.title,
+        note: null,
+        clientId: null,
+        clientName: t.client_name,
+        clientColor: t.client_color,
+        tone: "me",
+        stepName: t.step_name,
+        done: false,
       });
     }
     if (t.agreed_at) {

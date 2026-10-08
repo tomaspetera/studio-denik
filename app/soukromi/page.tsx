@@ -95,7 +95,10 @@ export default function SoukromiPage() {
           zpráva patří. U schránky se ukládají názvy štítků, které sis vybral k načítání. <strong>Text zprávy ani její přílohy se neukládají</strong> — ani tehdy,
           když ti s ní pomáhá umělá inteligence. Uloží se až úkol nebo poptávka, které sám potvrdíš: název, krátké
           shrnutí a kontaktní údaje odesílatele (jméno a adresa, u poptávky i firma a telefon,
-          pokud je uvedl). Všechno můžeš před uložením přepsat. Návrh odpovědi se neukládá vůbec.
+          pokud je uvedl). Všechno můžeš před uložením přepsat. K úkolu založenému z e-mailu se do
+          poznámky uloží odkaz na tu zprávu v Gmailu (identifikátor vlákna a adresa tvé schránky),
+          aby šla později otevřít; poznámku vidí i kolegové ve studiu, zprávu ale otevře jen majitel
+          schránky, a odkaz můžeš z poznámky kdykoli smazat. Návrh odpovědi se neukládá vůbec.
           Je-li zapnuté automatické třídění, ukládá se u zprávy i její zařazení (spěchá, čeká na
           odpověď, jen pro informaci) a shrnutí jednou větou; vypnutím třídění se obojí smaže.
           Přihlašovací token ke Gmailu se ukládá šifrovaně a je přístupný jen serveru aplikace,
@@ -210,7 +213,9 @@ export default function SoukromiPage() {
           senders in those already-listed threads to see whether the user has replied; no new mail is
           loaded by that check and nothing is sent to AI. It never sends, deletes
           or modifies mail. It stores sender, subject, date, a status label, message/thread IDs and the matching
-          client, but never the message text or attachments. The Gmail access token is stored
+          client, but never the message text or attachments. A task the user creates from a message
+          keeps a link to that message in Gmail (thread ID and the mailbox address) in its note, which
+          the user can delete. The Gmail access token is stored
           encrypted and is only available to the server.
         </p>
         <p lang="en">
